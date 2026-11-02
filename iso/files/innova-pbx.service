@@ -1,0 +1,16 @@
+[Unit]
+Description=Innova PBX (Docker Compose steki)
+Requires=docker.service
+After=docker.service network-online.target nftables.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/opt/innova/bin/innova-start
+ExecStop=/bin/sh -c 'cd /opt/innova/deploy && docker compose -f docker-compose.yml -f docker-compose.appliance.yml --env-file .env stop'
+# Birinchi yuklanishda obrazlarni yuklash sekin disklarda bir necha daqiqa oladi.
+TimeoutStartSec=1800
+
+[Install]
+WantedBy=multi-user.target

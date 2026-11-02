@@ -1,0 +1,2 @@
+grpnum	strategy	grptime	grppre	grplist	annmsg_id	postdest	description	alertinfo	remotealert_id	needsconf	toolate_id	ringing	cwignore	cfignore	cpickup	recording	progress	elsewhere	rvolume
+600	ringall	20		101-102-103-0991234567#	0	ext-local,105,1	Sinov qo'ng'iroq guruhi		0		0					dontcare	yes		

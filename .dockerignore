@@ -1,0 +1,14 @@
+# Faqat `web/Dockerfile` (compose `web` servisi) loyiha ildizini kontekst qiladi — api/asterisk
+# o'z kataloglarini kontekst qiladi, bu fayl ularga ta'sir qilmaydi. Allowlist: kerakli narsa xolos.
+*
+!web
+!replica/design
+!deploy/web-nginx.conf
+web/node_modules
+web/dist
+web/target
+web/coverage
+web/.metrics
+web/test-results
+web/e2e
+web/Dockerfile

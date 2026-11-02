@@ -1,0 +1,77 @@
+/* Shriftlar — self-hosted (@fontsource), CDN yo'q. Faqat ishlatiladigan og'irliklar. */
+@import '@fontsource/ibm-plex-sans/400.css';
+@import '@fontsource/ibm-plex-sans/500.css';
+@import '@fontsource/ibm-plex-sans/600.css';
+@import '@fontsource/ibm-plex-sans-condensed/500.css';
+@import '@fontsource/ibm-plex-sans-condensed/600.css';
+@import '@fontsource/ibm-plex-mono/400.css';
+@import '@fontsource/ibm-plex-mono/500.css';
+@import './fonts/apostrof.css';
+@import '@design/tokens.css';
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+  body {
+    @apply bg-bg font-sans text-base text-fg;
+    font-feature-settings: 'ss02' on;
+  }
+  ::selection {
+    @apply bg-accent-soft text-on-accent-soft;
+  }
+  :focus-visible {
+    outline: 2px solid rgb(var(--c-focus-ring));
+    outline-offset: 2px;
+  }
+  h1, h2, h3, h4 {
+    @apply font-display;
+    text-wrap: balance;
+  }
+  code, kbd, samp {
+    @apply font-mono;
+  }
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: rgb(var(--c-border-strong)) transparent;
+  }
+}
+
+@layer components {
+  /* Raqamlar doim teng enli — jadvallar, KPI, vaqt, raqamlar ustun bo'ylab tekis turadi. */
+  .num {
+    @apply font-mono;
+    font-variant-numeric: tabular-nums slashed-zero;
+    font-feature-settings: 'zero' on;
+  }
+  .eyebrow {
+    @apply text-2xs uppercase text-muted;
+  }
+  .hairline-grid {
+    background-image:
+      linear-gradient(rgb(var(--c-border) / 0.7) 1px, transparent 1px),
+      linear-gradient(90deg, rgb(var(--c-border) / 0.7) 1px, transparent 1px);
+    background-size: 24px 24px;
+  }
+  .skeleton {
+    background: linear-gradient(90deg, rgb(var(--c-surface-2)) 0%, rgb(var(--c-border)) 50%, rgb(var(--c-surface-2)) 100%);
+    background-size: 200% 100%;
+    @apply animate-shimmer rounded-sm;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

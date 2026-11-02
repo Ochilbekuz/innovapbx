@@ -1,0 +1,2 @@
+grpnum	strategy	grptime	grppre	grplist	annmsg_id	postdest	dring	rvolume	remotealert_id	needsconf	toolate_id	pre_ring	ringing	calendar_enable	calendar_id	calendar_group_id	calendar_match
+107	hunt	25		107-0991234567#	NULL	ext-local,107,dest			NULL		NULL	7	Ring	0			yes

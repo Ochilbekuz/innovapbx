@@ -1,0 +1,4 @@
+ivr_id	selection	dest	ivr_ret
+1	1	ext-local,101,1	0
+1	2	ext-group,600,1	0
+1	3	ext-queues,700,1	0

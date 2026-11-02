@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="ISO-8859-1"?>
+<!DOCTYPE scenario SYSTEM "sipp.dtd">
+<!-- Innova PBX — M1a m1a-proof.sh ssenariy 1: trunk INVITE -> IVR javob beradi
+     (Answer()) -> «1» raqamini SIP INFO (application/dtmf-relay) orqali
+     yuboradi (dtmf_mode='info', alembic/sql/0004_dtmf_info.sql) -> IVR
+     navbatga o'tkazadi -> navbat a'zosi javob beradi -> BYE.
+     DID "712000000" va bosiladigan raqam "1" ishga tushirish skriptida
+     (m1a-proof.sh) `sed` bilan almashtiriladi — asl fayl o'zgarmaydi. -->
+<scenario name="UacIvrDtmf">
+  <send retrans="500">
+    <![CDATA[
+      INVITE sip:712000000@[remote_ip]:[remote_port] SIP/2.0
+      Via: SIP/2.0/UDP [local_ip]:[local_port];branch=[branch]
+      From: <sip:trunkcaller@[local_ip]>;tag=[call_number]
+      To: <sip:712000000@[remote_ip]>
+      Call-ID: [call_id]
+      CSeq: 1 INVITE
+      Contact: <sip:trunkcaller@[local_ip]:[local_port]>
+      Max-Forwards: 70
+      Content-Type: application/sdp
+      Content-Length: [len]
+
+      v=0
+      o=uac 1 1 IN IP[local_ip_type] [local_ip]
+      s=-
+      c=IN IP[local_ip_type] [local_ip]
+      t=0 0
+      m=audio [media_port] RTP/AVP 0
+      a=rtpmap:0 PCMU/8000
+    ]]>
+  </send>
+  <recv response="100" optional="true"></recv>
+  <recv response="180" optional="true"></recv>
+  <recv response="200"></recv>
+  <send>
+    <![CDATA[
+      ACK sip:712000000@[remote_ip]:[remote_port] SIP/2.0
+      [last_Via:]
+      [last_From:]
+      [last_To:]
+      [last_Call-ID:]
+      CSeq: 1 ACK
+      Contact: <sip:trunkcaller@[local_ip]:[local_port]>
+      Max-Forwards: 70
+      Content-Length: 0
+
+    ]]>
+  </send>
+  <!-- IVR Answer() + Background(salomlashuv) ishga tushishi uchun kutish. -->
+  <pause milliseconds="1000"/>
+  <send retrans="500">
+    <![CDATA[
+      INFO sip:712000000@[remote_ip]:[remote_port] SIP/2.0
+      Via: SIP/2.0/UDP [local_ip]:[local_port];branch=[branch]
+      [last_From:]
+      [last_To:]
+      [last_Call-ID:]
+      CSeq: 2 INFO
+      Contact: <sip:trunkcaller@[local_ip]:[local_port]>
+      Max-Forwards: 70
+      Content-Type: application/dtmf-relay
+      Content-Length: [len]
+
+      Signal=1
+      Duration=250
+    ]]>
+  </send>
+  <recv response="200"></recv>
+  <!-- Navbat a'zosi javob berishini kutish (UAS avtomatik javob beradi). -->
+  <pause milliseconds="2000"/>
+  <send retrans="500">
+    <![CDATA[
+      BYE sip:712000000@[remote_ip]:[remote_port] SIP/2.0
+      Via: SIP/2.0/UDP [local_ip]:[local_port];branch=[branch]
+      [last_From:]
+      [last_To:]
+      [last_Call-ID:]
+      CSeq: 3 BYE
+      Max-Forwards: 70
+      Content-Length: 0
+
+    ]]>
+  </send>
+  <recv response="200"></recv>
+</scenario>

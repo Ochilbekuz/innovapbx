@@ -1,0 +1,7 @@
+extension	password	name	voicemail	ringtimer	noanswer	recording	outboundcid	sipname	noanswer_cid	busy_cid	chanunavail_cid	noanswer_dest	busy_dest	chanunavail_dest	mohclass
+101		Sinov Bir	novm	0											default
+102		Sinov Ikki (CF)	novm	0											default
+103		Sinov Uch	novm	0											default
+105	1105	Sinov Besh (VM)	default	0											default
+106		Sinov Olti (CID+DND)	novm	0			+998901110106								default
+107		Sinov Yetti (FollowMe)	novm	0											default

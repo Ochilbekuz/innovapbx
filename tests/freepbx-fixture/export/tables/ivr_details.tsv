@@ -1,0 +1,2 @@
+id	name	description	announcement	directdial	invalid_loops	invalid_retry_recording	invalid_destination	timeout_enabled	invalid_recording	retvm	timeout_time	timeout_recording	timeout_retry_recording	timeout_destination	timeout_loops	timeout_append_announce	invalid_append_announce	timeout_ivr_ret	invalid_ivr_ret	alertinfo	rvolume	strict_dial_timeout	accept_pound_key
+1	Sinov-IVR	Sinov IVR menyusi	1		3	default	app-blackhole,hangup,1	NULL	default	NULL	10	default	default	app-blackhole,hangup,1	3	1	1	0	0			2	0

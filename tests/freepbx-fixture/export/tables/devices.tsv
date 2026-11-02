@@ -1,0 +1,7 @@
+id	tech	dial	devicetype	user	description	emergency_cid	hint_override
+101	pjsip	PJSIP/101	fixed	101	Sinov Bir		
+102	pjsip	PJSIP/102	fixed	102	Sinov Ikki (CF)		
+103	pjsip	PJSIP/103	fixed	103	Sinov Uch		
+105	pjsip	PJSIP/105	fixed	105	Sinov Besh (VM)		
+106	pjsip	PJSIP/106	fixed	106	Sinov Olti (CID+DND)		
+107	pjsip	PJSIP/107	fixed	107	Sinov Yetti (FollowMe)		

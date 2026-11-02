@@ -1,0 +1,164 @@
+name: innova-m0
+
+# Innova PBX — M0 stack. Tarmoq izolyatsiyasi: faqat `api` (8710) va `web` (8711, M3a)
+# 127.0.0.1 ga publish qilinadi. Postgres/Asterisk SIP/RTP/AMI hostga CHIQARILMAYDI —
+# faqat ichki `innova-net` tarmog'ida (architecture.md xavf hududlari, 160-181).
+
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    networks: [innova-net]
+    restart: unless-stopped
+
+  # Bir martalik migratsiya: Asterisk'ning birinchi ishga tushishida
+  # `ps_registrations`/`cdr` jadval-view'lari ALLAQACHON mavjud bo'lishi SHART
+  # (aks holda res_config_pgsql/cdr_pgsql xato berib, keyin xotira buzilishi
+  # bilan Asterisk butunlay yiqiladi — sinovda topilgan). Shu sabab Asterisk va
+  # API ikkisi ham migratsiya TUGAgandan keyin ishga tushadi (`asterisk`
+  # o'zi `api`ga bog'liq EMAS — tsiklik bog'liqlik kerak emas).
+  migrate:
+    build:
+      context: ../api
+    entrypoint: ["/usr/local/bin/innova-api-entrypoint.sh"]
+    command: ["true"]
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      INNOVA_DB_KEY: ${INNOVA_DB_KEY}
+    # M3a: `app/db/bootstrap.py` SIP/RTP fayllarini DB'dan qayta yozadi (Asterisk'dan OLDIN) —
+    # generatorga qo'shilgan `transport-wss` eski hajmdagi faylga ham tushadi. TLS bo'limi
+    # sertifikat holatiga bog'liq — shu sabab `certs` (faqat o'qish).
+    volumes:
+      - dialplan:/srv/dialplan
+      - certs:/etc/innova/certs:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks: [innova-net]
+    restart: "no"
+
+  asterisk:
+    build:
+      context: ../asterisk
+    # M3a: WS transportida mahalliy manzil yo'q — Asterisk From/Contact hostiga gethostname() qo'yadi.
+    # Docker sukut hostname'i (konteyner ID, masalan `628d79f58821`) raqam bilan boshlanadi -> SIP.js
+    # grammatikasida yaroqsiz toplabel ("error parsing header 'From'") -> brauzer OPTIONS/INVITE'ni
+    # tashlab yuboradi, kontakt `Unavail`, qo'ng'iroq "No route". Harf bilan boshlanuvchi nom shart.
+    hostname: innova-pbx
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: "5432"
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      AMI_USERNAME: ${AMI_USERNAME}
+      AMI_PASSWORD: ${AMI_PASSWORD}
+      DIALPLAN_DIR: /srv/dialplan
+      DIALPLAN_FILENAME: extensions_innova.conf
+      SECURITY_LOG_PATH: ${SECURITY_LOG_PATH:-/var/log/asterisk/innova/security.log}
+      SIP_ACL_FILENAME: ${SIP_ACL_FILENAME:-pjsip_acl_innova.conf}
+    volumes:
+      - dialplan:/srv/dialplan
+      - sounds:/var/lib/innova/sounds
+      - certs:/etc/innova/certs:ro  # TLS kalit/sert — API yozadi, Asterisk faqat o'qiydi (m1c-contract.md bo'lim 3)
+      - voicemail:/var/spool/asterisk/voicemail  # ovozli pochta xabarlari (m1c-contract.md §2)
+      - astlog:/var/log/asterisk/innova  # M2c §2 (S33) — `security` kanal fayli, Asterisk rw
+      - recordings:/var/spool/asterisk/monitor  # M3b §1 — MixMonitor yozuvlari (Asterisk rw)
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    networks: [innova-net]
+    restart: unless-stopped
+
+  api:
+    build:
+      context: ../api
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      INNOVA_DB_KEY: ${INNOVA_DB_KEY}
+      SECRET_KEY: ${SECRET_KEY}
+      AMI_HOST: asterisk
+      AMI_PORT: "5038"
+      AMI_USERNAME: ${AMI_USERNAME}
+      AMI_PASSWORD: ${AMI_PASSWORD}
+      DIALPLAN_DIR: /srv/dialplan
+      DIALPLAN_FILENAME: extensions_innova.conf
+      SOUNDS_DIR: /var/lib/innova/sounds
+      INTERNAL_API_TOKEN: ${INTERNAL_API_TOKEN}
+      INTERNAL_API_BASE_URL: http://api:8000
+      INNOVA_TEST_FAIL_AT: ${INNOVA_TEST_FAIL_AT:-}
+      SECURITY_LOG_PATH: ${SECURITY_LOG_PATH:-/var/log/asterisk/innova/security.log}
+      SIP_ACL_FILENAME: ${SIP_ACL_FILENAME:-pjsip_acl_innova.conf}
+      SIP_GUARD_INTERVAL_S: ${SIP_GUARD_INTERVAL_S:-5}
+      TRUNK_MONITOR_INTERVAL_S: ${TRUNK_MONITOR_INTERVAL_S:-30}
+      # M3a: API endi `web` (nginx) orqasida — audit/login IP'si X-Forwarded-For'dan olinsin.
+      # uvicorn faqat shu tarmoqlardagi proksiga ishonadi (eng o'ngdagi ishonchsiz manzil = mijoz).
+      FORWARDED_ALLOW_IPS: ${FORWARDED_ALLOW_IPS:-172.16.0.0/12,10.0.0.0/8,192.168.0.0/16}
+      SOFTPHONE_TICKET_TTL_S: ${SOFTPHONE_TICKET_TTL_S:-600}
+      # M3b: yozuvlar, hodisalar, integratsiyalar (sukutlar app/core/config.py da).
+      RECORDINGS_DIR: /var/spool/asterisk/monitor
+      INTEGRATION_RETRY_SCHEDULE_S: ${INTEGRATION_RETRY_SCHEDULE_S:-30,120,600,1800,3600,10800,21600,43200}
+      INTEGRATION_DISABLE_AFTER_S: ${INTEGRATION_DISABLE_AFTER_S:-86400}
+      CALL_EVENTS_SWEEP_INTERVAL_S: ${CALL_EVENTS_SWEEP_INTERVAL_S:-30}
+      API_KEY_RATE_LIMIT_PER_MIN: ${API_KEY_RATE_LIMIT_PER_MIN:-120}
+      # M4b: zaxira — lokal hajm, fon jadvali (sukutlar app/core/config.py da).
+      BACKUPS_DIR: /var/lib/innova/backups
+      BACKUP_SCHEDULER_INTERVAL_S: ${BACKUP_SCHEDULER_INTERVAL_S:-60}
+      # M5a: FreePBX'dan ko'chirish — yuklangan to'plamlar (sukutlar app/core/config.py da).
+      MIGRATIONS_DIR: /var/lib/innova/migrations
+    volumes:
+      - dialplan:/srv/dialplan
+      - sounds:/var/lib/innova/sounds
+      - certs:/etc/innova/certs  # TLS kalit/sert yozadi (app/core/config.py: certs_dir)
+      - voicemail:/var/spool/asterisk/voicemail  # o'qiydi + salomlashuv havolalari (app/services/voicemail.py)
+      - astlog:/var/log/asterisk/innova:ro  # M2c §2 (S33) — `sip_guard` fon vazifasi FAQAT o'qiydi
+      - recordings:/var/spool/asterisk/monitor  # M3b §1 — yozuvlarni beradi + saqlash muddati tozalashi (rw)
+      - backups:/var/lib/innova/backups  # M4b §0/§1 — lokal zaxira nusxalari (`backup_job.py`/`restore_job.py`)
+      - migrations:/var/lib/innova/migrations  # M5a §0 — yuklangan FreePBX to'plamlari (`migration.py`)
+    ports:
+      - "127.0.0.1:${API_HOST_PORT:-8710}:8000"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    networks: [innova-net]
+    restart: unless-stopped
+
+  # M3a §3 — yagona kelib chiqish: SPA + `/api/` + `/sip-ws` (WebRTC, ticket darvozasi).
+  # Asterisk HTTP (8088) hostga publish QILINMAYDI — brauzer SIP'ni faqat shu orqali ko'radi.
+  web:
+    build:
+      context: ..
+      dockerfile: web/Dockerfile
+    ports:
+      # Appliance (ISO): WEB_BIND=0.0.0.0, WEB_HOST_PORT=80 — LAN'dan ochiladi.
+      - "${WEB_BIND:-127.0.0.1}:${WEB_HOST_PORT:-8711}:80"
+    depends_on:
+      - api
+      - asterisk
+    networks: [innova-net]
+    restart: unless-stopped
+
+networks:
+  innova-net:
+    driver: bridge
+
+volumes:
+  pgdata:
+  dialplan:
+  sounds:
+  certs:
+  voicemail:
+  astlog:
+  recordings:
+  backups:
+  migrations:

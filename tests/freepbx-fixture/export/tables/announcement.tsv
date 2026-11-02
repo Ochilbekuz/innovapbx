@@ -1,0 +1,2 @@
+announcement_id	description	recording_id	allow_skip	post_dest	return_ivr	noanswer	repeat_msg
+1	Sinov yopiq vaqt e'loni	1	0	app-blackhole,hangup,1	0	0	0

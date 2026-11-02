@@ -1,0 +1,274 @@
+/AMPUSER//queues/qnostate                         : usestate                 
+/AMPUSER/101/accountcode                          :                          
+/AMPUSER/101/answermode                           : disabled                 
+/AMPUSER/101/cfringtimer                          : 0                        
+/AMPUSER/101/cidname                              : Sinov Bir                
+/AMPUSER/101/cidnum                               : 101                      
+/AMPUSER/101/concurrency_limit                    : 3                        
+/AMPUSER/101/cwtone                               : disabled                 
+/AMPUSER/101/device                               : 101                      
+/AMPUSER/101/dialopts                             :                          
+/AMPUSER/101/hint                                 : PJSIP/101,CustomPresence:101
+/AMPUSER/101/intercom                             : enabled                  
+/AMPUSER/101/noanswer                             :                          
+/AMPUSER/101/outboundcid                          :                          
+/AMPUSER/101/password                             :                          
+/AMPUSER/101/pausequeuehint                       : Queue:700_pause_Local/101@from-queue/n
+/AMPUSER/101/recording                            :                          
+/AMPUSER/101/recording/in/external                : dontcare                 
+/AMPUSER/101/recording/in/internal                : dontcare                 
+/AMPUSER/101/recording/ondemand                   : disabled                 
+/AMPUSER/101/recording/out/external               : dontcare                 
+/AMPUSER/101/recording/out/internal               : dontcare                 
+/AMPUSER/101/recording/priority                   : 10                       
+/AMPUSER/101/ringtimer                            : 0                        
+/AMPUSER/101/rvolume                              :                          
+/AMPUSER/101/voicemail                            : novm                     
+/AMPUSER/102/accountcode                          :                          
+/AMPUSER/102/answermode                           : disabled                 
+/AMPUSER/102/cfringtimer                          : 0                        
+/AMPUSER/102/cidname                              : Sinov Ikki (CF)          
+/AMPUSER/102/cidnum                               : 102                      
+/AMPUSER/102/concurrency_limit                    : 3                        
+/AMPUSER/102/cwtone                               : disabled                 
+/AMPUSER/102/device                               : 102                      
+/AMPUSER/102/dialopts                             :                          
+/AMPUSER/102/hint                                 : PJSIP/102,CustomPresence:102
+/AMPUSER/102/intercom                             : enabled                  
+/AMPUSER/102/noanswer                             :                          
+/AMPUSER/102/outboundcid                          :                          
+/AMPUSER/102/password                             :                          
+/AMPUSER/102/pausequeuehint                       : Queue:700_pause_Local/102@from-queue/n
+/AMPUSER/102/recording                            :                          
+/AMPUSER/102/recording/in/external                : dontcare                 
+/AMPUSER/102/recording/in/internal                : dontcare                 
+/AMPUSER/102/recording/ondemand                   : disabled                 
+/AMPUSER/102/recording/out/external               : dontcare                 
+/AMPUSER/102/recording/out/internal               : dontcare                 
+/AMPUSER/102/recording/priority                   : 10                       
+/AMPUSER/102/ringtimer                            : 0                        
+/AMPUSER/102/rvolume                              :                          
+/AMPUSER/102/voicemail                            : novm                     
+/AMPUSER/103/accountcode                          :                          
+/AMPUSER/103/answermode                           : disabled                 
+/AMPUSER/103/cfringtimer                          : 0                        
+/AMPUSER/103/cidname                              : Sinov Uch                
+/AMPUSER/103/cidnum                               : 103                      
+/AMPUSER/103/concurrency_limit                    : 3                        
+/AMPUSER/103/cwtone                               : disabled                 
+/AMPUSER/103/device                               : 103                      
+/AMPUSER/103/dialopts                             :                          
+/AMPUSER/103/hint                                 : PJSIP/103,CustomPresence:103
+/AMPUSER/103/intercom                             : enabled                  
+/AMPUSER/103/noanswer                             :                          
+/AMPUSER/103/outboundcid                          :                          
+/AMPUSER/103/password                             :                          
+/AMPUSER/103/pausequeuehint                       : Queue:700_pause_Local/103@from-queue/n
+/AMPUSER/103/queuehint                            : Custom:QUEUE103*700      
+/AMPUSER/103/recording                            :                          
+/AMPUSER/103/recording/in/external                : dontcare                 
+/AMPUSER/103/recording/in/internal                : dontcare                 
+/AMPUSER/103/recording/ondemand                   : disabled                 
+/AMPUSER/103/recording/out/external               : dontcare                 
+/AMPUSER/103/recording/out/internal               : dontcare                 
+/AMPUSER/103/recording/priority                   : 10                       
+/AMPUSER/103/ringtimer                            : 0                        
+/AMPUSER/103/rvolume                              :                          
+/AMPUSER/103/voicemail                            : novm                     
+/AMPUSER/105/accountcode                          :                          
+/AMPUSER/105/answermode                           : disabled                 
+/AMPUSER/105/cfringtimer                          : 0                        
+/AMPUSER/105/cidname                              : Sinov Besh (VM)          
+/AMPUSER/105/cidnum                               : 105                      
+/AMPUSER/105/concurrency_limit                    : 3                        
+/AMPUSER/105/cwtone                               : disabled                 
+/AMPUSER/105/device                               : 105                      
+/AMPUSER/105/dialopts                             :                          
+/AMPUSER/105/hint                                 : PJSIP/105,CustomPresence:105
+/AMPUSER/105/intercom                             : enabled                  
+/AMPUSER/105/noanswer                             :                          
+/AMPUSER/105/outboundcid                          :                          
+/AMPUSER/105/password                             : 1105                     
+/AMPUSER/105/recording                            :                          
+/AMPUSER/105/recording/in/external                : dontcare                 
+/AMPUSER/105/recording/in/internal                : dontcare                 
+/AMPUSER/105/recording/ondemand                   : disabled                 
+/AMPUSER/105/recording/out/external               : dontcare                 
+/AMPUSER/105/recording/out/internal               : dontcare                 
+/AMPUSER/105/recording/priority                   : 10                       
+/AMPUSER/105/ringtimer                            : 0                        
+/AMPUSER/105/rvolume                              :                          
+/AMPUSER/105/voicemail                            : default                  
+/AMPUSER/106/accountcode                          :                          
+/AMPUSER/106/answermode                           : disabled                 
+/AMPUSER/106/cfringtimer                          : 0                        
+/AMPUSER/106/cidname                              : Sinov Olti (CID+DND)     
+/AMPUSER/106/cidnum                               : 106                      
+/AMPUSER/106/concurrency_limit                    : 3                        
+/AMPUSER/106/cwtone                               : disabled                 
+/AMPUSER/106/device                               : 106                      
+/AMPUSER/106/dialopts                             :                          
+/AMPUSER/106/hint                                 : PJSIP/106,CustomPresence:106
+/AMPUSER/106/intercom                             : enabled                  
+/AMPUSER/106/noanswer                             :                          
+/AMPUSER/106/outboundcid                          : +998901110106            
+/AMPUSER/106/password                             :                          
+/AMPUSER/106/recording                            :                          
+/AMPUSER/106/recording/in/external                : dontcare                 
+/AMPUSER/106/recording/in/internal                : dontcare                 
+/AMPUSER/106/recording/ondemand                   : disabled                 
+/AMPUSER/106/recording/out/external               : dontcare                 
+/AMPUSER/106/recording/out/internal               : dontcare                 
+/AMPUSER/106/recording/priority                   : 10                       
+/AMPUSER/106/ringtimer                            : 0                        
+/AMPUSER/106/rvolume                              :                          
+/AMPUSER/106/voicemail                            : novm                     
+/AMPUSER/107/accountcode                          :                          
+/AMPUSER/107/answermode                           : disabled                 
+/AMPUSER/107/cfringtimer                          : 0                        
+/AMPUSER/107/cidname                              : Sinov Yetti (FollowMe)   
+/AMPUSER/107/cidnum                               : 107                      
+/AMPUSER/107/concurrency_limit                    : 3                        
+/AMPUSER/107/cwtone                               : disabled                 
+/AMPUSER/107/device                               : 107                      
+/AMPUSER/107/dialopts                             :                          
+/AMPUSER/107/followme/annmsg                      :                          
+/AMPUSER/107/followme/changecid                   : default                  
+/AMPUSER/107/followme/ddial                       : EXTENSION                
+/AMPUSER/107/followme/dring                       :                          
+/AMPUSER/107/followme/fixedcid                    :                          
+/AMPUSER/107/followme/grpconf                     : DISABLED                 
+/AMPUSER/107/followme/grplist                     : 107-0991234567#          
+/AMPUSER/107/followme/grppre                      :                          
+/AMPUSER/107/followme/grptime                     : 25                       
+/AMPUSER/107/followme/postdest                    : ext-local,107,dest       
+/AMPUSER/107/followme/prering                     : 7                        
+/AMPUSER/107/followme/remotealertmsg              :                          
+/AMPUSER/107/followme/ringing                     : Ring                     
+/AMPUSER/107/followme/rvolume                     :                          
+/AMPUSER/107/followme/strategy                    : hunt                     
+/AMPUSER/107/followme/toolatemsg                  :                          
+/AMPUSER/107/hint                                 : PJSIP/107,CustomPresence:107
+/AMPUSER/107/intercom                             : enabled                  
+/AMPUSER/107/noanswer                             :                          
+/AMPUSER/107/outboundcid                          :                          
+/AMPUSER/107/password                             :                          
+/AMPUSER/107/recording                            :                          
+/AMPUSER/107/recording/in/external                : dontcare                 
+/AMPUSER/107/recording/in/internal                : dontcare                 
+/AMPUSER/107/recording/ondemand                   : disabled                 
+/AMPUSER/107/recording/out/external               : dontcare                 
+/AMPUSER/107/recording/out/internal               : dontcare                 
+/AMPUSER/107/recording/priority                   : 10                       
+/AMPUSER/107/ringtimer                            : 0                        
+/AMPUSER/107/rvolume                              :                          
+/AMPUSER/107/voicemail                            : novm                     
+/AMPUSER/2201/accountcode                         :                          
+/AMPUSER/2201/answermode                          : disabled                 
+/AMPUSER/2201/cfringtimer                         : 0                        
+/AMPUSER/2201/cidname                             : WebRTC 2201              
+/AMPUSER/2201/cidnum                              : 2201                     
+/AMPUSER/2201/concurrency_limit                   : 3                        
+/AMPUSER/2201/cwtone                              : disabled                 
+/AMPUSER/2201/device                              : 2201                     
+/AMPUSER/2201/hint                                : PJSIP/2201,CustomPresence:2201
+/AMPUSER/2201/intercom                            : enabled                  
+/AMPUSER/2201/noanswer                            :                          
+/AMPUSER/2201/outboundcid                         :                          
+/AMPUSER/2201/password                            :                          
+/AMPUSER/2201/queues/qnostate                     : usestate                 
+/AMPUSER/2201/recording                           :                          
+/AMPUSER/2201/recording/in/external               : yes                      
+/AMPUSER/2201/recording/in/internal               : yes                      
+/AMPUSER/2201/recording/ondemand                  : disabled                 
+/AMPUSER/2201/recording/out/external              : yes                      
+/AMPUSER/2201/recording/out/internal              : yes                      
+/AMPUSER/2201/recording/priority                  : 10                       
+/AMPUSER/2201/ringtimer                           : 0                        
+/AMPUSER/2201/rvolume                             :                          
+/AMPUSER/2201/voicemail                           : novm                     
+/CF/102                                           : 106                      
+/CFB/102                                          : 106                      
+/CFU/102                                          : 105                      
+/CONFERENCE/8000/adminpin                         : 4321                     
+/CONFERENCE/8000/joinmsg                          :                          
+/CONFERENCE/8000/language                         :                          
+/CONFERENCE/8000/music                            : default                  
+/CONFERENCE/8000/options                          :                          
+/CONFERENCE/8000/userpin                          : 1234                     
+/CONFERENCE/8000/users                            : 0                        
+/CW/101                                           : ENABLED                  
+/CW/102                                           : ENABLED                  
+/CW/103                                           : ENABLED                  
+/CW/105                                           : ENABLED                  
+/CW/106                                           : ENABLED                  
+/CW/107                                           : ENABLED                  
+/CW/2201                                          : ENABLED                  
+/CustomDevstate/FOLLOWME                          : NOT_INUSE                
+/CustomDevstate/FOLLOWME107                       : NOT_INUSE                
+/CustomDevstate/TC1                               : NOT_INUSE                
+/CustomDevstate/TC2                               : NOT_INUSE                
+/CustomDevstate/TC3                               : NOT_INUSE                
+/CustomDevstate/TCSTICKY1                         : NOT_INUSE                
+/CustomDevstate/TCSTICKY2                         : NOT_INUSE                
+/CustomDevstate/TCSTICKY3                         : NOT_INUSE                
+/CustomPresence/101                               : available,,              
+/CustomPresence/102                               : available,,              
+/CustomPresence/103                               : available,,              
+/CustomPresence/105                               : available,,              
+/CustomPresence/106                               : available,,              
+/CustomPresence/107                               : available,,              
+/CustomPresence/2201                              : available,,              
+/DEVICE/101/default_user                          : 101                      
+/DEVICE/101/dial                                  : PJSIP/101                
+/DEVICE/101/tech                                  : pjsip                    
+/DEVICE/101/type                                  : fixed                    
+/DEVICE/101/user                                  : 101                      
+/DEVICE/102/default_user                          : 102                      
+/DEVICE/102/dial                                  : PJSIP/102                
+/DEVICE/102/tech                                  : pjsip                    
+/DEVICE/102/type                                  : fixed                    
+/DEVICE/102/user                                  : 102                      
+/DEVICE/103/default_user                          : 103                      
+/DEVICE/103/dial                                  : PJSIP/103                
+/DEVICE/103/tech                                  : pjsip                    
+/DEVICE/103/type                                  : fixed                    
+/DEVICE/103/user                                  : 103                      
+/DEVICE/105/default_user                          : 105                      
+/DEVICE/105/dial                                  : PJSIP/105                
+/DEVICE/105/tech                                  : pjsip                    
+/DEVICE/105/type                                  : fixed                    
+/DEVICE/105/user                                  : 105                      
+/DEVICE/106/default_user                          : 106                      
+/DEVICE/106/dial                                  : PJSIP/106                
+/DEVICE/106/tech                                  : pjsip                    
+/DEVICE/106/type                                  : fixed                    
+/DEVICE/106/user                                  : 106                      
+/DEVICE/107/default_user                          : 107                      
+/DEVICE/107/dial                                  : PJSIP/107                
+/DEVICE/107/tech                                  : pjsip                    
+/DEVICE/107/type                                  : fixed                    
+/DEVICE/107/user                                  : 107                      
+/DEVICE/2201/default_user                         : 2201                     
+/DEVICE/2201/dial                                 : PJSIP/2201               
+/DEVICE/2201/tech                                 : pjsip                    
+/DEVICE/2201/type                                 : fixed                    
+/DEVICE/2201/user                                 : 2201                     
+/DND/106                                          : YES                      
+/FREEPBXCONF/CFRINGTIMERDEFAULT                   : 0                        
+/QPENALTY/700/agents/103                          : 0                        
+/QPENALTY/700/dynmemberonly                       : no                       
+/RINGGROUP/600/changecid                          : default                  
+/RINGGROUP/600/fixedcid                           :                          
+/TC/1                                             :                          
+/TC/2                                             :                          
+/TC/3                                             :                          
+/TRUNK/1/dialopts                                 :                          
+/TRUNK/2/dialopts                                 :                          
+/TRUNK/3/dialopts                                 :                          
+/TRUNK/4/dialopts                                 :                          
+/blacklist/0998887766                             : Sinov bloklangan raqam   
+/dundi/secret                                     : LhhSN7Mbh3e9fTlViDIZGw== 
+/dundi/secretexpiry                               : 1793333664               
+/pbx/UUID                                         : 7b5957d0-5380-4fd4-a77d-61c20e69ad00
+273 results found.

@@ -1,0 +1,4 @@
+cidnum	extension	destination	privacyman	alertinfo	ringing	fanswer	mohclass	description	grppre	delay_answer	pricid	pmmaxretries	pmminlength	reversal	rvolume	indication_zone
+	998712345601	ivr-1,s,1	0				default	Sinov DID -> IVR		0		3	10			default
+	998712345602	timeconditions,1,1	0				default	Sinov DID -> Time Condition		0		3	10			default
+		ext-group,600,1	0				default	Sinov Har-qanday-DID -> RingGroup		0		3	10			default

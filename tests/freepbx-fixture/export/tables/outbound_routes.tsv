@@ -1,0 +1,3 @@
+route_id	name	outcid	outcid_mode	password	emergency_route	intracompany_route	mohclass	time_group_id	dest	time_mode	calendar_id	calendar_group_id	timezone	notification_on
+1	Sinov-Mobil	+998901110000	ALLOW	SinovRoutePass1	OFF	OFF	default	0			NULL	NULL		
+2	Sinov-Xizmat				OFF	OFF	default	0			NULL	NULL		

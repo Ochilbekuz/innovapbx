@@ -1,0 +1,41 @@
+/* ʻ va ʼ uchun tor glif (scripts/build-apostrof.py). Faqat U+02BB-02BC — qolgan matn IBM Plex. */
+@font-face {
+  font-family: 'Innova Apostrof';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('./innova-apostrof-400.woff2') format('woff2');
+  unicode-range: U+02BB-02BC;
+}
+@font-face {
+  font-family: 'Innova Apostrof';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url('./innova-apostrof-500.woff2') format('woff2');
+  unicode-range: U+02BB-02BC;
+}
+@font-face {
+  font-family: 'Innova Apostrof';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url('./innova-apostrof-600.woff2') format('woff2');
+  unicode-range: U+02BB-02BC;
+}
+@font-face {
+  font-family: 'Innova Apostrof Condensed';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url('./innova-apostrof-condensed-500.woff2') format('woff2');
+  unicode-range: U+02BB-02BC;
+}
+@font-face {
+  font-family: 'Innova Apostrof Condensed';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url('./innova-apostrof-condensed-600.woff2') format('woff2');
+  unicode-range: U+02BB-02BC;
+}

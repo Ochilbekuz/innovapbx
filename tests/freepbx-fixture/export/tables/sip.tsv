@@ -1,0 +1,91 @@
+id	keyword	data	flags
+101	account	101	13
+101	allow	ulaw,alaw,g722	12
+101	callerid	Sinov Bir <101>	14
+101	canreinvite	no	7
+101	context	from-internal	5
+101	dial	PJSIP/101	2
+101	disallow	all	11
+101	dtmfmode	rfc2833	6
+101	host	dynamic	9
+101	max_contacts	1	0
+101	port		8
+101	qualifyfreq	60	4
+101	remove_existing	yes	0
+101	secret	SinovSecret101!	3
+101	type	friend	10
+102	account	102	13
+102	allow	ulaw,alaw,g722	12
+102	callerid	Sinov Ikki (CF) <102>	14
+102	canreinvite	no	7
+102	context	from-internal	5
+102	dial	PJSIP/102	2
+102	disallow	all	11
+102	dtmfmode	rfc2833	6
+102	host	dynamic	9
+102	max_contacts	1	0
+102	port		8
+102	qualifyfreq	60	4
+102	remove_existing	yes	0
+102	secret	SinovSecret102!	3
+102	type	friend	10
+103	account	103	13
+103	allow	ulaw,alaw,g722	12
+103	callerid	Sinov Uch <103>	14
+103	canreinvite	no	7
+103	context	from-internal	5
+103	dial	PJSIP/103	2
+103	disallow	all	11
+103	dtmfmode	rfc2833	6
+103	host	dynamic	9
+103	max_contacts	1	0
+103	port		8
+103	qualifyfreq	60	4
+103	remove_existing	yes	0
+103	secret	SinovSecret103!	3
+103	type	friend	10
+105	account	105	13
+105	allow	ulaw,alaw,g722	12
+105	callerid	Sinov Besh (VM) <105>	14
+105	canreinvite	no	7
+105	context	from-internal	5
+105	dial	PJSIP/105	2
+105	disallow	all	11
+105	dtmfmode	rfc2833	6
+105	host	dynamic	9
+105	max_contacts	1	0
+105	port		8
+105	qualifyfreq	60	4
+105	remove_existing	yes	0
+105	secret	SinovSecret105!	3
+105	type	friend	10
+106	account	106	13
+106	allow	ulaw,alaw,g722	12
+106	callerid	Sinov Olti (CID+DND) <106>	14
+106	canreinvite	no	7
+106	context	from-internal	5
+106	dial	PJSIP/106	2
+106	disallow	all	11
+106	dtmfmode	rfc2833	6
+106	host	dynamic	9
+106	max_contacts	1	0
+106	port		8
+106	qualifyfreq	60	4
+106	remove_existing	yes	0
+106	secret	SinovSecret106!	3
+106	type	friend	10
+107	account	107	13
+107	allow	ulaw,alaw,g722	12
+107	callerid	Sinov Yetti (FollowMe) <107>	14
+107	canreinvite	no	7
+107	context	from-internal	5
+107	dial	PJSIP/107	2
+107	disallow	all	11
+107	dtmfmode	rfc2833	6
+107	host	dynamic	9
+107	max_contacts	1	0
+107	port		8
+107	qualifyfreq	60	4
+107	remove_existing	yes	0
+107	secret	SinovSecret107!	3
+107	type	friend	10

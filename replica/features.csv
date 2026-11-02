@@ -1,0 +1,88 @@
+feature,area,priority,original,clone,notes
+O'rnatish sehrgari (admin / til / vaqt zonasi / NAT / birinchi trunk),onboarding,must,ikkalasi,partial,B1; S01; M0: admin/til/tz/external_ip/local_nets bor, birinchi trunk sehrgar ichida YO'Q (alohida S06 ekranida)
+Kirish 2FA bilan va admin rollari,onboarding,must,ikkalasi,partial,B1; callcenter auth/RBAC qayta ishlatiladi; S02 S31; M0: login+admin/operator rollari ishlaydi, 2FA(TOTP) ataylab M1ga qoldirilgan (kontraktda yozilgan)
+O'zgarish darhol qo'llanadi (Apply Config siz) va xato bo'lsa orqaga qaytadi,ijro,must,yoq,yes,B1; bizning asosiy ustunlik; arxitektura qarori; M0da har mutatsiya `apply` bilan qaytadi (applied/unchanged/rolled_back/realtime) — PROOF(b) bilan tasdiqlangan
+Ichki raqam yaratish / tahrirlash / o'chirish,ichki raqamlar,must,ikkalasi,yes,B1; S04 S05; M0 to'liq: CRUD+rotate-secret+stale(409)+in_use(409)
+Ichki raqamlarni ommaviy qo'shish va CSV import/eksport,ichki raqamlar,must,freepbx,no,B1; Bulk Handler moduli; M0 qamrovida yo'q
+Bir ichki raqamga bir nechta qurilma (max_contacts),ichki raqamlar,must,ikkalasi,no,B1; PJSIP; M0 kontraktida maydon yo'q
+Qurilma registratsiya holati jonli,ichki raqamlar,must,ikkalasi,yes,B1; M0: `Extension.status` (online/offline/unknown) `ps_contacts`dan jonli
+SIP ma'lumotini QR bilan ko'rsatish,ichki raqamlar,should,onlinepbx,no,B2
+Follow Me / javob bo'lmasa mobilga yo'naltirish,ichki raqamlar,should,ikkalasi,no,B2
+DND va qo'ng'iroqni yo'naltirish (CF / CFB / CFU),ichki raqamlar,must,freepbx,yes,"M2a; realtime PG (ext_state view+trigger), *76/*72/*73/*90/*91; toll-fraud: outbound_allowed=false tashqi yo'naltirishni bloklaydi"
+Ichki raqam bo'yicha yozuv siyosati (har doim / hech qachon / talab bo'yicha),yozuv,must,freepbx,no,B1
+PJSIP trunk: registratsiya bilan,trunklar,must,ikkalasi,no,"B1; S06; M0 kontraktida ataylab chiqarib tashlangan (""M0: faqat IP-trunk"") — M1+ ga qoldirilgan"
+PJSIP trunk: IP bo'yicha (registratsiyasiz) + qualify,trunklar,must,freepbx,yes,B1; Uztelecom va b.; sog'lik registratsiya bilan o'lchanmaydi; M0da PROOF(b) orqali haqiqiy SIPp qo'ng'irog'i bilan tasdiqlangan
+Trunk sog'ligi (qualify / oxirgi qo'ng'iroq / sabab),trunklar,must,yoq,yes,B1; arxivdagi saboq; FreePBX'da yo'q; M0: `health.state/rtt_ms/checked_at` + `/trunks/{id}/test`
+Trunk maks. kanallar va CallerID,trunklar,must,freepbx,partial,B1; M0: `max_channels` bor, trunk darajasidagi CallerID maydoni kontraktda yo'q
+Kiruvchi marshrut: DID + CallerID -> manzil,marshrut,must,ikkalasi,yes,B1; S07
+Manzil tanlagich (polimorf) + singan havola tekshiruvi,marshrut,must,freepbx,partial,B1; FreePBX markaziy tushuncha; o'chirishda «kim ishlatyapti»; M0: `broken` bayrog'i bor, lekin manzil FAQAT ichki raqam (navbat/IVR M0 qamrovida yo'q)
+Qo'ng'iroq oqimi grafigi (DID dan daraxt),marshrut,should,yoq,yes,B2; bizning ustunlik; M1a: `GET /flow/{id}` endi time_condition/IVR/navbat/qo'ng'iroq guruhi tugunlarini ham qamrab oladi
+Chiquvchi marshrut: terish naqshlari + trunk failover tartibi,chiquvchi,must,ikkalasi,no,B1; S22
+Chiquvchi marshrut ruxsati (ichki raqam bo'yicha / PIN),chiquvchi,should,freepbx,no,B2
+Ish vaqti guruhlari va shartlari,marshrut,must,ikkalasi,yes,B1; S08; M1a backend API ulandi (m1a-proof.sh ssenariy 1)
+Bayramlar kalendari,marshrut,must,ikkalasi,yes,B1; O'zbekiston bayramlari tayyor shablon; M1a backend API ulandi
+Tungi rejim / qo'lda majburiy holat (Call Flow Control) + *-kod,marshrut,must,freepbx,partial,B1; `override` (auto/force_closed) API orqali bor, lekin telefondan *-kod bilan almashtirish hali yo'q
+IVR: tugma -> manzil / timeout / noto'g'ri tugma / takror,marshrut,must,ikkalasi,yes,B1; S09; M1a backend API ulandi (m1a-proof.sh ssenariy 2)
+IVR ichida to'g'ridan-to'g'ri ichki raqam terish,marshrut,should,freepbx,yes,B1; `direct_dial` maydoni backendda ishlaydi
+Qo'ng'iroq guruhi (ringall / ketma-ket / xotira) + tashqi raqam a'zo,marshrut,must,ikkalasi,partial,"B1; S21; M1a: faqat ICHKI raqam a'zo (tashqi raqam — M1b); `hunt`/`memoryhunt` holat saqlamaydi (ketma-ket sifatida kompilyatsiya qilinadi); M1c: `memoryhunt` = yig'ilib boruvchi Dial (1, 1+2, 1+2+3) — m1c-proof ssenariy 5 (INVITE 3/2/1); `hunt` ketma-ket; tashqi a'zo M1b"
+Navbat: strategiyalar / statik va dinamik agentlar,navbat,must,ikkalasi,partial,B1; S10; M1a: statik a'zolar + strategiya ishlaydi, dinamik agent login/logout *-kod (B2, qator 30) hali yo'q
+Navbat: kutish musiqasi / o'rin e'loni / maks. kutish / failover,navbat,must,ikkalasi,partial,B1; maks. kutish/e'lon/failover (timeout_target) ishlaydi, kutish musiqasi (MOH klass tanlash) API'ga ulanmagan
+Navbat: agent login/logout va pauza (*-kod va panel),navbat,must,freepbx,no,B2
+Navbat: wrap-up / SLA / prioritet,navbat,should,freepbx,no,B2
+Navbat: callback (kutmasdan qayta qo'ng'iroq),navbat,could,freepbx,no,B3; FreePBX tijorat (VQPlus)
+E'lon (Announcement) manzili,marshrut,must,freepbx,no,B1
+Audio yuklash va brauzerda yozish,audio,must,ikkalasi,no,B1; S11
+Matndan nutq sintezi (uz/ru/en),audio,should,onlinepbx,no,B2
+Kutish musiqasi to'plamlari (MoH),audio,must,ikkalasi,no,B1
+Ovozli pochta + e-mail/Telegram'ga yuborish,ovozli pochta,must,ikkalasi,yes,"B2; S23; M1c: qutilar (ichki raqamga bog'lash yoki umumiy), salomlashuv yozuvi, *97/*98, PIN API orqali (faylda yo'q), xabarlar ro'yxati/tinglash/o'chirish, e-mail(SMTP)+Telegram yuborish — m1c-proof ssenariy 1–3"
+Xususiyat kodlari (*97 / *8 / DND / transfer / park),kodlar,must,freepbx,yes,M2a; S24 /settings/feature-codes; prefiks to'qnashuvi 409 (vaqt sharti toggle_code bilan ham)
+Ichki qo'ng'iroq / blind va attended transfer,chiquvchi,must,ikkalasi,yes,"M2a; ## blind, *2 attended (features.conf)"
+Qo'ng'iroqni ushlab olish (pickup) va parkovka,qo'shimcha,should,freepbx,yes,"M2a; *8/** pickup, park 700 (701-720, 60 s), dashboard kartasi; park callback isbotlanmagan"
+Paging / intercom,qo'shimcha,could,freepbx,no,B3
+Konferensiya xonalari,qo'shimcha,should,freepbx,yes,"M2a; ConfBridge, PIN xesh + CURL tekshiruv, live.members (AMI)"
+Qora ro'yxat va anonimni bloklash,qo'shimcha,should,freepbx,yes,"M2a; realtime, raqam normallashtiriladi, anonymous, CDR'dan «Bloklash»"
+CallerID nomi manbasi (kontaktlar / CRM),qo'shimcha,could,freepbx,no,B3
+Misc destinations / DISA,qo'shimcha,could,freepbx,no,B3; DISA xavfli — standart o'chiq
+Barcha qo'ng'iroqlarni yozish va saqlash muddati,yozuv,must,ikkalasi,no,B1; hajm rejasi
+Stereo yozuv,yozuv,could,onlinepbx,no,B3
+Qo'ng'iroqlar tarixi (CDR): filtr / tinglash / yuklab olish / CSV,tarix,must,ikkalasi,partial,B1; callcenter qayta ishlatiladi; S12; M0: filtr(sana/yo'nalish/qidiruv)+sahifalash haqiqiy backend bilan tasdiqlangan (PROOF b), tinglash/yuklab olish/CSV M0 qamrovida yo'q
+Analitika: operator / navbat / bo'lim / soat / SLA / javobsizlar,analitika,must,ikkalasi,no,B2; Dial Dashboard birlashadi; S13; M0 qamrovida yo'q
+Bosh panel: tizim sog'ligi + jonli qo'ng'iroqlar + javobsizlar,analitika,must,ikkalasi,partial,B1; S03; M0: `GET /system/health` (asterisk/db/revision) bor, jonli qo'ng'iroqlar/javobsizlar kartasi M0 qamrovida yo'q
+Jonli monitoring: agent holati / navbat / tinglash / shivirlash / aralashish,monitoring,must,ikkalasi,no,B2; S29; ChanSpy
+Qo'ng'iroq sifatini baholash,sifat,should,onlinepbx,no,B3; S14
+Transkripsiya,sifat,could,onlinepbx,no,B4; Whisper / rasmiy API
+Operator portali (o'z tarixi / pochta / yo'naltirish / DND),portal,should,freepbx,no,B2; UCP o'rniga; S30
+Brauzer softfoni (WebRTC),softfon,must,onlinepbx,no,B3; S16; TLS/DTLS
+Click-to-call (CRM / portal dan),integratsiya,must,ikkalasi,no,B3
+amoCRM integratsiyasi,integratsiya,must,onlinepbx,no,B3
+Bitrix24 integratsiyasi,integratsiya,must,onlinepbx,no,B3
+1C integratsiyasi,integratsiya,should,yoq,no,B3; bizning ustunlik
+Webhook hodisalari (boshlandi / javob / tugadi / yozuv),integratsiya,must,onlinepbx,no,B3
+REST API (kalit bilan) + WebSocket hodisalar,integratsiya,should,ikkalasi,no,B3; FreePBX: GraphQL API
+Saytga callback vidjeti,vidjet,should,onlinepbx,no,B4; S17
+Avtoinformator / avtoterish kampaniyalari,kampaniya,should,onlinepbx,no,B3; freepbx-autodialer asos; S18
+Telefon apparatlarini avtoprovizioning (Yealink / Grandstream / Fanvil),qurilmalar,should,freepbx,no,B3; EPM o'rniga; S35
+SIP / tarmoq sozlamalari (tashqi IP / lokal tarmoqlar / RTP / TLS / kodeklar),tizim,must,freepbx,yes,"B1; S32; S32 (M1b): tashqi IP/lokal tarmoq/RTP/restart; M1c: TLS transport + sertifikat (yuklash/self-signed, muddat ogohlantirishi) — m1c-proof ssenariy 4; kodeklar tahriri UI'da cheklangan"
+Xavfsizlik: SIP hujum bloklash / ishonchli tarmoqlar,xavfsizlik,must,freepbx,no,B2; Firewall + fail2ban o'rniga; S33
+Toll fraud himoyasi (chiquvchi limit / xalqaro taqiq / tungi ogohlantirish),xavfsizlik,must,yoq,no,B2; FreePBX'da zaif
+Audit jurnali (kim nimani o'zgartirdi),xavfsizlik,must,freepbx,no,B1; callcenter audit qayta ishlatiladi
+Zaxira va tiklash (jadval / lokal / S3 / SFTP),tizim,must,freepbx,no,B3; S34
+Tizim holati / yangilanish / loglar,tizim,must,freepbx,no,B2; callcenter updater; S36
+Telegram ogohlantirishlari (trunk tushdi / disk / hujum),tizim,should,yoq,no,B2; callcenter telegram qayta ishlatiladi
+FreePBX'dan import (asterisk MySQL bazasidan),migratsiya,must,yoq,no,B3; mijozni olishning asosiy sharti
+Interfeys tillari uz / ru / en,ui,must,partial,yes,"B1; FreePBX'da o'zbek yo'q; M0: setup/`User.language`+UI til almashtirgich (UZ/RU/EN) Playwright skrinshotda tasdiqlangan; M1c: butun panel ru/en (21 namespace, kalit tengligi testi, qattiq matn skaneri), har foydalanuvchi o'z tili (`users.language`, PATCH /auth/me), domen matnlari (naqsh tavsifi, hafta kunlari) ham tarjima qilingan"
+Litsenziya (on-prem),hisob,must,yoq,no,B1; lic.uzmik.uz mavjud
+Bulut: ko'p ijarachilik (firma = tenant),bulut,should,onlinepbx,no,B4
+Bulut: balans / ish o'rinlari / to'lov (Payme / Click),bulut,should,onlinepbx,no,B4
+Ko'p valyuta,bulut,could,onlinepbx,no,B4
+Mobil ilova iOS/Android,mobil,could,onlinepbx,no,B4+; vaqtincha SIP mijozlar
+WhatsApp / Telegram chat CRM'da,chat,could,onlinepbx,no,B4+
+AI yordamchi,ai,could,onlinepbx,no,B4+; o'z yechimimiz
+High Availability (ikki server),tizim,could,freepbx,no,B4+; FreePBX tijorat moduli
+Faks,qo'shimcha,skip,freepbx,no,talab past; Fax Pro tijorat
+DAHDI / analog va E1 kartalar,qo'shimcha,skip,freepbx,no,apparatga bog'liq
+FreePBX modul bozori (Module Admin ekotizimi),tizim,skip,freepbx,no,biz yopiq va yaxlit mahsulot; plaginlar keyin
+Sangoma xizmatlari (SIPStation / Connect / Talk / telefon firmware),integratsiya,skip,freepbx,no,Sangoma mulki va hamkorligi
+O'z raqamlar bazasi (operator sifatida raqam berish),raqamlar,skip,onlinepbx,no,telekom litsenziyasi; mijoz o'z trunkini ulaydi
+Selarti AI / Tinkoff QM hamkorliklari,ai,skip,onlinepbx,no,ularning mahsuloti / shartnomasi
+FreePBX va OnlinePBX nomi / logo / matnlari / audio / kodi,brend,skip,ikkalasi,no,clean-room; replica-brand o'z brendini beradi

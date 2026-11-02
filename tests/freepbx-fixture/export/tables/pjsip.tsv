@@ -1,0 +1,127 @@
+id	keyword	data	flags
+1	allow_unauthenticated_options	off	0
+1	aor_contact		0
+1	aors		0
+1	auth_rejection_permanent	off	0
+1	auth_username	sinovuser1	0
+1	authentication	outbound	0
+1	client_uri		0
+1	codecs	ulaw,alaw,gsm,g726,g722	0
+1	contact_user		0
+1	context	from-trunk	0
+1	dialopts		0
+1	dialoutopts_cb	sys	0
+1	direct_media	no	0
+1	disabletrunk	off	0
+1	dtmfmode	auto	0
+1	expiration	3600	0
+1	extdisplay		0
+1	failtrunk_enable	0	0
+1	fatal_retry_interval	30	0
+1	fax_detect	no	0
+1	forbidden_retry_interval	30	0
+1	force_rport	yes	0
+1	from_domain	sip.sinov-provider.test	0
+1	from_user		0
+1	hcid	on	0
+1	identify_by	default	0
+1	inband_progress	no	0
+1	language		0
+1	match		0
+1	max_retries	10000	0
+1	maxchans	10	0
+1	media_address		0
+1	media_encryption	no	0
+1	message_context		0
+1	npanxx		0
+1	outbound_proxy		0
+1	peerdetails		0
+1	qualify_frequency	60	0
+1	register		0
+1	registration	send	0
+1	retry_interval	60	0
+1	rewrite_contact	no	0
+1	rtp_symmetric	yes	0
+1	secret	SinovTrunkSecret1!	0
+1	sendrpid	no	0
+1	server_uri		0
+1	sip_server	sip.sinov-provider.test	0
+1	sip_server_port	5060	0
+1	support_path	no	0
+1	sv_channelid		0
+1	sv_trunk_name		0
+1	sv_usercontext		0
+1	t38_udptl	no	0
+1	t38_udptl_ec	none	0
+1	t38_udptl_maxdatagram		0
+1	t38_udptl_nat	no	0
+1	transport	0.0.0.0-udp	0
+1	trunk_name	Sinov-Registered-Trunk	0
+1	trust_id_outbound	no	0
+1	trust_rpid	no	0
+1	user_eq_phone	no	0
+1	userconfig		0
+1	username	sinovuser1	0
+2	allow_unauthenticated_options	off	0
+2	aor_contact		0
+2	aors		0
+2	auth_rejection_permanent	off	0
+2	auth_username		0
+2	authentication	none	0
+2	client_uri		0
+2	codecs	ulaw,alaw,gsm,g726,g722	0
+2	contact_user		0
+2	context	from-trunk	0
+2	dialopts		0
+2	dialoutopts_cb	sys	0
+2	direct_media	no	0
+2	disabletrunk	off	0
+2	dtmfmode	auto	0
+2	expiration	3600	0
+2	extdisplay		0
+2	failtrunk_enable	0	0
+2	fatal_retry_interval	30	0
+2	fax_detect	no	0
+2	forbidden_retry_interval	30	0
+2	force_rport	yes	0
+2	from_domain		0
+2	from_user		0
+2	hcid	on	0
+2	identify_by	ip	0
+2	inband_progress	no	0
+2	language		0
+2	match	203.0.113.10/32	0
+2	max_retries	10000	0
+2	maxchans	5	0
+2	media_address		0
+2	media_encryption	no	0
+2	message_context		0
+2	npanxx		0
+2	outbound_proxy		0
+2	peerdetails		0
+2	qualify_frequency	60	0
+2	register		0
+2	registration	none	0
+2	retry_interval	60	0
+2	rewrite_contact	no	0
+2	rtp_symmetric	yes	0
+2	secret		0
+2	sendrpid	no	0
+2	server_uri		0
+2	sip_server		0
+2	sip_server_port		0
+2	support_path	no	0
+2	sv_channelid		0
+2	sv_trunk_name		0
+2	sv_usercontext		0
+2	t38_udptl	no	0
+2	t38_udptl_ec	none	0
+2	t38_udptl_maxdatagram		0
+2	t38_udptl_nat	no	0
+2	transport	0.0.0.0-udp	0
+2	trunk_name	Sinov-IPAuth-Trunk	0
+2	trust_id_outbound	no	0
+2	trust_rpid	no	0
+2	user_eq_phone	no	0
+2	userconfig		0
+2	username		0

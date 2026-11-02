@@ -1,0 +1,25 @@
+# sirlar
+.env
+*.env.local
+deploy/.env
+!deploy/.env.example
+# sifat metrikalari (commit qilinmaydi)
+.metrics/
+target/
+# bog'liqliklar va build
+node_modules/
+.venv/
+dist/
+coverage/
+test-results/
+playwright-report/
+__pycache__/
+*.pyc
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+# zaxira va vaqtinchalik
+*.bak-*
+*.iso
+*.qcow2
+*.log

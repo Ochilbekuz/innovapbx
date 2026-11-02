@@ -1,0 +1,51 @@
+# Innova PBX — APPLIANCE qatlami (ISO o'rnatish, `iso/`). Asosiy fayl ustidan:
+#   docker compose -f docker-compose.yml -f docker-compose.appliance.yml up -d --no-build
+#
+# Nega: telefonlar LAN'dan SIP (5060) va RTP (10000-20000) bilan to'g'ridan-to'g'ri ulanishi kerak.
+# 10 000 RTP portni Docker NAT orqali publish qilish sekin va SDP'da konteyner IP'si chiqadi —
+# shuning uchun Asterisk HOST tarmog'ida. Qolganlari `innova-net` da qoladi; ular Asteriskka
+# ko'prik shlyuzi (172.30.0.1) orqali, Asterisk esa ularga loopback'dagi portlar orqali ulanadi.
+# AMI (5038), Asterisk HTTP (8088) va Postgres tashqaridan YOPIQ: host nftables (`iso/files/nftables.conf`)
+# + Postgres faqat 127.0.0.1 ga publish. Obrazlar ISO ichidan yuklanadi (`pull_policy: never`).
+
+x-innova-image: &innova-image
+  pull_policy: never
+
+services:
+  postgres:
+    ports:
+      - "127.0.0.1:5432:5432"
+
+  migrate:
+    <<: *innova-image
+    image: innova-pbx/api:${INNOVA_VERSION:-latest}
+
+  asterisk:
+    <<: *innova-image
+    image: innova-pbx/asterisk:${INNOVA_VERSION:-latest}
+    network_mode: host
+    hostname: !reset null
+    networks: !reset []
+    environment:
+      POSTGRES_HOST: 127.0.0.1
+
+  api:
+    <<: *innova-image
+    image: innova-pbx/api:${INNOVA_VERSION:-latest}
+    environment:
+      AMI_HOST: 172.30.0.1
+      # Dialplan CURL() — Asterisk host tarmog'ida, API loopback portida.
+      INTERNAL_API_BASE_URL: http://127.0.0.1:${API_HOST_PORT:-8710}
+
+  web:
+    <<: *innova-image
+    image: innova-pbx/web:${INNOVA_VERSION:-latest}
+    environment:
+      INNOVA_ASTERISK_WS: http://172.30.0.1:8088/ws
+
+networks:
+  innova-net:
+    ipam:
+      config:
+        - subnet: 172.30.0.0/24
+          gateway: 172.30.0.1

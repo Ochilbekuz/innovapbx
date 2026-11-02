@@ -1,0 +1,70 @@
+// "users" namespace — UsersPage (S31: foydalanuvchilar va rollar).
+
+export const uz = {
+  title: 'Foydalanuvchilar',
+  column: { username: 'Login', fullName: 'Ism', role: 'Rol', extension: 'Ichki raqam', status: 'Holat', lastLogin: 'Oxirgi kirish' },
+  role: { admin: 'Admin', operator: 'Operator' },
+  status: { active: 'Faol', inactive: 'Faolsizlantirilgan' },
+  neverLoggedIn: 'Hali kirmagan',
+  editAriaLabel: '{{name}}ni tahrirlash', deleteAriaLabel: '{{name}}ni oʻchirish',
+  caption: 'Foydalanuvchilar',
+  newUser: 'Yangi foydalanuvchi',
+  empty: { title: 'Hali foydalanuvchi yoʻq', body: 'Operatorlar va adminlar uchun hisob yarating.', action: 'Foydalanuvchi qoʻshish' },
+  toast: { added: 'Foydalanuvchi qoʻshildi', saved: 'Oʻzgarishlar saqlandi', deleted: '{{name}} oʻchirildi', deleteFailed: 'Oʻchirib boʻlmadi' },
+  deleteModal: { title: '{{name}}ni oʻchirish', body: '«{{name}}» hisobi butunlay oʻchiriladi.' },
+  cancel: 'Bekor qilish', delete: 'Oʻchirish', save: 'Saqlash', add: 'Qoʻshish',
+  form: {
+    newTitle: 'Yangi foydalanuvchi', editTitle: '{{name}}ni tahrirlash',
+    usernameLabel: 'Login', fullNameLabel: 'Toʻliq ism', emailLabel: 'Email', emailAside: 'ixtiyoriy',
+    roleLabel: 'Rol', extensionLabel: 'Ichki raqam', extensionAside: 'ixtiyoriy', extensionNone: 'Bogʻlanmagan',
+    languageLabel: 'Til', activeLabel: 'Faol', activeDesc: 'Oʻchirilsa — foydalanuvchi tizimga kira olmaydi',
+    passwordLabel: 'Parol', passwordHint: 'Kamida 10 belgi', passwordPlaceholderEdit: 'Oʻzgartirmaslik uchun boʻsh qoldiring',
+    mustChangeLabel: 'Keyingi kirishda parolni oʻzgartirish talab qilinsin',
+  },
+};
+
+export const ru = {
+  title: 'Пользователи',
+  column: { username: 'Логин', fullName: 'Имя', role: 'Роль', extension: 'Внутренний номер', status: 'Статус', lastLogin: 'Последний вход' },
+  role: { admin: 'Админ', operator: 'Оператор' },
+  status: { active: 'Активен', inactive: 'Деактивирован' },
+  neverLoggedIn: 'Ещё не входил',
+  editAriaLabel: 'Редактировать {{name}}', deleteAriaLabel: 'Удалить {{name}}',
+  caption: 'Пользователи',
+  newUser: 'Новый пользователь',
+  empty: { title: 'Пользователей пока нет', body: 'Создайте учётные записи для операторов и админов.', action: 'Добавить пользователя' },
+  toast: { added: 'Пользователь добавлен', saved: 'Изменения сохранены', deleted: '{{name}} удалён', deleteFailed: 'Не удалось удалить' },
+  deleteModal: { title: 'Удаление {{name}}', body: 'Учётная запись «{{name}}» будет удалена полностью.' },
+  cancel: 'Отмена', delete: 'Удалить', save: 'Сохранить', add: 'Добавить',
+  form: {
+    newTitle: 'Новый пользователь', editTitle: 'Редактирование {{name}}',
+    usernameLabel: 'Логин', fullNameLabel: 'Полное имя', emailLabel: 'Email', emailAside: 'необязательно',
+    roleLabel: 'Роль', extensionLabel: 'Внутренний номер', extensionAside: 'необязательно', extensionNone: 'Не привязан',
+    languageLabel: 'Язык', activeLabel: 'Активен', activeDesc: 'Если выключено — пользователь не сможет войти',
+    passwordLabel: 'Пароль', passwordHint: 'Минимум 10 символов', passwordPlaceholderEdit: 'Оставьте пустым, чтобы не менять',
+    mustChangeLabel: 'Потребовать смену пароля при следующем входе',
+  },
+};
+
+export const en = {
+  title: 'Users',
+  column: { username: 'Username', fullName: 'Name', role: 'Role', extension: 'Extension', status: 'Status', lastLogin: 'Last login' },
+  role: { admin: 'Admin', operator: 'Operator' },
+  status: { active: 'Active', inactive: 'Deactivated' },
+  neverLoggedIn: 'Never logged in',
+  editAriaLabel: 'Edit {{name}}', deleteAriaLabel: 'Delete {{name}}',
+  caption: 'Users',
+  newUser: 'New user',
+  empty: { title: 'No users yet', body: 'Create accounts for operators and admins.', action: 'Add user' },
+  toast: { added: 'User added', saved: 'Changes saved', deleted: '{{name}} deleted', deleteFailed: 'Could not delete' },
+  deleteModal: { title: 'Delete {{name}}', body: 'The account "{{name}}" will be permanently deleted.' },
+  cancel: 'Cancel', delete: 'Delete', save: 'Save', add: 'Add',
+  form: {
+    newTitle: 'New user', editTitle: 'Edit {{name}}',
+    usernameLabel: 'Username', fullNameLabel: 'Full name', emailLabel: 'Email', emailAside: 'optional',
+    roleLabel: 'Role', extensionLabel: 'Extension', extensionAside: 'optional', extensionNone: 'Not linked',
+    languageLabel: 'Language', activeLabel: 'Active', activeDesc: "If off — the user won't be able to sign in",
+    passwordLabel: 'Password', passwordHint: 'At least 10 characters', passwordPlaceholderEdit: 'Leave blank to keep unchanged',
+    mustChangeLabel: 'Require a password change on next sign-in',
+  },
+};

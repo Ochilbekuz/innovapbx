@@ -1,0 +1,72 @@
+# Innova PBX — FreePBX import uchun HAQIQIY FreePBX manba stendi (fixture)
+# Loyiha nomi: innova-fpbx (mavjud innova-m0 stekiga TEGMAYDI, alohida tarmoq)
+# Faqat 127.0.0.1 ga publish qilinadi — tashqi tarmoqqa chiqarilmaydi.
+#
+# Image: ekoyuliawan/freepbx:latest — FreePBX 17.0.28 + Asterisk 22.8.2 LTS
+# (Docker Hub, 2026-04-01 push). Rasmiy FreePBX image mavjud emas — Docker Hub'da
+# tekshirilgan, faol maintain qilinadigan muqobillar: ekoyuliawan/freepbx (tanlandi,
+# ~930MB, versiyasi aniq), mleem97/lnxr-freepbx (FreePBX17+Asterisk21, Debian12).
+#
+# MUHIM: Bu image ichida Apache+PHP+Asterisk bor, LEKIN MariaDB YO'Q — image
+# qurilganda "db" nomli alohida xost kutiladi (/etc/freepbx.conf da AMPDBHOST=db).
+# Shu sababli pastda alohida mariadb:10.6 xizmati beriladi va FreePBX konteyneri
+# unga ulanadi. Bu — image muallifining o'z compose loyihasidagi ("freepbx-docker-golden")
+# naqsh, biz uni qayta tikladik (taxmin: muallif build vaqtida vaqtinchalik DB
+# ishlatgan, keyin faqat fayl tizimini image'ga olgan; shu sabab DB sxemasi
+# image'da yo'q va birinchi ishga tushirishda `fwconsole` orqali qayta o'rnatiladi —
+# batafsil: freepbx-source-notes.md "Stendni ko'tarish" bo'limi).
+
+services:
+  db:
+    image: mariadb:10.6
+    container_name: innova-fpbx-db
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: "sinov-root-PAROL1"   # faqat SINOV qiymati
+      MYSQL_DATABASE: asterisk
+      MYSQL_USER: freepbxuser
+      MYSQL_PASSWORD: "notabeneNYA76"             # image ichidagi /etc/freepbx.conf bilan mos (SINOV paroli)
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_general_ci
+    ports:
+      - "127.0.0.1:3320:3306"
+    volumes:
+      - fpbx_db_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  freepbx:
+    image: ekoyuliawan/freepbx:latest
+    container_name: innova-fpbx-app
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:8720:80"
+    volumes:
+      - fpbx_etc_asterisk:/etc/asterisk
+      - fpbx_var_lib_asterisk:/var/lib/asterisk
+      - fpbx_var_spool_asterisk:/var/spool/asterisk
+      - fpbx_html:/var/www/html
+    # SSH kerak emas — image'da sshd o'rnatilmagan (tekshirildi: 2026-10-30).
+
+volumes:
+  fpbx_db_data:
+    name: innova-fpbx_db_data
+  fpbx_etc_asterisk:
+    name: innova-fpbx_etc_asterisk
+  fpbx_var_lib_asterisk:
+    name: innova-fpbx_var_lib_asterisk
+  fpbx_var_spool_asterisk:
+    name: innova-fpbx_var_spool_asterisk
+  fpbx_html:
+    name: innova-fpbx_html
+
+networks:
+  default:
+    name: innova-fpbx-net

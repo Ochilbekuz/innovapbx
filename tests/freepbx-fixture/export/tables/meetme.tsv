@@ -1,0 +1,2 @@
+exten	options	userpin	adminpin	description	joinmsg_id	music	users	language	timeout
+8000		1234	4321	Sinov konferensiya	NULL	default	0		21600

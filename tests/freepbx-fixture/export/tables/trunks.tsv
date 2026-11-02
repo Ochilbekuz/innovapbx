@@ -1,0 +1,3 @@
+trunkid	tech	channelid	name	outcid	keepcid	maxchans	failscript	dialoutprefix	usercontext	provider	disabled	continue	routedisplay
+1	pjsip	sinov-registered-trunk	Sinov-Registered-Trunk	+998901112233	off	10					off	off	on
+2	pjsip	sinov-ipauth-trunk	Sinov-IPAuth-Trunk	+998901112244	off	5					off	off	on

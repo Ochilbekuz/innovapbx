@@ -1,0 +1,20 @@
+# Innova PBX — PRODUKSIYA override (faqat fayl, M0 proof'da ISHGA TUSHIRILMAYDI).
+# Haqiqiy serverlarda SIP/RTP NAT muammolarisiz ishlashi uchun Asterisk
+# host tarmog'ida ishlaydi: `docker compose -f docker-compose.yml -f docker-compose.host.yml up -d`
+#
+# DIQQAT: `network_mode: host` bilan Asterisk `innova-net` bridge tarmog'idan
+# chiqib ketadi, shuning uchun u Postgres'ga endi "postgres" nomi bilan
+# murojaat qila olmaydi. Ikki variant:
+#   1) Postgres'ni ham hostga chiqarish (xavfsizlik pasayadi) va
+#      POSTGRES_HOST=127.0.0.1 qilish, YOKI
+#      (M0 standart holati EMAS — faqat qo'lda, ongli qaror bilan)
+#   2) Asterisk konteynerida host tarmog'i + Postgres portini faqat
+#      lokal loopback/VPN orqali ochish.
+# Bu fayl M0'da sinalmagan — ishlatishdan oldin yuqoridagi tanlovni qilib,
+# `POSTGRES_HOST`ni mos ravishda sozlang. `rtp.conf`dagi diapazon
+# (10000-20000/udp) va 5060/udp,tcp hostda OCHIQ bo'lishi kerak (firewall).
+
+services:
+  asterisk:
+    network_mode: host
+    ports: []

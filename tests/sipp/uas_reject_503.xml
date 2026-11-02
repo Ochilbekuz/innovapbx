@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="ISO-8859-1"?>
+<!DOCTYPE scenario SYSTEM "sipp.dtd">
+<!-- Trunk-UAS rolini o'ynaydi — har qanday INVITE'ga DARHOL 503 Service
+     Unavailable bilan javob beradi (m1b-contract.md ssenariy 1: trunk A
+     "UAS 503 qaytaradi" -> Asterisk CONGESTION deb o'qiydi -> trunk B'ga
+     o'tadi, `app/services/compiler.py::_route_trunk_dial_lines`). -->
+<scenario name="UasReject503">
+  <recv request="INVITE" crlf="true"></recv>
+  <send>
+    <![CDATA[
+      SIP/2.0 503 Service Unavailable
+      [last_Via:]
+      [last_From:]
+      [last_To:];tag=uasrej01
+      [last_Call-ID:]
+      [last_CSeq:]
+      Content-Length: 0
+
+    ]]>
+  </send>
+</scenario>

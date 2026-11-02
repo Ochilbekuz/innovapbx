@@ -1,0 +1,22 @@
+[
+  {
+    "name": "InnovaPBX_HTTPServis.bsl",
+    "title": "HTTP-servis moduli — webhook qabul qiluvchi (HMAC tekshiruvi)"
+  },
+  {
+    "name": "InnovaPBX_Ulanish.bsl",
+    "title": "Umumiy modul — PBX REST API bilan ulanish (originate, yozuv, ro'yxat)"
+  },
+  {
+    "name": "Metadata-tavsifi.md",
+    "title": "Konfiguratsiya metadata ro'yxati (HTTP-servis, registrlar, konstantalar)"
+  },
+  {
+    "name": "Ornatish-uz.md",
+    "title": "O'rnatish qo'llanmasi (o'zbekcha)"
+  },
+  {
+    "name": "Ustanovka-ru.md",
+    "title": "Руководство по установке (на русском)"
+  }
+]

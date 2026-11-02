@@ -1,0 +1,294 @@
+{
+  "_about": "Innova PBX — DARK rejim. tokens.json dagi rollarning faqat rang qiymatlari (rol nomlari bir xil). Shrift/o'lcham/motion tokens.json dan meros. Dark'da tugma aksenti yorqinroq va yozuvi qorong'i (on-accent), hover — olov sariq #F48B20. Qahva #372523 — tanlangan holat foni, jigarrang-kulrang #4A3F39 — kuchli chegara. Tekshiruv: python3 ~/.claude/skills/replica-design/contrast.py replica/design/tokens.dark.json",
+  "color": {
+    "bg": "#1A1817",
+    "surface": "#211F20",
+    "surface-2": "#2A2725",
+    "raised": "#2E2A28",
+    "border": "#373230",
+    "border-strong": "#4A3F39",
+    "border-input": "#857D74",
+    "text": "#EEEAE4",
+    "text-muted": "#A9A299",
+    "text-disabled": "#6A645D",
+    "brand": "#D7621D",
+    "brand-fire": "#F48B20",
+    "accent": "#EA7A2E",
+    "accent-hover": "#F48B20",
+    "on-accent": "#1A1210",
+    "accent-soft": "#372523",
+    "on-accent-soft": "#F6A86A",
+    "focus-ring": "#F48B20",
+    "live": "#F9C416",
+    "on-live": "#211F20",
+    "danger": "#F06A66",
+    "danger-hover": "#F58884",
+    "on-danger": "#1A1210",
+    "danger-soft": "#3B1E1F",
+    "on-danger-soft": "#F7A19E",
+    "success": "#4CC38A",
+    "on-success": "#10231A",
+    "success-soft": "#1B3226",
+    "on-success-soft": "#86D9AE",
+    "warning": "#E2AE3C",
+    "warning-soft": "#372D14",
+    "on-warning-soft": "#F0C866",
+    "info": "#6FB3C8",
+    "info-soft": "#172F38",
+    "on-info-soft": "#94C8D8",
+    "status-online": "#4CC38A",
+    "status-offline": "#8C857C",
+    "status-error": "#F06A66",
+    "status-warning": "#E2AE3C",
+    "status-disabled": "#5A544E",
+    "sidebar-bg": "#141312",
+    "sidebar-surface": "#221F1E",
+    "sidebar-active": "#372523",
+    "sidebar-border": "#2A2725",
+    "sidebar-text": "#ECE8E2",
+    "sidebar-muted": "#A39E96",
+    "chart-1": "#EA7A2E",
+    "chart-2": "#8E9A93",
+    "chart-3": "#F9C416",
+    "chart-4": "#A39E96",
+    "scrim": "#000000"
+  },
+  "pairs": [
+    [
+      "text",
+      "bg"
+    ],
+    [
+      "text",
+      "surface"
+    ],
+    [
+      "text",
+      "surface-2"
+    ],
+    [
+      "text",
+      "raised"
+    ],
+    [
+      "text-muted",
+      "bg"
+    ],
+    [
+      "text-muted",
+      "surface"
+    ],
+    [
+      "text-muted",
+      "surface-2"
+    ],
+    [
+      "text-muted",
+      "raised"
+    ],
+    [
+      "accent",
+      "bg"
+    ],
+    [
+      "accent",
+      "surface"
+    ],
+    [
+      "accent",
+      "surface-2"
+    ],
+    [
+      "on-accent",
+      "accent"
+    ],
+    [
+      "on-accent",
+      "accent-hover"
+    ],
+    [
+      "on-accent-soft",
+      "accent-soft"
+    ],
+    [
+      "text",
+      "accent-soft"
+    ],
+    [
+      "on-live",
+      "live"
+    ],
+    [
+      "danger",
+      "bg"
+    ],
+    [
+      "danger",
+      "surface"
+    ],
+    [
+      "on-danger",
+      "danger"
+    ],
+    [
+      "on-danger",
+      "danger-hover"
+    ],
+    [
+      "on-danger-soft",
+      "danger-soft"
+    ],
+    [
+      "success",
+      "surface"
+    ],
+    [
+      "success",
+      "bg"
+    ],
+    [
+      "on-success",
+      "success"
+    ],
+    [
+      "on-success-soft",
+      "success-soft"
+    ],
+    [
+      "warning",
+      "surface"
+    ],
+    [
+      "warning",
+      "bg"
+    ],
+    [
+      "on-warning-soft",
+      "warning-soft"
+    ],
+    [
+      "info",
+      "surface"
+    ],
+    [
+      "on-info-soft",
+      "info-soft"
+    ],
+    [
+      "sidebar-text",
+      "sidebar-bg"
+    ],
+    [
+      "sidebar-text",
+      "sidebar-surface"
+    ],
+    [
+      "sidebar-text",
+      "sidebar-active"
+    ],
+    [
+      "sidebar-muted",
+      "sidebar-bg"
+    ],
+    [
+      "sidebar-muted",
+      "sidebar-surface"
+    ],
+    [
+      "brand-fire",
+      "sidebar-active",
+      "ui"
+    ],
+    [
+      "brand",
+      "sidebar-bg",
+      "ui"
+    ],
+    [
+      "border-input",
+      "surface",
+      "ui"
+    ],
+    [
+      "border-input",
+      "bg",
+      "ui"
+    ],
+    [
+      "border-input",
+      "surface-2",
+      "ui"
+    ],
+    [
+      "focus-ring",
+      "surface",
+      "ui"
+    ],
+    [
+      "focus-ring",
+      "bg",
+      "ui"
+    ],
+    [
+      "focus-ring",
+      "surface-2",
+      "ui"
+    ],
+    [
+      "brand",
+      "surface",
+      "ui"
+    ],
+    [
+      "status-online",
+      "surface",
+      "ui"
+    ],
+    [
+      "status-offline",
+      "surface",
+      "ui"
+    ],
+    [
+      "status-error",
+      "surface",
+      "ui"
+    ],
+    [
+      "status-warning",
+      "surface",
+      "ui"
+    ],
+    [
+      "status-online",
+      "surface-2",
+      "ui"
+    ],
+    [
+      "status-error",
+      "surface-2",
+      "ui"
+    ],
+    [
+      "chart-1",
+      "surface",
+      "ui"
+    ],
+    [
+      "chart-2",
+      "surface",
+      "ui"
+    ],
+    [
+      "chart-4",
+      "surface",
+      "ui"
+    ]
+  ],
+  "shadow": {
+    "card": "0 1px 0 rgba(255,255,255,.03) inset, 0 1px 2px rgba(0,0,0,.40)",
+    "pop": "0 1px 0 rgba(255,255,255,.04) inset, 0 12px 32px -8px rgba(0,0,0,.65)",
+    "modal": "0 1px 0 rgba(255,255,255,.05) inset, 0 32px 64px -16px rgba(0,0,0,.75)",
+    "inset": "inset 0 1px 2px rgba(0,0,0,.35)"
+  }
+}
