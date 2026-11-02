@@ -30,7 +30,7 @@ function guard(onAttemptClose?: () => boolean) {
 function Header({ title, description }: Pick<Base, 'title' | 'description'>) {
   const { t } = useTranslation('common');
   return (
-    <div className="flex items-start justify-between gap-4 border-b border-line px-5 py-4">
+    <div className="flex shrink-0 items-start justify-between gap-4 border-b border-line px-5 py-4">
       <div className="min-w-0">
         <D.Title className="font-display text-lg text-fg">{title}</D.Title>
         {description ? (
@@ -58,14 +58,15 @@ export function Modal({ size = 'md', open, onOpenChange, trigger, title, descrip
           onEscapeKeyDown={g}
           onPointerDownOutside={g}
           className={cn(
-            'fixed left-1/2 top-[12vh] z-modal w-[calc(100vw-2rem)] -translate-x-1/2 rounded-lg border border-line bg-raised shadow-modal',
+            // Uzun forma ekranga sig'masa: balandlik cheklanadi, faqat tana aylanadi — sarlavha va tugmalar doim ko'rinadi.
+            'fixed left-1/2 top-[6vh] z-modal flex max-h-[88vh] w-[calc(100vw-2rem)] -translate-x-1/2 flex-col rounded-lg border border-line bg-raised shadow-modal',
             'data-[state=open]:animate-pop-in focus-visible:outline-none',
             size === 'sm' ? 'max-w-modal-sm' : 'max-w-modal-md',
           )}
         >
           <Header title={title} description={description} />
-          {children && <div className="px-5 py-4">{children}</div>}
-          {footer && <div className="flex flex-wrap justify-end gap-2 border-t border-line bg-surface-2/60 px-5 py-3">{footer}</div>}
+          {children && <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">{children}</div>}
+          {footer && <div className="flex shrink-0 flex-wrap justify-end gap-2 border-t border-line bg-surface-2/60 px-5 py-3">{footer}</div>}
         </D.Content>
       </D.Portal>
     </D.Root>

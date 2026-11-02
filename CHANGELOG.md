@@ -1,5 +1,10 @@
 # O'zgarishlar tarixi
 
+## 1.0.3 — 2026-11-02
+- **Tuzatildi:** «Yangi ichki raqam» oynasida «Qo'shimcha sozlamalar» ochilsa, oyna ekrandan oshib ketib, pastki maydonlar
+  va «Yaratish» tugmasi ko'rinmasdi. Endi barcha modal oynalar ekran balandligiga sig'adi, ichi aylanadi,
+  sarlavha va tugmalar doim ko'rinadi.
+
 ## 1.0.2 — 2026-11-02
 - **O'zgardi:** SIP login endi ichki raqamning o'zi (FreePBX'dagidek): telefonga `t1-100` emas, `100` yoziladi.
   Mavjud raqamlar yangilanishda avtomatik o'tadi (migratsiya 0027) — **telefonlarda login'ni `100` ga o'zgartiring**, parol o'sha.
