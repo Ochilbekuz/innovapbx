@@ -113,6 +113,31 @@ describe('fake client — kiruvchi marshrutlar', () => {
   });
 });
 
+describe('fake client — chiquvchi marshrut naqsh shartnomasi (backend bilan bir xil)', () => {
+  let client: ApiClient;
+  beforeEach(async () => { client = createFakeClient(); await asAdmin(client); });
+  const route = (pattern: Record<string, unknown>) => ({
+    name: 'Sinov', enabled: true, patterns: [pattern] as never, trunk_ids: ['t-1'], callerid: null,
+    override_extension_callerid: false, international: false, extensions: 'all' as const, pin: null,
+  });
+
+  it('bo\'sh ixtiyoriy maydon null bo\'lsa — 422 (backend pydantic str kutadi)', async () => {
+    await expect(client.createOutboundRoute(route({ strip_prefix: null, pattern: '7XXX', add_prefix: '', callerid_match: '' })))
+      .rejects.toMatchObject({ status: 422, field: 'patterns.0.strip_prefix' });
+  });
+
+  it('bo\'sh ixtiyoriy maydon \'\' — qabul qilinadi', async () => {
+    const trunk = (await client.listTrunks()).items[0]!;
+    const res = await client.createOutboundRoute({ ...route({ strip_prefix: '', pattern: '7XXX', add_prefix: '', callerid_match: '' }), trunk_ids: [trunk.id] });
+    expect(res.item.patterns[0]).toEqual({ strip_prefix: '', pattern: '7XXX', add_prefix: '', callerid_match: '' });
+  });
+
+  it.each(['_7XXX', '7xxx'])('normallashmagan naqsh %s — 422 bad_pattern (backend faqat 0-9XZN.[]*#+-! qabul qiladi)', async (pattern) => {
+    await expect(client.createOutboundRoute(route({ strip_prefix: '', pattern, add_prefix: '', callerid_match: '' })))
+      .rejects.toMatchObject({ status: 422, code: 'bad_pattern' });
+  });
+});
+
 describe('fake client — M1a', () => {
   let client: ApiClient;
   beforeEach(async () => { client = createFakeClient(); await asAdmin(client); });

@@ -879,8 +879,13 @@ export function createFakeClient(): ApiClient {
 
   function validateOutboundPatterns(patterns: OutboundPattern[]) {
     patterns.forEach((p, index) => {
+      // backend (pydantic `str`) null'ni rad etadi — fake ham xuddi shunday (2026-11-02: UI null yuborardi)
+      for (const f of ['strip_prefix', 'add_prefix', 'callerid_match'] as const) {
+        if (typeof p[f] !== 'string') err(422, 'validation_error', "Soʻrov maʼlumotlari yaroqsiz", { field: `patterns.${index}.${f}` });
+      }
       const parsed = parsePattern(p.pattern);
-      if (!parsed.ok) err(422, 'bad_pattern', 'Naqsh notoʻgʻri — qatorni tekshiring.', { details: { index, reason: parsed.error.code } });
+      // backend normallashtirmaydi: '_' yoki kichik harf — rad (canonicalPattern dan o'tmagan)
+      if (!parsed.ok || parsed.normalized !== p.pattern) err(422, 'bad_pattern', 'Naqsh notoʻgʻri — qatorni tekshiring.', { details: { index, reason: parsed.ok ? 'not-normalized' : parsed.error.code } });
     });
   }
 

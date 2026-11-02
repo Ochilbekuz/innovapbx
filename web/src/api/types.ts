@@ -331,7 +331,8 @@ export type NumbersFreeParams = { from?: number; to?: number; limit?: number };
 
 // ─────────────────────────── M1b — qarang ../../replica/m1b-contract.md ───────────────────────────
 
-export type OutboundPattern = { strip_prefix: string | null; pattern: string; add_prefix: string | null; callerid_match: string | null };
+// Backend shartnomasi (schemas.OutboundPatternIn, ustun NOT NULL DEFAULT ''): bo'sh = '' — null 422 beradi.
+export type OutboundPattern = { strip_prefix: string; pattern: string; add_prefix: string; callerid_match: string };
 export type OutboundTrunkRef = { position: number; trunk: { id: string; name: string; health_state: TrunkHealthState } };
 export type OutboundExtensionRef = { id: string; number: string; name: string };
 

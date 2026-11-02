@@ -9,7 +9,7 @@ orqali) ikkisi ham `pattern_to_asterisk_regex`/`strip_number`/`international_blo
 dan foydalanadi.
 
 Naqsh sintaksisi (m1b-contract.md 25-qator): raqamlar, `X` (0-9), `Z` (1-9),
-`N` (2-9), `.` (oxirida — qolgan BARCHA raqamlar), `[1-5]` kabi diapazon,
+`N` (2-9), `.`/`!` (oxirida — qolgan BARCHA raqamlar), `[1-5]` kabi diapazon,
 `*`/`#`/`+` harflama belgilar sifatida.
 """
 from __future__ import annotations
@@ -17,7 +17,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
-_ALLOWED_CHARS_RE = re.compile(r"^[0-9XZN.\[\]*#+\-]+$")
+_ALLOWED_CHARS_RE = re.compile(r"^[0-9XZN.!\[\]*#+\-]+$")
 _CLASS_RE = re.compile(r"^\[(\d)-(\d)\]$")
 
 

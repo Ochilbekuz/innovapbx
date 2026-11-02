@@ -87,6 +87,12 @@ export function parsePattern(input: string): ParsedPattern {
   };
 }
 
+/** API'ga yuboriladigan shakl (backend `_` va kichik harfni qabul qilmaydi). Yaroqsizi o'zgarmaydi. */
+export function canonicalPattern(input: string): string {
+  const p = parsePattern(input);
+  return p.ok ? p.normalized : input.trim();
+}
+
 function tokenAccepts(token: PatternToken, ch: string): boolean {
   return token.t === 'lit' ? token.ch === ch : token.t === 'set' ? token.chars.includes(ch) : true;
 }

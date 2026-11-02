@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { applyRoute, describePattern, matchPattern, parsePattern } from './pattern';
+import { applyRoute, canonicalPattern, describePattern, matchPattern, parsePattern } from './pattern';
 
 describe('parsePattern', () => {
   it('oddiy mobil naqshni qabul qiladi va uzunligini hisoblaydi', () => {
@@ -45,6 +45,17 @@ describe('parsePattern', () => {
   it("bo'sh naqsh — xato", () => {
     const r = parsePattern('  ');
     expect(!r.ok && r.error.code).toBe('empty');
+  });
+});
+
+describe('canonicalPattern', () => {
+  it("API'ga yuboriladigan shakl: '_' siz, katta harf, bo'shliqsiz", () => {
+    expect(canonicalPattern(' _998xxxxxxxxx ')).toBe('998XXXXXXXXX');
+    expect(canonicalPattern('8!')).toBe('8!');
+  });
+
+  it("yaroqsiz naqshni o'zgartirmaydi — xatoni server aniq ko'rsatadi", () => {
+    expect(canonicalPattern(' 9.1 ')).toBe('9.1');
   });
 });
 

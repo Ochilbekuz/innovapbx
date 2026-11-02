@@ -38,6 +38,13 @@ def test_validate_pattern_dot_only_at_end():
     assert validate_pattern("998.").ok
 
 
+def test_validate_pattern_bang_only_at_end():
+    # kompilyator '!' ni biladi (pattern_to_regex_body) — validator ham qabul qilsin
+    assert validate_pattern("8!").ok
+    assert pattern_matches("8!", "8901")
+    assert not validate_pattern("8!1").ok
+
+
 def test_validate_pattern_range_must_be_ordered():
     assert not validate_pattern("[5-1]23").ok
     assert validate_pattern("[1-5]23").ok

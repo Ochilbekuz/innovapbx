@@ -11,6 +11,7 @@ import { usePermission } from '@/auth/permissions';
 import { applyToast } from '@/lib/applyToast';
 import { usagesOf } from '@/lib/usageError';
 import { STEP_TEXT, validateOutboundForm } from '@/domain/outbound';
+import { canonicalPattern } from '@/domain/pattern';
 import { PatternEditor, type PatternRow } from '@/pbx/PatternEditor';
 import { SortableList } from '@/pbx/SortableList';
 import { UsageList } from '@/pbx/UsageList';
@@ -21,14 +22,15 @@ import { Field, Input, Select } from '@/ui/Field';
 import { Badge, StatusPill, type Status } from '@/ui/Status';
 import { Toggle } from '@/ui/Toggle';
 import { useToast } from '@/ui/Toast';
+import { newId } from '@/lib/browser';
 
 const HEALTH_STATUS: Record<Trunk['health']['state'], Status> = { ok: 'online', unreachable: 'error', unknown: 'offline', disabled: 'disabled' };
 
 function patternsToRows(patterns: OutboundPattern[]): PatternRow[] {
-  return patterns.map((p) => ({ id: crypto.randomUUID(), prepend: p.add_prefix ?? '', prefix: p.strip_prefix ?? '', pattern: p.pattern, callerId: p.callerid_match ?? '' }));
+  return patterns.map((p) => ({ id: newId(), prepend: p.add_prefix, prefix: p.strip_prefix, pattern: p.pattern, callerId: p.callerid_match }));
 }
 function rowsToPatterns(rows: PatternRow[]): OutboundPattern[] {
-  return rows.map((r) => ({ add_prefix: r.prepend.trim() || null, strip_prefix: r.prefix.trim() || null, pattern: r.pattern.trim(), callerid_match: r.callerId.trim() || null }));
+  return rows.map((r) => ({ add_prefix: r.prepend.trim(), strip_prefix: r.prefix.trim(), pattern: canonicalPattern(r.pattern), callerid_match: r.callerId.trim() }));
 }
 
 /** S22 — Chiquvchi marshrutlar: ustunlik tartibi, naqshlar, trunk zahira ketma-ketligi, va simulyator. */
@@ -286,7 +288,7 @@ function OutboundRouteDrawer({
   const { t } = useTranslation('outbound');
   const [name, setName] = useState(route?.name ?? '');
   const [enabled, setEnabled] = useState(route?.enabled ?? true);
-  const [patternRows, setPatternRows] = useState<PatternRow[]>(() => (route ? patternsToRows(route.patterns) : [{ id: crypto.randomUUID(), prepend: '', prefix: '', pattern: '_998XXXXXXXXX', callerId: '' }]));
+  const [patternRows, setPatternRows] = useState<PatternRow[]>(() => (route ? patternsToRows(route.patterns) : [{ id: newId(), prepend: '', prefix: '', pattern: '_998XXXXXXXXX', callerId: '' }]));
   const [chain, setChain] = useState<TrunkChainItem[]>(() => (route?.trunks ?? []).map((tc) => ({ id: tc.trunk.id, name: tc.trunk.name, health_state: tc.trunk.health_state })));
   const [callerid, setCallerid] = useState(route?.callerid ?? '');
   const [overrideCallerid, setOverrideCallerid] = useState(route?.override_extension_callerid ?? false);

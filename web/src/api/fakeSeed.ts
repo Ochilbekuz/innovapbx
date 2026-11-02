@@ -252,8 +252,8 @@ export function seedOutboundRoutes(trunks: Trunk[]): OutboundRoute[] {
     {
       id: 'or-uz', name: 'Mahalliy va mobil (UZ)', priority: 1, enabled: true,
       patterns: [
-        { strip_prefix: null, pattern: '998XXXXXXXXX', add_prefix: null, callerid_match: null },
-        { strip_prefix: null, pattern: 'XXXXXXXXX', add_prefix: '998', callerid_match: null },
+        { strip_prefix: '', pattern: '998XXXXXXXXX', add_prefix: '', callerid_match: '' },
+        { strip_prefix: '', pattern: 'XXXXXXXXX', add_prefix: '998', callerid_match: '' },
       ],
       trunks: trunkRefs,
       callerid: null, override_extension_callerid: false, has_pin: false, international: false,
