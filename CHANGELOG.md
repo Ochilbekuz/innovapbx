@@ -1,5 +1,24 @@
 # O'zgarishlar tarixi
 
+## 1.0.4 — 2026-11-02
+- **Tuzatildi:** Boshqaruv panelidagi ogohlantirishlarda «Ko'rish» hech narsa qilmasdi — havolalar mavjud bo'lmagan
+  sahifalarga (`/outbound-routes`, `/system`) yo'naltirardi. Endi to'g'ri sahifa ochiladi (Chiquvchi marshrutlar,
+  Tizim holati, Reviziyalar).
+- **Yangi:** panel HTTPS orqali ham ochiladi: `https://<server-IP>`. Sertifikat o'zi yaratiladi, 10 yil amal qiladi.
+  Bu brauzer softfonining mikrofoni ishlashi uchun kerak. http orqali ochilsa, softfon HTTPS'ga o'tishni taklif qiladi.
+  Oddiy http va telefon provizioningi (`/prov/`) avvalgidek ishlaydi. Brauzer birinchi kirishda sertifikat
+  haqida ogohlantiradi — «Davom etish»ni bosing.
+- **Xavfsizlik:** yangi o'rnatishda `/setup` bir martalik o'rnatish kodini so'raydi. Kod `install.sh` oxirida
+  va server konsolida chiqadi. Endi tarmoqdagi istalgan odam birinchi bo'lib admin yarata olmaydi.
+  Allaqachon sozlangan serverlarga bu ta'sir qilmaydi.
+- **Tuzatildi:** ovozli pochta:
+  - ichki raqam nomi o'zgarganda quti nomi ham yangilanadi;
+  - umumiy quti raqami ichki raqam, navbat va boshqa raqamlar bilan to'qnashsa, tushunarli xato chiqadi;
+  - bildirishnoma yuborishda xato bo'lsa, xabar yo'qolmaydi va qayta yuboriladi (migratsiya 0030).
+- **Tasdiqlandi:** navbatda DND yoqilgan operator chaqirilmaydi. Park qilingan qo'ng'iroq 60 soniya javobsiz qolsa,
+  park qilgan raqamga qaytadi. Ikkalasi jonli isbot bilan tekshirildi.
+- **Ichki:** murakkab funksiyalar soddalashtirildi (`update_trunk`, FreePBX import mapperlari). Xatti-harakat o'zgarmadi.
+
 ## 1.0.3 — 2026-11-02
 - **Tuzatildi:** «Yangi ichki raqam» oynasida «Qo'shimcha sozlamalar» ochilsa, oyna ekrandan oshib ketib, pastki maydonlar
   va «Yaratish» tugmasi ko'rinmasdi. Endi barcha modal oynalar ekran balandligiga sig'adi, ichi aylanadi,

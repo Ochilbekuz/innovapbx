@@ -10,6 +10,7 @@ import { cn } from '@/lib/cn';
 import { Button } from '@/ui/Button';
 import { LiveDot } from '@/ui/Status';
 import { useSoftphoneStore } from './store';
+import { isPageInsecure } from './secureContext';
 import type { ActiveCall, CallPhase, ConnectionState } from './types';
 
 const KEYS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '*', '0', '#'];
@@ -100,12 +101,21 @@ function DialPad({ onDigit }: { onDigit: (d: string) => void }) {
 function IdleScreen() {
   const { t } = useTranslation('common');
   const micDenied = useSoftphoneStore((s) => s.micDenied);
+  // 1.0.4: HTTP (LAN appliance) ustida mikrofon brauzer tomonidan bloklanadi — `localhost`/`127.0.0.1`
+  // bundan mustasno (o'zgarmas, sahifa umrida bir marta hisoblanadi — location o'zgarmaydi).
+  const [insecure] = useState(isPageInsecure);
   const [num, setNum] = useState('');
   const startCall = useSoftphoneStore((s) => s.startCall);
   const call = () => num.trim() && startCall(num.trim());
 
   return (
     <div className="p-3">
+      {insecure && (
+        <p data-testid="softphone-insecure-warning" className="mb-2 flex items-start gap-1.5 rounded-md border border-danger/30 bg-danger-soft px-2.5 py-2 text-xs text-on-danger-soft">
+          <TriangleAlert aria-hidden className="mt-0.5 size-3.5 shrink-0" />
+          <span><strong className="font-medium">{t('softphone.insecureContextTitle')}</strong> {t('softphone.insecureContextBody')}</span>
+        </p>
+      )}
       {micDenied && (
         <p className="mb-2 flex items-start gap-1.5 rounded-md border border-danger/30 bg-danger-soft px-2.5 py-2 text-xs text-on-danger-soft">
           <TriangleAlert aria-hidden className="mt-0.5 size-3.5 shrink-0" />
@@ -126,7 +136,7 @@ function IdleScreen() {
         {num && <Button variant="ghost" size="sm" iconOnly aria-label={t('softphone.backspaceAriaLabel')} icon={<Delete />} onClick={() => setNum((n) => n.slice(0, -1))} />}
       </div>
       <DialPad onDigit={(d) => setNum((n) => n + d)} />
-      <Button data-testid="softphone-call" variant="primary" size="lg" className="mt-2 w-full" icon={<Phone />} disabled={!num || micDenied} onClick={call}>
+      <Button data-testid="softphone-call" variant="primary" size="lg" className="mt-2 w-full" icon={<Phone />} disabled={!num || micDenied || insecure} onClick={call}>
         {t('softphone.call')}
       </Button>
     </div>

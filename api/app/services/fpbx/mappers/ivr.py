@@ -1,7 +1,7 @@
 """`ivr_details` + `ivr_entries` -> `ivrs` + `ivr_options` (m5a-contract.md §1.2)."""
 from __future__ import annotations
 
-from app.services.fpbx.mappers import Ctx, Entry, ref, target_payload, target_warnings, warning
+from app.services.fpbx.mappers import Ctx, Entry, int_or, ref, target_payload, target_warnings, warning
 
 _DIGIT_OK = set("0123456789*#")
 
@@ -31,11 +31,11 @@ def map_ivr(ctx: Ctx) -> list[Entry]:
         # `timeout_recording`i Innova'da qo'llab-quvvatlanmaydi (ogohlantirmaymiz,
         # chunki fixture'da standart "default" qiymat, farq yo'q).
 
-        invalid_loops = int(row["invalid_loops"]) if (row.get("invalid_loops") or "").isdigit() else 0
-        timeout_loops = int(row["timeout_loops"]) if (row.get("timeout_loops") or "").isdigit() else 0
+        invalid_loops = int_or(row.get("invalid_loops"), 0)
+        timeout_loops = int_or(row.get("timeout_loops"), 0)
         repeats = max(invalid_loops, timeout_loops) or 1
 
-        timeout_seconds = int(row["timeout_time"]) if (row.get("timeout_time") or "").isdigit() else 10
+        timeout_seconds = int_or(row.get("timeout_time"), 10)
         direct_dial = bool(row.get("directdial"))
 
         invalid_target = ctx.resolve(row.get("invalid_destination"))

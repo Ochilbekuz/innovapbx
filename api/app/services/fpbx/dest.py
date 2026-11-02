@@ -10,6 +10,20 @@ _VM_PREFIXES = ("vmu", "vmb", "vms", "vmi")
 _HANGUP_APPS = {"hangup", "congestion", "zapateller", "no-service"}
 _UNSUPPORTED_BLACKHOLE = {"ring", "musiconhold"}
 
+# `resolve_dest`da bir xil shaklga ega ("context -> DestResult(kind, arg)") 4 ta
+# alohida `if` o'rniga BITTA lug'at qarashi (CRAP: har bir `if` resolve_dest'ning
+# CC'siga qo'shilardi — birlashtirilgach, xatti-harakat bir xil qoladi).
+_EXACT_KIND = {
+    "ext-group": "ring_group",
+    "ext-queues": "queue",
+    "timeconditions": "time_condition",
+    "ext-meetme": "conference",
+    "ext-conference": "conference",
+}
+
+# Prefiksga qarab kesib olinadigan kalit (`ivr-42` -> `ivr`/`42`).
+_PREFIX_KIND = (("ivr-", "ivr"), ("app-announcement-", "announcement"))
+
 
 @dataclass
 class DestCatalog:
@@ -50,6 +64,30 @@ def _internal_fallback(num: str, catalog: DestCatalog) -> DestResult:
     return DestResult("hangup", None, ("dest_unsupported", f"Manzil qo'llab-quvvatlanmaydi: {num}"))
 
 
+def _resolve_findmefollow(arg: str, dest: str) -> DestResult:
+    match = re.fullmatch(r"FM(\d+)", arg)
+    if match:
+        return DestResult("extension", match.group(1))
+    return DestResult("hangup", None, ("dest_unsupported", f"Manzil qo'llab-quvvatlanmaydi: {dest}"))
+
+
+def _resolve_prefixed(context: str) -> DestResult | None:
+    for prefix, kind in _PREFIX_KIND:
+        if context.startswith(prefix):
+            return DestResult(kind, context[len(prefix):])
+    return None
+
+
+# "context -> (arg, catalog, dest) dan DestResult quradi" shaklidagi, bitta aniq
+# kalitga mos keluvchi hodisalar — uch alohida `if`/`==` o'rniga BITTA lug'at
+# qarashi (xatti-harakat bir xil, resolve_dest'ning CC'si pasayadi).
+_CALL_HANDLERS = {
+    "ext-findmefollow": lambda arg, catalog, dest: _resolve_findmefollow(arg, dest),
+    "ext-miscdests": lambda arg, catalog, dest: _resolve_miscdest(arg, catalog),
+    "app-blackhole": lambda arg, catalog, dest: _resolve_blackhole(arg),
+}
+
+
 def resolve_dest(dest: str | None, catalog: DestCatalog) -> DestResult | None:
     """Bo'sh/`None` manzil uchun `None` qaytaradi — chaqiruvchi o'zining sukut qiymatini
     tanlaydi (masalan "no_answer_target_id yo'q" — CFU yo'q bo'lsa boshqa manbadan)."""
@@ -61,26 +99,14 @@ def resolve_dest(dest: str | None, catalog: DestCatalog) -> DestResult | None:
 
     if context in ("ext-local", "from-did-direct"):
         return _resolve_ext_local(arg, catalog)
-    if context == "ext-group":
-        return DestResult("ring_group", arg)
-    if context == "ext-queues":
-        return DestResult("queue", arg)
-    if context.startswith("ivr-"):
-        return DestResult("ivr", context[len("ivr-"):])
-    if context == "timeconditions":
-        return DestResult("time_condition", arg)
-    if context.startswith("app-announcement-"):
-        return DestResult("announcement", context[len("app-announcement-"):])
-    if context in ("ext-meetme", "ext-conference"):
-        return DestResult("conference", arg)
-    if context == "ext-findmefollow":
-        match = re.fullmatch(r"FM(\d+)", arg)
-        return DestResult("extension", match.group(1)) if match else \
-            DestResult("hangup", None, ("dest_unsupported", f"Manzil qo'llab-quvvatlanmaydi: {dest}"))
-    if context == "ext-miscdests":
-        return _resolve_miscdest(arg, catalog)
-    if context == "app-blackhole":
-        return _resolve_blackhole(arg)
+    if context in _EXACT_KIND:
+        return DestResult(_EXACT_KIND[context], arg)
+    prefixed = _resolve_prefixed(context)
+    if prefixed is not None:
+        return prefixed
+    handler = _CALL_HANDLERS.get(context)
+    if handler is not None:
+        return handler(arg, catalog, dest)
     if context in ("from-internal", "from-trunk"):
         return _internal_fallback(arg, catalog)
     return DestResult("hangup", None, ("dest_unsupported", f"Manzil qo'llab-quvvatlanmaydi: {dest}"))

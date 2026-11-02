@@ -70,8 +70,12 @@ api_as() { # token method path [data] -> body + "\n" + http_code (`api()` bilan
 }
 
 login() { # parol -> AUTH massivi
+  # 1.0.4: o'rnatish kodi — `deploy/.env`da bo'lsa yuboramiz (bo'lmasa bo'sh, server
+  # settings.setup_code bo'sh bo'lsa baribir tekshirmaydi — orqaga moslik).
+  local setup_code=""
+  [[ -z "${DEPLOY_DIR:-}" ]] || setup_code=$(grep -E '^SETUP_CODE=' "$DEPLOY_DIR/.env" 2>/dev/null | cut -d= -f2-)
   curl -s -o /dev/null -X POST "$API_BASE/setup" -H 'Content-Type: application/json' \
-    -d '{"admin":{"login":"admin","password":"'"$1"'","full_name":"Admin"},"language":"uz","timezone":"Asia/Tashkent"}'
+    -d '{"admin":{"login":"admin","password":"'"$1"'","full_name":"Admin"},"language":"uz","timezone":"Asia/Tashkent","code":"'"$setup_code"'"}'
   local login_json token
   login_json=$(curl -s -X POST "$API_BASE/auth/login" -H 'Content-Type: application/json' \
     -d '{"login":"admin","password":"'"$1"'"}')

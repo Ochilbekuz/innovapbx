@@ -5,6 +5,8 @@ export const uz = {
   step: { admin: '1. Administrator', network: '2. Til va tarmoq' },
   adminIntro: 'Innova PBX birinchi marta ishga tushyapti. Avval boshqaruvchi hisobini yarating.',
   field: {
+    setupCode: 'Oʻrnatish kodi',
+    setupCodeHint: 'Oʻrnatish tugagach konsolda/terminalda koʻrsatilgan kod.',
     login: 'Login',
     fullName: 'Toʻliq ism',
     password: 'Parol',
@@ -31,6 +33,7 @@ export const uz = {
     ipInvalid: 'IP manzil notoʻgʻri (masalan 203.0.113.10).',
     netsRequired: 'Kamida bitta lokal tarmoq kerak, masalan 10.0.0.0/8.',
     netsInvalid: '«{{bad}}» CIDR shaklida emas (masalan 192.168.1.0/24).',
+    codeRequired: 'Oʻrnatish kodini kiriting.',
   },
 };
 
@@ -39,6 +42,8 @@ export const ru = {
   step: { admin: '1. Администратор', network: '2. Язык и сеть' },
   adminIntro: 'Innova PBX запускается впервые. Сначала создайте учётную запись администратора.',
   field: {
+    setupCode: 'Код установки',
+    setupCodeHint: 'Код, показанный в консоли/терминале после установки.',
     login: 'Логин',
     fullName: 'Полное имя',
     password: 'Пароль',
@@ -65,6 +70,7 @@ export const ru = {
     ipInvalid: 'Неверный IP-адрес (например 203.0.113.10).',
     netsRequired: 'Нужна хотя бы одна локальная сеть, например 10.0.0.0/8.',
     netsInvalid: '«{{bad}}» не является корректным CIDR (например 192.168.1.0/24).',
+    codeRequired: 'Введите код установки.',
   },
 };
 
@@ -73,6 +79,8 @@ export const en = {
   step: { admin: '1. Administrator', network: '2. Language & network' },
   adminIntro: 'Innova PBX is starting for the first time. First create the administrator account.',
   field: {
+    setupCode: 'Setup code',
+    setupCodeHint: 'The code shown in the console/terminal after installation.',
     login: 'Login',
     fullName: 'Full name',
     password: 'Password',
@@ -99,5 +107,6 @@ export const en = {
     ipInvalid: 'Invalid IP address (e.g. 203.0.113.10).',
     netsRequired: 'At least one local network is required, e.g. 10.0.0.0/8.',
     netsInvalid: '"{{bad}}" is not a valid CIDR (e.g. 192.168.1.0/24).',
+    codeRequired: 'Enter the setup code.',
   },
 };

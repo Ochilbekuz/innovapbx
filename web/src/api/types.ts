@@ -25,6 +25,8 @@ export type SetupPayload = {
   timezone: string;
   external_ip: string | null;
   local_nets: string[];
+  /** 1.0.4 — o'rnatish kodi (install.sh konsolga chiqargan); eski serverlarda tekshiruv o'chiq. */
+  code?: string | null;
 };
 
 export type ApplyStatus = 'applied' | 'unchanged' | 'rolled_back' | 'realtime';

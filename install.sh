@@ -104,7 +104,7 @@ check_ports() {
     return 0 # yangilash — portlar o'zimizniki
   fi
   local busy
-  busy=$(ss -Hlntu | busy_ports "tcp:$WEB_PORT tcp:5060 udp:5060 tcp:5061 tcp:5038 tcp:8088 tcp:5432 tcp:8710")
+  busy=$(ss -Hlntu | busy_ports "tcp:$WEB_PORT tcp:443 tcp:5060 udp:5060 tcp:5061 tcp:5038 tcp:8088 tcp:5432 tcp:8710")
   [ -z "$busy" ] || die "portlar band: $(echo "$busy" | tr '\n' ' ')— boshqa PBX/veb-server/Postgres ishlayaptimi? (veb uchun --web-port)"
 }
 
@@ -194,9 +194,11 @@ wait_ready() {
   log "veb-panel kutilmoqda (port $port)"
   for _ in $(seq 1 90); do
     if curl -fsS -o /dev/null "http://127.0.0.1:$port/api/v1/setup/state"; then
-      local ip
+      local ip code
       ip=$(ip -4 route get 1.1.1.1 2>/dev/null | awk '{for(i=1;i<NF;i++) if($i=="src") print $(i+1)}')
       log "TAYYOR: http://${ip:-<server-IP>}$( [ "$port" = 80 ] || echo ":$port")/ — administrator yarating"
+      code=$(sed -n 's/^SETUP_CODE=//p' "$DEST/deploy/.env")
+      [ -z "$code" ] || log "O'RNATISH KODI (/setup birinchi so'raydi, faqat shu safar): $code"
       return 0
     fi
     sleep 5

@@ -4,6 +4,7 @@
 !web
 !replica/design
 !deploy/web-nginx.conf
+!deploy/web-tls-wait.sh
 web/node_modules
 web/dist
 web/target

@@ -4,13 +4,16 @@ INBOX xabarlarini ko'rib, yangi xabar uchun e-mail (SMTP, stdlib `smtplib`,
 `asyncio.to_thread`) va/yoki Telegram (`sendAudio`/`sendMessage`, httpx)
 yuboradi.
 
-Bir xabar bir kanalga BIR MARTA: avval `voicemail_notifications` ga qator
-«egallanadi» (`insert ... on conflict do nothing`, darhol commit), keyin
-yuboriladi, keyin `sent`/`failed`. API qayta ishga tushsa ham, bir nechta
-worker bo'lsa ham takror yo'q (unique kalit). `failed` qator
-`vm_notify_max_attempts` gacha qayta urinadi. Yuborish o'rtasida jarayon
-o'lsa qator `pending` qoladi va QAYTA YUBORILMAYDI (kamida-bir-marta emas,
-ko'pi-bilan-bir-marta — takror xat yomonroq deb tanlandi)."""
+Bir xabar bir kanalga KAMIDA BIR MARTA (1.0.4 §3): claim (`voicemail_notifications`
+ga `insert ... on conflict`, qator «egallanadi»), yuborish VA yakuniy holat
+(`sent`/`pending`+keyingi urinish/`dead`) — BITTA tranzaksiyada, BITTA `commit()`.
+Yuborish o'rtasida jarayon o'lsa — HAMMASI qaytariladi (rollback): claim ham
+bekor bo'ladi, qator eski holatida (yoki umuman yo'q) qoladi va KEYINGI skanida
+qayta egallanadi — avvalgi «claim alohida commit bilan darhol yozilardi» xatosi
+(jarayon o'lsa qator abadiy `pending` qolib, qayta urinilmasdi) shu bilan
+tuzatiladi. Qayta urinish jadvali — `integrations`dagi outbox qolipi bilan BIR
+XIL (`outbox.parse_schedule`/`transition`, `vm_notify_retry_schedule_s`);
+takror yuborishdan unique kalit (`box_id`, `msg_id`, `channel`) himoya qiladi."""
 from __future__ import annotations
 
 import asyncio
@@ -18,6 +21,7 @@ import logging
 import smtplib
 import ssl
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from email.message import EmailMessage
 from pathlib import Path
 
@@ -29,6 +33,8 @@ from app.core.config import settings
 from app.db.models import NotifySettings, Tenant, VoicemailBox
 from app.services import voicemail as vm
 from app.services.crypto import decrypt_secret
+from app.services.integrations.outbox import parse_schedule, transition
+from app.services.integrations.providers import DeliveryResult
 
 log = logging.getLogger("innova.vm_notify")
 
@@ -186,37 +192,55 @@ def _inbox_messages(box: VoicemailBox, tenant_code: str) -> list[PendingMessage]
 
 
 _CLAIM_SQL = text("""
-insert into voicemail_notifications (tenant_id, box_id, msg_id, channel, status, attempts)
-values (:tenant_id, :box_id, :msg_id, :channel, 'pending', 1)
+insert into voicemail_notifications (tenant_id, box_id, msg_id, channel, status, attempts, next_attempt_at)
+values (:tenant_id, :box_id, :msg_id, :channel, 'pending', 0, now())
 on conflict (box_id, msg_id, channel) do update
-  set status = 'pending', attempts = voicemail_notifications.attempts + 1
-  where voicemail_notifications.status = 'failed' and voicemail_notifications.attempts < :max_attempts
-returning id
+  set updated_at = now()
+  where voicemail_notifications.status = 'pending' and voicemail_notifications.next_attempt_at <= now()
+returning id, attempts
 """)
-_FINISH_SQL = text("update voicemail_notifications set status = :status, error = :error where id = :id")
+_FINISH_SQL = text("""
+update voicemail_notifications
+   set status = :status, attempts = :attempts, next_attempt_at = :next_attempt_at, error = :error
+ where id = :id
+""")
+_STATUS_AFTER = {"delivered": "sent", "pending": "pending", "dead": "dead"}
 
 
-async def _claim(session: AsyncSession, msg: PendingMessage, channel: str) -> int | None:
+async def _claim(session: AsyncSession, msg: PendingMessage, channel: str) -> tuple[int, int] | None:
+    """Egallaydi (yangi qator yoki vaqti kelgan qayta urinish) — commit QILMAYDI:
+    claim+yetkazish+yakun chaqiruvchida BITTA tranzaksiya (1.0.4 §3, sinf izohi)."""
     row = (await session.execute(_CLAIM_SQL, {
         "tenant_id": msg.tenant_id, "box_id": msg.box_id, "msg_id": msg.msg_id, "channel": channel,
-        "max_attempts": settings.vm_notify_max_attempts,
     })).first()
-    await session.commit()
-    return row[0] if row else None
+    return (row[0], row[1]) if row else None
+
+
+async def _finish(session: AsyncSession, claim_id: int, attempts: int, error: str | None, now: datetime) -> None:
+    """Natijani `integrations` outbox qolipi bilan BIR XIL jadval asosida yozadi
+    (`transition` — muvaffaqiyat/qayta urinish/`dead`, DRY)."""
+    schedule = parse_schedule(settings.vm_notify_retry_schedule_s)
+    step = transition(DeliveryResult(ok=error is None, error=error), attempts=attempts, schedule=schedule, now=now)
+    await session.execute(_FINISH_SQL, {
+        "status": _STATUS_AFTER[step.status], "attempts": step.attempts,
+        "next_attempt_at": step.next_attempt_at or now, "error": error, "id": claim_id,
+    })
 
 
 async def _notify_message(session: AsyncSession, cfg: NotifyConfig, msg: PendingMessage) -> None:
     for channel in channels_for(cfg, msg):
-        claim_id = await _claim(session, msg, channel)
-        if claim_id is None:
+        claim = await _claim(session, msg, channel)
+        if claim is None:
+            await session.commit()
             continue
+        claim_id, attempts = claim
         error = None
         try:
             await deliver(cfg, msg, channel)
         except NotifyError as exc:
             error = str(exc)[:500]
             log.warning("vm_notify %s %s/%s: %s", channel, msg.mailbox, msg.msg_id, error)
-        await session.execute(_FINISH_SQL, {"status": "failed" if error else "sent", "error": error, "id": claim_id})
+        await _finish(session, claim_id, attempts, error, datetime.now(timezone.utc))
         await session.commit()
 
 

@@ -9,7 +9,7 @@ import re
 
 from app.schemas_follow_me import FOLLOW_ME_MAX_NUMBERS, follow_me_default
 from app.services.fpbx import astdb as astdb_mod
-from app.services.fpbx.mappers import Ctx, Entry, ref, warning, weak_secret
+from app.services.fpbx.mappers import Ctx, Entry, int_or, ref, warning, weak_secret
 
 _KNOWN_CODECS = {"ulaw", "alaw", "g722", "opus"}
 _SUPPORTED_TECH = {"pjsip", "sip"}
@@ -23,12 +23,12 @@ def _codecs(allow: str | None) -> tuple[list[str], bool]:
 
 
 def _max_contacts(value: str | None) -> int:
-    n = int(value) if (value or "").isdigit() else 1
+    n = int_or(value, 1)
     return max(1, min(10, n))
 
 
 def _ringtimer(value: str | None) -> tuple[int, bool]:
-    n = int(value) if (value or "").isdigit() else 0
+    n = int_or(value, 0)
     if n == 0:
         return 25, False
     clamped = max(5, min(120, n))
@@ -109,7 +109,7 @@ def _fm_numbers(number: str, grplist: str, entry_warnings: list[dict[str, str]])
 
 def _fm_ring_seconds(raw: object) -> int:
     text = str(raw or "")
-    return max(5, min(120, int(text))) if text.isdigit() else 20
+    return max(5, min(120, int_or(text, 20)))
 
 
 def _follow_me(number: str, findmefollow_by_ext: dict[str, dict], ddial: str | None,

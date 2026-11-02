@@ -9,6 +9,39 @@ from app.services.fpbx import tsv as tsv_mod
 from app.services.fpbx.mappers import Ctx, Entry, ref, warning, weak_secret
 
 
+def _ordered_trunk_refs(trunks_by_route: dict[str, list[dict]], trunk_ids: set[str],
+                         route_id: str, entry_warnings: list[dict[str, str]]) -> list[dict]:
+    """`outbound_route_trunks.seq` bo'yicha tartiblangan failover ro'yxati —
+    o'chirilgan/topilmagan trunk tashlanadi (ogohlantirib)."""
+    ordered_trunks = sorted(trunks_by_route.get(route_id, []), key=lambda r: int(r["seq"]))
+    trunk_refs = []
+    for trunk_row in ordered_trunks:
+        trunk_id = trunk_row["trunk_id"]
+        if trunk_id not in trunk_ids:
+            entry_warnings.append(warning("trunk_missing", f"Trunk topilmadi: {trunk_id}"))
+            continue
+        trunk_refs.append(ref("trunk", trunk_id))
+    return trunk_refs
+
+
+def _warn_unsupported_route_options(row: dict, entry_warnings: list[dict[str, str]]) -> None:
+    """Innova'da yo'q 2 FreePBX sozlamasi (`emergency_route`/`time_group_id`) —
+    standart (OFF/0) bo'lmasa, qisman xaritalanish haqida ogohlantiramiz."""
+    if (row.get("emergency_route") or "OFF") != "OFF":
+        entry_warnings.append(warning("partial_mapping", "emergency_route Innova'da qo'llab-quvvatlanmaydi"))
+    if (row.get("time_group_id") or "0") != "0":
+        entry_warnings.append(warning("partial_mapping", "time_group_id (marshrut jadvali) Innova'da qo'llab-quvvatlanmaydi"))
+
+
+def _route_patterns(patterns_by_route: dict[str, list[dict]], route_id: str) -> list[dict]:
+    return [{
+        "strip_prefix": p.get("match_pattern_prefix") or None,
+        "pattern": p.get("match_pattern_pass") or None,
+        "add_prefix": p.get("prepend_digits") or None,
+        "callerid_match": p.get("match_cid") or None,
+    } for p in patterns_by_route.get(route_id, [])]
+
+
 def map_outbound_route(ctx: Ctx) -> list[Entry]:
     patterns_by_route = tsv_mod.group_by(ctx.table("outbound_route_patterns"), "route_id")
     trunks_by_route = tsv_mod.group_by(ctx.table("outbound_route_trunks"), "route_id")
@@ -22,14 +55,7 @@ def map_outbound_route(ctx: Ctx) -> list[Entry]:
         name = row.get("name") or route_id
         entry_warnings: list[dict[str, str]] = []
 
-        ordered_trunks = sorted(trunks_by_route.get(route_id, []), key=lambda r: int(r["seq"]))
-        trunk_refs = []
-        for trunk_row in ordered_trunks:
-            trunk_id = trunk_row["trunk_id"]
-            if trunk_id not in trunk_ids:
-                entry_warnings.append(warning("trunk_missing", f"Trunk topilmadi: {trunk_id}"))
-                continue
-            trunk_refs.append(ref("trunk", trunk_id))
+        trunk_refs = _ordered_trunk_refs(trunks_by_route, trunk_ids, route_id, entry_warnings)
         if not trunk_refs:
             entries.append(Entry(
                 kind="outbound_route", source_ref=source_ref, name=name, number=None,
@@ -37,18 +63,10 @@ def map_outbound_route(ctx: Ctx) -> list[Entry]:
             ))
             continue
 
-        if (row.get("emergency_route") or "OFF") != "OFF":
-            entry_warnings.append(warning("partial_mapping", "emergency_route Innova'da qo'llab-quvvatlanmaydi"))
-        if (row.get("time_group_id") or "0") != "0":
-            entry_warnings.append(warning("partial_mapping", "time_group_id (marshrut jadvali) Innova'da qo'llab-quvvatlanmaydi"))
+        _warn_unsupported_route_options(row, entry_warnings)
 
         password = row.get("password")
-        patterns = [{
-            "strip_prefix": p.get("match_pattern_prefix") or None,
-            "pattern": p.get("match_pattern_pass") or None,
-            "add_prefix": p.get("prepend_digits") or None,
-            "callerid_match": p.get("match_cid") or None,
-        } for p in patterns_by_route.get(route_id, [])]
+        patterns = _route_patterns(patterns_by_route, route_id)
 
         entries.append(Entry(
             kind="outbound_route", source_ref=source_ref, name=name, number=None,

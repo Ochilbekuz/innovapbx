@@ -84,6 +84,8 @@ Qora ro'yxat ham realtime (o'zgarishi reload/apply talab qilmaydi). Xususiyat ko
 5. Pickup: 202 → 201 jiringlayapti, 203 (bir guruh) `*8` → 203 javob beradi va 202 bilan ulanadi; `**201` ham.
 6. Blind transfer: 202↔201 gaplashmoqda, 201 `##203` → 203 jiringlaydi va 202 bilan ulanadi.
 7. Park: `##700` → `GET /parking` da 1 ta; 203 `701` → ulanadi; `parked` bo'shaydi.
+7b. Park: hech kim `701`ni olmasa, 60 s dan so'ng Asterisk (`comebacktoorigin=yes`) park qilgan 201'ga qayta
+    chaqiradi; 201 javob bersa 202 bilan qayta ulanadi, `parked` bo'shaydi.
 8. Konferensiya: PIN'li xonaga 2 ta chaqiruvchi kiradi → `live.members=2`; noto'g'ri PIN → uziladi.
 9. Xususiyat kodi `dnd_toggle` → `*77` (apply) → `*77` ishlaydi, `*76` ishlamaydi; prefiks to'qnashuvi 409.
 Hamma eski isbotlar (`m0`/`m1a`/`m1b`/`m1c --fresh`) o'tishda davom etadi.

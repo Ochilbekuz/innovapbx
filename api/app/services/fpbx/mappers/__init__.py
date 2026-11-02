@@ -16,13 +16,33 @@ from app.services.fpbx import dest as dest_mod
 from app.services.fpbx import tsv as tsv_mod
 
 __all__ = [
-    "Ctx", "Entry", "ref", "target_payload", "target_warnings", "warning", "weak_secret",
+    "Ctx", "Entry", "first_of", "int_or", "ref", "target_payload", "target_warnings", "warning", "weak_secret",
 ]
 
 
 def warning(code: str, message: str) -> dict[str, str]:
     """`PlanItem.warnings[]`/`GlobalWarning` elementi — ikkisi ham bir xil shakl."""
     return {"code": code, "message": message}
+
+
+def int_or(value: str | None, default: int | None) -> int | None:
+    """TSV/EAV xom qiymati (bo'sh/raqam bo'lmasa `default`, `None` ham bo'lishi
+    mumkin) — BARCHA mapperlardagi takrorlangan `int(x) if (x or "").isdigit()
+    else default` o'rnida (dryer, CRAP: har bir shunday ternary chaqiruvchi
+    funksiyaning CC'siga qo'shilardi)."""
+    return int(value) if (value or "").isdigit() else default
+
+
+def first_of(*values: Any) -> Any:
+    """Bir nechta zaxira manbadan BIRINCHI "rost" qiymatni tanlaydi (masalan
+    `trunk.py`da `sip_server`/`from_domain`/`host` — FreePBX har xil EAV
+    kalitiga yozishi mumkin). Har bir `a or b or c` zanjiri chaqiruvchi
+    funksiyaning CC'siga (n-1) qo'shardi — bu yerga ko'chirilgach, CRAP
+    hisob-kitobi o'zgarmaydi (xatti-harakat bir xil), faqat tarqaladi (dryer)."""
+    for value in values:
+        if value:
+            return value
+    return None
 
 
 def weak_secret(secret: str | None, *, equals_number: str | None = None) -> bool:

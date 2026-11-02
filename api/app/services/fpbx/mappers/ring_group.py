@@ -1,7 +1,7 @@
 """`ringgroups` -> `ring_groups` + `ring_group_members` (m5a-contract.md §1.2)."""
 from __future__ import annotations
 
-from app.services.fpbx.mappers import Ctx, Entry, target_payload, target_warnings, warning
+from app.services.fpbx.mappers import Ctx, Entry, int_or, target_payload, target_warnings, warning
 
 _STRATEGY = {"ringall": "ringall", "hunt": "hunt", "memoryhunt": "memoryhunt"}
 
@@ -39,7 +39,7 @@ def map_ring_group(ctx: Ctx) -> list[Entry]:
             entry_warnings.append(warning(
                 "strategy_unsupported", f"Noma'lum strategiya '{row.get('strategy')}' -> ringall"))
 
-        grptime = int(row["grptime"]) if (row.get("grptime") or "").isdigit() else 20
+        grptime = int_or(row.get("grptime"), 20)
         ring_seconds = max(5, min(300, grptime))
 
         target = ctx.resolve(row.get("postdest"))

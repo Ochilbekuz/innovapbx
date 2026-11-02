@@ -262,6 +262,23 @@ async def _get_extension_or_404(session: AsyncSession, tenant_id: str, ext_id: s
     )
 
 
+async def _voicemail_box_for_extension(session: AsyncSession, ext_id: str) -> VoicemailBox | None:
+    """Ext'ga bog'langan quti (bo'lsa) — `delete_extension` VA `update_extension` BIR XIL
+    so'rov (dryer): quti bor bo'lsa dialplan BILAN BIRGA `voicemail.conf` ham yetkaziladi
+    (aks holda ext nomi o'zgarsa quti `fullname`i eskirib qoladi)."""
+    return (await session.execute(
+        select(VoicemailBox).where(VoicemailBox.extension_id == ext_id))).scalar_one_or_none()
+
+
+async def _apply_extension_config(session: AsyncSession, tenant_id: str, user: User, ami, ext_id: str) -> dict:
+    """Ichki raqamning to'liq (realtime bo'lmagan) qayta qo'llanishi: quti bor bo'lsa
+    `voicemail.conf` ham (fullname eskirmasin), bo'lmasa oddiy dialplan apply."""
+    box = await _voicemail_box_for_extension(session, ext_id)
+    if box is not None:
+        return (await apply_dialplan_and_voicemail(session, tenant_id, user, ami)).model_dump()
+    return (await apply_config(session, tenant_id=tenant_id, user_id=str(user.id), ami=ami)).to_dict()
+
+
 @router.patch("/{ext_id}", response_model=ExtensionMutated)
 async def update_extension(
     ext_id: str, payload: UpdateExtensionPayload, session: AsyncSession = Depends(get_session),
@@ -280,7 +297,7 @@ async def update_extension(
     if diff and set(diff) <= _REALTIME_FIELDS:
         apply = dict(_REALTIME_APPLY)
     else:
-        apply = (await apply_config(session, tenant_id=str(user.tenant_id), user_id=str(user.id), ami=ami)).to_dict()
+        apply = await _apply_extension_config(session, str(user.tenant_id), user, ami, ext.id)
     await session.commit()
 
     return ExtensionMutated(item=_ext_out(ext), apply=apply)
@@ -340,8 +357,7 @@ async def delete_extension(
 
     # M1c: ext'ning ovozli pochta qutisi (FK CASCADE) bilan birga uning
     # `call_targets` yozuvi ham o'chirilsin — aks holda yetim manzil qoladi.
-    box = (await session.execute(
-        select(VoicemailBox).where(VoicemailBox.extension_id == ext.id))).scalar_one_or_none()
+    box = await _voicemail_box_for_extension(session, ext.id)
     if box is not None:
         await delete_box_and_target(session, str(user.tenant_id), box)
 

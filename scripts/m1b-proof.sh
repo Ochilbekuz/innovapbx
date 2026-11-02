@@ -87,8 +87,10 @@ if [[ "${1:-}" == "--fresh" ]]; then
 fi
 
 echo "=== setup/login ==="
+# 1.0.4: o'rnatish kodi — `.env`da bo'lsa yuboramiz (bo'lmasa server tekshirmaydi).
+SETUP_CODE_VAL=$(grep -E '^SETUP_CODE=' "$DEPLOY_DIR/.env" 2>/dev/null | cut -d= -f2-)
 curl -s -o /tmp/m1bproof_setup.json -X POST "$API_BASE/setup" -H 'Content-Type: application/json' \
-  -d '{"admin":{"login":"admin","password":"'"$ADMIN_PASSWORD"'","full_name":"Admin"},"language":"uz","timezone":"Asia/Tashkent"}' >/dev/null
+  -d '{"admin":{"login":"admin","password":"'"$ADMIN_PASSWORD"'","full_name":"Admin"},"language":"uz","timezone":"Asia/Tashkent","code":"'"$SETUP_CODE_VAL"'"}' >/dev/null
 LOGIN_JSON=$(curl -s -X POST "$API_BASE/auth/login" -H 'Content-Type: application/json' \
   -d '{"login":"admin","password":"'"$ADMIN_PASSWORD"'"}')
 TOKEN=$(echo "$LOGIN_JSON" | python3 -c "import json,sys;print(json.load(sys.stdin).get('access',''))" 2>/dev/null)

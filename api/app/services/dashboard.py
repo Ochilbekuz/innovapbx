@@ -125,15 +125,16 @@ def build_missed_calls(calls: list[CallOut], *, limit: int = 10) -> list[MissedC
     return enriched[:limit]
 
 
+# `link` — panel sahifasi yo'li (web/src/shell/screens.ts); noto'g'ri yo'l «Ko'rish»ni bosh sahifaga qaytaradi.
 _TRUNK_DOWN = DashboardAlertOut(level="danger", code="trunk_down", text="Trunk aloqasi uzilgan", link="/trunks")
-_DISK_LOW = DashboardAlertOut(level="warn", code="disk_low", text="Diskda joy kam qoldi", link="/system")
-_ASTERISK_DOWN = DashboardAlertOut(level="danger", code="asterisk_down", text="Asterisk ishlamayapti", link="/system")
+_DISK_LOW = DashboardAlertOut(level="warn", code="disk_low", text="Diskda joy kam qoldi", link="/settings/status")
+_ASTERISK_DOWN = DashboardAlertOut(level="danger", code="asterisk_down", text="Asterisk ishlamayapti", link="/settings/status")
 _NO_OUTBOUND_ROUTE = DashboardAlertOut(
-    level="warn", code="no_outbound_route", text="Chiquvchi marshrut sozlanmagan", link="/outbound-routes",
+    level="warn", code="no_outbound_route", text="Chiquvchi marshrut sozlanmagan", link="/outbound",
 )
 _REVISION_ROLLED_BACK = DashboardAlertOut(
     level="danger", code="revision_rolled_back",
-    text="Oxirgi konfiguratsiya qo'llanmadi, avvalgi holatga qaytarildi", link="/system",
+    text="Oxirgi konfiguratsiya qo'llanmadi, avvalgi holatga qaytarildi", link="/settings/revisions",
 )
 
 _DISK_LOW_THRESHOLD_PCT = 90

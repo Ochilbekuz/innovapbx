@@ -98,6 +98,48 @@ def _owner(monkeypatch, ext):
     monkeypatch.setattr(vb, "_resolve_owner", fake_owner)
 
 
+# ------------------------------------------------------------ _resolve_owner (1.0.4 §2: umumiy
+# quti raqami ext/navbat/guruh/IVR raqami bilan to'qnashmasin — `numbers.ensure_number_free`
+# BIR XIL umumiy yordamchi orqali, va teskarisi).
+async def test_resolve_owner_shared_mailbox_checks_common_number_helper(monkeypatch):
+    calls: list = []
+
+    async def fake_ensure(session, tenant_id, number, *, field):
+        calls.append((tenant_id, number, field))
+
+    monkeypatch.setattr(vb, "ensure_number_free", fake_ensure)
+    ext, mailbox = await vb._resolve_owner(_Session(), "t1", CreateVoicemailBoxPayload(mailbox="601", pin="1234"))
+    assert ext is None and mailbox == "601"
+    assert calls == [("t1", "601", "mailbox")]
+
+
+async def test_resolve_owner_shared_mailbox_taken_by_other_entity_is_409(monkeypatch):
+    async def fake_ensure(session, tenant_id, number, *, field):
+        raise ApiError(409, "number_taken", "Bu raqam band", field=field)
+
+    monkeypatch.setattr(vb, "ensure_number_free", fake_ensure)
+    with pytest.raises(ApiError) as exc:
+        await vb._resolve_owner(_Session(), "t1", CreateVoicemailBoxPayload(mailbox="601", pin="1234"))
+    assert (exc.value.status_code, exc.value.code, exc.value.field) == (409, "number_taken", "mailbox")
+
+
+async def test_resolve_owner_by_extension_skips_number_check(monkeypatch):
+    called = False
+
+    async def fake_ensure(*a, **kw):
+        nonlocal called
+        called = True
+
+    async def fake_get(session, model, tenant_id, ext_id, *, not_found_message, field=None, options=()):
+        return SimpleNamespace(id=ext_id, number="201")
+
+    monkeypatch.setattr(vb, "ensure_number_free", fake_ensure)
+    monkeypatch.setattr(vb, "get_tenant_scoped_or_404", fake_get)
+    ext, mailbox = await vb._resolve_owner(_Session(), "t1",
+                                           CreateVoicemailBoxPayload(extension_id="e1", pin="1234"))
+    assert (ext.number, mailbox, called) == ("201", "201", False)
+
+
 # ------------------------------------------------------------ create
 async def test_create_for_extension_sets_no_answer_and_masks_pin_in_audit(monkeypatch, audit, stub_apply):
     ext = SimpleNamespace(id=uuid.uuid4(), number="201", no_answer_target_id=None)

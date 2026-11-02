@@ -65,6 +65,7 @@ test('ish vaqti guruhi -> IVR (1->navbat) -> marshrut (vaqt sharti) -> oqim graf
   // --- S01: Sehrgar ---
   await page.goto('/');
   await expect(page).toHaveURL(/\/setup$/);
+  await page.getByLabel('Oʻrnatish kodi').fill('e2e-setup-code');
   await page.getByLabel('Login').fill(ADMIN_LOGIN);
   await page.getByLabel('Toʻliq ism').fill('M1a E2E Administrator');
   await page.getByLabel('Parol').fill(ADMIN_PASSWORD);

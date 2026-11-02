@@ -17,9 +17,14 @@ ENV VITE_API=real
 RUN npm run build
 
 FROM nginx:1.27-alpine
+# 1.0.4: `openssl` — zaxira TLS sertifikati uchun (`web-tls-wait.sh`, faqat `api`
+# ulgurmagan noodatiy holatda; odatiy holatda `api` certs hajmiga allaqachon yozgan bo'ladi).
+RUN apk add --no-cache openssl
 # Shablon: ishga tushishda faqat `INNOVA_*` o'zgaruvchilari almashtiriladi (nginx `$var`lar tegilmaydi).
 ENV NGINX_ENVSUBST_FILTER=^INNOVA_ \
     INNOVA_ASTERISK_WS=http://asterisk:8088/ws
 COPY deploy/web-nginx.conf /etc/nginx/templates/default.conf.template
+COPY deploy/web-tls-wait.sh /docker-entrypoint.d/10-innova-tls.sh
+RUN chmod +x /docker-entrypoint.d/10-innova-tls.sh
 COPY --from=build /src/web/dist /usr/share/nginx/html
-EXPOSE 80
+EXPOSE 80 443

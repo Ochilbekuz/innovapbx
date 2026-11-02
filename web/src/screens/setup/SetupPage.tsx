@@ -16,6 +16,7 @@ import { useNavigate } from 'react-router-dom';
 type Step = 'admin' | 'network';
 
 type FormState = {
+  code: string;
   login: string;
   password: string;
   fullName: string;
@@ -25,7 +26,7 @@ type FormState = {
   localNets: string;
 };
 
-const INITIAL: FormState = { login: '', password: '', fullName: '', language: 'uz', timezone: 'Asia/Tashkent', externalIp: '', localNets: '10.0.0.0/8' };
+const INITIAL: FormState = { code: '', login: '', password: '', fullName: '', language: 'uz', timezone: 'Asia/Tashkent', externalIp: '', localNets: '10.0.0.0/8' };
 
 function parseLocalNets(raw: string, t: (key: string, opts?: Record<string, unknown>) => string): { ok: true; nets: string[] } | { ok: false; error: string } {
   const lines = splitList(raw);
@@ -47,10 +48,11 @@ export function SetupPage() {
 
   const set = <K extends keyof FormState>(k: K, v: FormState[K]) => setForm((f) => ({ ...f, [k]: v }));
 
+  const codeError = touched && form.code.trim().length === 0 ? t('error.codeRequired') : undefined;
   const loginError = touched && form.login.trim().length < 3 ? t('error.loginTooShort') : undefined;
   const passwordError = touched && form.password.length < 8 ? t('error.passwordTooShort') : undefined;
   const nameError = touched && form.fullName.trim().length < 2 ? t('error.nameRequired') : undefined;
-  const adminValid = !loginError && !passwordError && !nameError;
+  const adminValid = !codeError && !loginError && !passwordError && !nameError;
 
   const ipError = form.externalIp.trim() !== '' && !isValidIPv4(form.externalIp.trim()) ? t('error.ipInvalid') : undefined;
   const netsResult = parseLocalNets(form.localNets, t);
@@ -63,6 +65,7 @@ export function SetupPage() {
         timezone: form.timezone,
         external_ip: form.externalIp.trim() || null,
         local_nets: netsResult.ok ? netsResult.nets : [],
+        code: form.code.trim(),
       };
       return apiClient.setup(payload);
     },
@@ -97,6 +100,9 @@ export function SetupPage() {
             onSubmit={(e) => { e.preventDefault(); goNext(); }}
           >
             <p className="text-sm text-muted">{t('adminIntro')}</p>
+            <Field label={t('field.setupCode')} required error={codeError} hint={!codeError ? t('field.setupCodeHint') : undefined}>
+              {(a) => <Input {...a} mono autoComplete="off" value={form.code} onChange={(e) => set('code', e.target.value)} />}
+            </Field>
             <Field label={t('field.login')} required error={loginError}>
               {(a) => <Input {...a} autoFocus autoComplete="username" value={form.login} onChange={(e) => set('login', e.target.value)} />}
             </Field>

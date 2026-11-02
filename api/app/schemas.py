@@ -54,6 +54,8 @@ class SetupPayload(BaseModel):
     timezone: str = "Asia/Tashkent"
     external_ip: str | None = None
     local_nets: list[str] = Field(default_factory=lambda: ["10.0.0.0/8"])
+    # 1.0.4: o'rnatish kodi (`settings.setup_code` bo'sh bo'lsa tekshirilmaydi).
+    code: str | None = None
 
 
 class SetupState(BaseModel):

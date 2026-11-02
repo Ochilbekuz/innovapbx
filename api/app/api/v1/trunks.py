@@ -115,25 +115,25 @@ async def _get_trunk_or_404(session: AsyncSession, tenant_id: str, trunk_id: str
     )
 
 
-@router.patch("/{trunk_id}", response_model=TrunkMutated)
-async def update_trunk(
-    trunk_id: str, payload: UpdateTrunkPayload, session: AsyncSession = Depends(get_session),
-    user: User = Depends(require_admin), ami=Depends(get_ami),
-) -> TrunkMutated:
-    trunk = await _get_trunk_or_404(session, str(user.tenant_id), trunk_id)
-    check_not_stale(trunk.updated_at, payload.updated_at)
-
+def _pending_trunk_mode(trunk: Trunk, payload: UpdateTrunkPayload) -> tuple[str, str, str | None, list[str]]:
+    """Payload'da berilmagan maydonlar uchun joriy trunk qiymati — rejim tekshiruvi
+    (`_validate_trunk_mode_fields`) YANGI holatga qarshi ishlashi uchun (pure)."""
     new_auth_mode = payload.auth_mode if payload.auth_mode is not None else trunk.auth_mode
     new_host = payload.host if payload.host is not None else trunk.host
     new_username = payload.username if payload.username is not None else trunk.username
     new_match = payload.match if payload.match is not None else [str(m) for m in trunk.match_ips]
-    has_password = bool(payload.password) or (trunk.password_enc is not None and payload.password is None)
-    _validate_trunk_mode_fields(new_auth_mode, new_host, new_username,
-                                 "x" if has_password else None, new_match)
+    return new_auth_mode, new_host, new_username, new_match
 
+
+_TRUNK_DIFF_FIELDS = ("name", "host", "port", "match", "codecs", "max_channels", "enabled",
+                      "auth_mode", "username", "from_domain", "outbound_callerid")
+
+
+def _diff_trunk_fields(trunk: Trunk, payload: UpdateTrunkPayload) -> dict:
+    """Faqat payload'da BERILGAN va joriy qiymatdan FARQLI maydonlar audit diff'ga
+    tushadi; o'zgargan maydon shu yerda `trunk` obyektiga ham yoziladi (bitta joy, pure)."""
     diff: dict = {}
-    for field in ("name", "host", "port", "match", "codecs", "max_channels", "enabled",
-                  "auth_mode", "username", "from_domain", "outbound_callerid"):
+    for field in _TRUNK_DIFF_FIELDS:
         value = getattr(payload, field)
         if value is None:
             continue
@@ -143,19 +143,52 @@ async def update_trunk(
         if current_cmp != value:
             diff[field] = value
             setattr(trunk, column, value)
-    if payload.password is not None:
-        diff["password"] = payload.password
-        trunk.password_enc = await encrypt_secret(session, payload.password) if payload.password else None
+    return diff
+
+
+async def _apply_trunk_password(session: AsyncSession, trunk: Trunk, payload: UpdateTrunkPayload) -> dict:
+    """Parol — shifrlash (nosof) kerak bo'lgani uchun `_diff_trunk_fields`dan alohida."""
+    if payload.password is None:
+        return {}
+    trunk.password_enc = await encrypt_secret(session, payload.password) if payload.password else None
+    return {"password": payload.password}
+
+
+def _needs_register_reload(trunk: Trunk, diff: dict) -> bool:
+    """`register` rejimida registratsiyaga ta'sir qiluvchi maydon o'zgarsa —
+    `ps_registrations`/`ps_auths` yangi qatori faqat reload'dan keyin ko'rinadi."""
+    return trunk.auth_mode == "register" and not diff.keys().isdisjoint(
+        {"auth_mode", "username", "password", "host", "port"})
+
+
+async def _trunk_apply_result(ami, trunk: Trunk, diff: dict) -> dict:
+    if not _needs_register_reload(trunk, diff):
+        return _REALTIME_APPLY
+    await reload_pjsip(ami)
+    return _REGISTER_RELOAD_APPLY
+
+
+@router.patch("/{trunk_id}", response_model=TrunkMutated)
+async def update_trunk(
+    trunk_id: str, payload: UpdateTrunkPayload, session: AsyncSession = Depends(get_session),
+    user: User = Depends(require_admin), ami=Depends(get_ami),
+) -> TrunkMutated:
+    trunk = await _get_trunk_or_404(session, str(user.tenant_id), trunk_id)
+    check_not_stale(trunk.updated_at, payload.updated_at)
+
+    new_auth_mode, new_host, new_username, new_match = _pending_trunk_mode(trunk, payload)
+    has_password = bool(payload.password) or (trunk.password_enc is not None and payload.password is None)
+    _validate_trunk_mode_fields(new_auth_mode, new_host, new_username,
+                                 "x" if has_password else None, new_match)
+
+    diff = _diff_trunk_fields(trunk, payload)
+    diff.update(await _apply_trunk_password(session, trunk, payload))
 
     await session.flush()
     await record_audit(session, tenant_id=str(user.tenant_id), user_id=str(user.id),
                         action="trunk.update", entity="trunk", entity_id=str(trunk.id), diff=diff)
     await session.commit()
-    apply_result = _REALTIME_APPLY
-    if trunk.auth_mode == "register" and ("auth_mode" in diff or "username" in diff
-                                           or "password" in diff or "host" in diff or "port" in diff):
-        await reload_pjsip(ami)
-        apply_result = _REGISTER_RELOAD_APPLY
+    apply_result = await _trunk_apply_result(ami, trunk, diff)
     return TrunkMutated(item=await _trunk_out(session, ami, trunk), apply=apply_result)
 
 

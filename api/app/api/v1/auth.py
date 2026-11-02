@@ -1,6 +1,7 @@
 """Setup (sehrgar) va autentifikatsiya — m0-contract.md «Setup / auth»."""
 from __future__ import annotations
 
+import hmac
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -36,6 +37,7 @@ from app.schemas import (
 from app.schemas_users import ChangePasswordPayload
 from app.services.audio_tools import synth_tone_wav
 from app.services.audit import record_audit
+from app.services.setup_guard import guard as setup_code_guard
 from app.services.sip_transport import BOOT_DEFAULT, current_sip_config, needs_restart, write_sip_files
 from app.services.tokens import revoke_refresh_tokens
 
@@ -75,10 +77,27 @@ async def _issue_tokens(session: AsyncSession, user: User) -> TokenPair:
     return TokenPair(access=access, refresh=refresh)
 
 
+def _check_setup_code(ip: str | None, code: str | None) -> None:
+    """1.0.4: `settings.setup_code` bo'sh bo'lsa — eski/allaqachon o'rnatilgan
+    serverlar uchun tekshiruv o'chirilgan (orqaga moslik). Aks holda urinishlar
+    `setup_code_guard`da IP bo'yicha cheklanadi (`prov_guard.py` BILAN BIR XIL
+    qolip) va solishtirish vaqt-doimiy (`hmac.compare_digest`)."""
+    if not settings.setup_code:
+        return
+    ip_key = ip or "unknown"
+    if setup_code_guard.is_blocked(ip_key):
+        raise ApiError(403, "rate_limited", "Juda ko'p noto'g'ri urinish. Keyinroq qayta urining.")
+    # bytes: `compare_digest` ASCII bo'lmagan str'da TypeError (500) beradi.
+    if not code or not hmac.compare_digest(code.encode(), settings.setup_code.encode()):
+        setup_code_guard.record_failure(ip_key)
+        raise ApiError(403, "invalid_setup_code", "O'rnatish kodi noto'g'ri")
+
+
 @router.post("/setup", response_model=AuthResult)
-async def setup(payload: SetupPayload, session: AsyncSession = Depends(get_session)) -> AuthResult:
+async def setup(payload: SetupPayload, request: Request, session: AsyncSession = Depends(get_session)) -> AuthResult:
     if await _any_admin_exists(session):
         raise ApiError(409, "setup_done", "Tizim allaqachon sozlangan")
+    _check_setup_code(_client_ip(request), payload.code)
 
     errors = validate_password(payload.admin.password)
     if errors:

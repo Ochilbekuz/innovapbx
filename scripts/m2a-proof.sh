@@ -8,6 +8,8 @@
 #   5. Pickup: 202 -> 201 jiringlayapti, 203 (bir guruh) `*8` -> 202 bilan ulanadi; `**201` ham.
 #   6. Blind transfer: 202<->201, 201 `##203` (SIP INFO DTMF) -> 202 va 203 ulanadi.
 #   7. Park: 201 `##700` -> GET /parking 1 ta; 203 `701` -> ulanadi; parked bo'shaydi.
+#   7b. Park: hech kim 701'ni olmasa, 60 s dan so'ng Asterisk park qilgan 201'ga qayta
+#       chaqiradi (comebacktoorigin); 201 javob bersa 202 bilan qayta ulanadi, parked bo'shaydi.
 #   8. Konferensiya — KEYINGI agent (`scripts/lib/m2a_conference_scenario.sh`, bo'lsa ishlaydi).
 #   9. Xususiyat kodi dnd_toggle -> `*77` (apply): `*77` ishlaydi, `*76` yo'q; prefiks to'qnashuvi 409.
 #
@@ -235,6 +237,21 @@ place_call_bg r7 203 701 4
 wait_until 10 bridged 202 203 && pass "7: 203 701 -> 202 bilan ulandi" || fail "7: 701 -> bridge yo'q ($(ast 'core show channels concise'))"
 check "$(wait_until 5 parked_is 0; echo $?)" "7: GET /parking parked bo'shadi" "$(jbody "$(api GET /parking)")"
 wait_until 15 call_done 202 x7
+
+# ---------------------------------------------------------------- 7b
+echo "--- 7b. park 60s -> comebacktoorigin (hech kim olmasa, 201 ga qayta) ---"
+mode 201 'answer:##,,700'
+place_call_bg x7b 202 201 130
+wait_until 15 parked_is 1
+mode 201 answer
+B201=$(invites 201)
+wait_until 85 sh -c "[ \$(docker exec m2a-proof-201 grep -c '^INVITE ' /tmp/phone.log) -gt $B201 ]"
+check "$( [[ "$(invites 201)" -gt "$B201" ]]; echo $?)" \
+  "7b: park 60s tugagach Asterisk 201 ga qayta chaqirdi (comebacktoorigin)" "$(plog 201 | tail -5)"
+wait_until 10 bridged 202 201 && pass "7b: 201 javob berdi -> 202 bilan qayta ulandi" \
+  || fail "7b: 201 javob berdi, lekin 202 bilan bridge yo'q ($(ast 'core show channels concise'))"
+check "$(wait_until 5 parked_is 0; echo $?)" "7b: GET /parking parked bo'shadi (comeback)" "$(jbody "$(api GET /parking)")"
+wait_until 20 call_done 202 x7b
 
 # ---------------------------------------------------------------- 8
 echo "--- 8. konferensiya ---"

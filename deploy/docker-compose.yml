@@ -116,6 +116,11 @@ services:
       BACKUP_SCHEDULER_INTERVAL_S: ${BACKUP_SCHEDULER_INTERVAL_S:-60}
       # M5a: FreePBX'dan ko'chirish — yuklangan to'plamlar (sukutlar app/core/config.py da).
       MIGRATIONS_DIR: /var/lib/innova/migrations
+      # 1.0.4: veb HTTPS sertifikati SAN (server IP'lari install.sh/innova-start.sh
+      # aniqlaydi) + o'rnatish kodi (setup.sh generatsiya qiladi, bo'sh = tekshiruv o'chiq).
+      WEB_TLS_HOSTNAME: ${WEB_TLS_HOSTNAME:-innova-pbx}
+      WEB_TLS_SAN_IPS: ${WEB_TLS_SAN_IPS:-}
+      SETUP_CODE: ${SETUP_CODE:-}
     volumes:
       - dialplan:/srv/dialplan
       - sounds:/var/lib/innova/sounds
@@ -142,6 +147,10 @@ services:
     ports:
       # Appliance (ISO): WEB_BIND=0.0.0.0, WEB_HOST_PORT=80 — LAN'dan ochiladi.
       - "${WEB_BIND:-127.0.0.1}:${WEB_HOST_PORT:-8711}:80"
+      # 1.0.4: HTTPS — softfon mikrofon ruxsati (WebRTC `getUserMedia`, faqat xavfsiz kontekst).
+      - "${WEB_BIND:-127.0.0.1}:${WEB_HTTPS_PORT:-8712}:443"
+    volumes:
+      - certs:/etc/innova/certs:ro  # `api` yozgan `web.crt`/`web.key` — web-tls-wait.sh `/etc/nginx/tls/` ga nusxalaydi
     depends_on:
       - api
       - asterisk

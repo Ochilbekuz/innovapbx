@@ -55,9 +55,13 @@ def env(monkeypatch):
         state["applied"] += 1
         return SimpleNamespace(to_dict=lambda: {"status": "applied", "revision": 7, "message": None})
 
+    async def fake_box(session, ext_id):
+        return state.get("box")
+
     monkeypatch.setattr(ex, "_get_extension_or_404", fake_get)
     monkeypatch.setattr(ex, "record_audit", fake_audit)
     monkeypatch.setattr(ex, "apply_config", fake_apply)
+    monkeypatch.setattr(ex, "_voicemail_box_for_extension", fake_box)
     return state
 
 
@@ -102,6 +106,24 @@ async def test_empty_string_clears(env):
 async def test_non_realtime_change_applies(env):
     out = await _patch({"name": "Vali", "dnd": True})
     assert env["applied"] == 1 and out.apply.revision == 7
+
+
+@pytest.mark.asyncio
+async def test_name_change_with_voicemail_box_resyncs_voicemail_conf(env, monkeypatch):
+    """Ichki raqam nomi o'zgarsa va unga bog'langan ovozli pochta qutisi bo'lsa — `voicemail.conf`
+    ham qayta yoziladi (aks holda quti `fullname`i eskirib qoladi, 1.0.4 §1)."""
+    env["box"] = SimpleNamespace(id="box-1")
+    voicemail_calls: list = []
+
+    async def fake_voicemail_apply(session, tenant_id, user, ami):
+        voicemail_calls.append(tenant_id)
+        return SimpleNamespace(model_dump=lambda: {"status": "applied", "revision": 9, "message": None})
+
+    monkeypatch.setattr(ex, "apply_dialplan_and_voicemail", fake_voicemail_apply)
+    out = await _patch({"name": "Vali"})
+    assert voicemail_calls == ["t1"]
+    assert env["applied"] == 0  # apply_config chaqirilmadi — voicemail yo'li ishlatildi
+    assert out.apply.model_dump() == {"status": "applied", "revision": 9, "message": None}
 
 
 @pytest.mark.asyncio

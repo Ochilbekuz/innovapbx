@@ -40,6 +40,7 @@ from app.schemas_voicemail import (
 from app.services import voicemail as vm
 from app.services.apply import apply_config
 from app.services.audit import record_audit
+from app.services.numbers import ensure_number_free
 from app.services.usages import usages_for_target
 
 router = APIRouter(prefix="/voicemail-boxes", tags=["voicemail"])
@@ -108,17 +109,14 @@ async def apply_dialplan_and_voicemail(session: AsyncSession, tenant_id: str, us
 
 async def _resolve_owner(session: AsyncSession, tenant_id: str,
                          payload: CreateVoicemailBoxPayload) -> tuple[Extension | None, str]:
-    """(ext, mailbox). Umumiy quti raqami mavjud ichki raqam bilan bir xil
-    bo'lishi mumkin emas — aks holda o'sha ext keyin o'z qutisini ocha olmaydi."""
+    """(ext, mailbox). Umumiy quti raqami mavjud ichki raqam/navbat/guruh/IVR/vaqt sharti/
+    konferensiya raqami (`numbers.ensure_number_free` — BIR XIL umumiy yordamchi, dryer) bilan
+    bir xil bo'lishi mumkin emas — aks holda o'sha raqam keyin ikki ma'noda ishlatiladi (1.0.4 §2)."""
     if payload.extension_id is not None:
         ext = await get_tenant_scoped_or_404(session, Extension, tenant_id, payload.extension_id,
                                              not_found_message="Ichki raqam topilmadi", field="extension_id")
         return ext, ext.number
-    clash = (await session.execute(
-        select(Extension.id).where(Extension.tenant_id == tenant_id, Extension.number == payload.mailbox)
-    )).first()
-    if clash is not None:
-        raise _mailbox_taken("mailbox")
+    await ensure_number_free(session, tenant_id, payload.mailbox, field="mailbox")
     return None, payload.mailbox
 
 

@@ -1031,7 +1031,7 @@ export function createFakeClient(): ApiClient {
       .sort((a, b) => Number(a.called_back) - Number(b.called_back));
     const alerts: DashboardResult['alerts'] = [];
     trunks.forEach((t) => { if (t.enabled && t.health.state === 'unreachable') alerts.push({ level: 'danger', code: 'trunk_down', text: `${t.name} javob bermayapti`, link: '/trunks' }); });
-    if (revisions[0]?.status === 'rolled_back') alerts.push({ level: 'warn', code: 'revision_rolled_back', text: `Reviziya r${revisions[0].id} qoʻllanmadi — oldingi holatga qaytarildi`, link: '/' });
+    if (revisions[0]?.status === 'rolled_back') alerts.push({ level: 'warn', code: 'revision_rolled_back', text: `Reviziya r${revisions[0].id} qoʻllanmadi — oldingi holatga qaytarildi`, link: '/settings/revisions' });
     const answered = today.filter((c) => c.disposition === 'answered');
     return {
       health: {

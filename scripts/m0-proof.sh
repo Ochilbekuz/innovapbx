@@ -56,15 +56,34 @@ echo "=== (a) API sog'lik + setup/login ==="
 HEALTH_CODE=$(curl -s -o /dev/null -w '%{http_code}' "${API_BASE%/api/v1}/healthz" 2>/dev/null || true)
 if [[ "$HEALTH_CODE" == "200" ]]; then pass "GET /healthz -> 200"; else fail "GET /healthz -> $HEALTH_CODE"; fi
 
-SETUP_CODE=$(curl -s -o /tmp/m0proof_setup.json -w '%{http_code}' -X POST "$API_BASE/setup" \
+# 1.0.4: panel HTTP'da ham, HTTPS'da ham (softfon mikrofoni) ochiladi.
+for i in $(seq 1 40); do
+  HTTPS_CODE=$(curl -sk -o /dev/null -w '%{http_code}' "https://127.0.0.1:${WEB_HTTPS_PORT:-8712}/")
+  [[ "$HTTPS_CODE" == "200" ]] && break; sleep 1
+done
+HTTP_CODE=$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:${WEB_HOST_PORT:-8711}/")
+if [[ "$HTTPS_CODE" == "200" && "$HTTP_CODE" == "200" ]]; then pass "Panel: http -> 200, https -> 200"
+else fail "Panel: http -> $HTTP_CODE, https -> $HTTPS_CODE"; fi
+
+# 1.0.4: o'rnatish kodi — `deploy/.env`da bo'lsa yuboramiz, bo'lmasa bo'sh (settings.setup_code
+# bo'sh bo'lsa server tekshirmaydi, bu stack uchun orqaga moslik).
+SETUP_CODE_VAL=$(grep -E '^SETUP_CODE=' "$DEPLOY_DIR/.env" 2>/dev/null | cut -d= -f2-)
+if [[ -n "$SETUP_CODE_VAL" ]]; then
+  WRONG_HTTP_CODE=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$API_BASE/setup" -H 'Content-Type: application/json' \
+    -d '{"admin":{"login":"hacker","password":"'"$ADMIN_PASSWORD"'","full_name":"X"},"language":"uz","timezone":"Asia/Tashkent","code":"notogri"}')
+  # 403 — kod noto'g'ri; 409 — stek allaqachon sozlangan (--fresh siz).
+  if [[ "$WRONG_HTTP_CODE" == "403" || "$WRONG_HTTP_CODE" == "409" ]]; then pass "POST /setup noto'g'ri kod bilan -> $WRONG_HTTP_CODE (admin yaratilmadi)"
+  else fail "POST /setup noto'g'ri kod bilan -> $WRONG_HTTP_CODE (403 kutilgan)"; fi
+fi
+SETUP_HTTP_CODE=$(curl -s -o /tmp/m0proof_setup.json -w '%{http_code}' -X POST "$API_BASE/setup" \
   -H 'Content-Type: application/json' \
-  -d '{"admin":{"login":"admin","password":"'"$ADMIN_PASSWORD"'","full_name":"Admin"},"language":"uz","timezone":"Asia/Tashkent"}')
-if [[ "$SETUP_CODE" == "200" ]]; then
+  -d '{"admin":{"login":"admin","password":"'"$ADMIN_PASSWORD"'","full_name":"Admin"},"language":"uz","timezone":"Asia/Tashkent","code":"'"$SETUP_CODE_VAL"'"}')
+if [[ "$SETUP_HTTP_CODE" == "200" ]]; then
   pass "POST /setup -> 200 (birinchi marta)"
-elif [[ "$SETUP_CODE" == "409" ]]; then
+elif [[ "$SETUP_HTTP_CODE" == "409" ]]; then
   pass "POST /setup -> 409 setup_done (allaqachon o'rnatilgan, kutilgan)"
 else
-  fail "POST /setup -> $SETUP_CODE"
+  fail "POST /setup -> $SETUP_HTTP_CODE"
 fi
 
 LOGIN_JSON=$(curl -s -X POST "$API_BASE/auth/login" -H 'Content-Type: application/json' \

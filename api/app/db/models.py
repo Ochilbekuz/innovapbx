@@ -840,7 +840,8 @@ class NotifySettings(Base):
 
 
 class VoicemailNotification(Base):
-    """`voicemail_notifications` (0010) — `unique (box_id, msg_id, channel)`."""
+    """`voicemail_notifications` (0010, `next_attempt_at` — 0030) — `unique
+    (box_id, msg_id, channel)`; `status`: pending/sent/failed/dead."""
     __tablename__ = "voicemail_notifications"
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
@@ -852,6 +853,7 @@ class VoicemailNotification(Base):
     channel: Mapped[str] = mapped_column(Text)
     status: Mapped[str] = mapped_column(Text, default="pending")
     attempts: Mapped[int] = mapped_column(Integer, default=0)
+    next_attempt_at: Mapped[datetime] = mapped_column(server_default=text("now()"))
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(server_default=text("now()"))
     updated_at: Mapped[datetime] = mapped_column(server_default=text("now()"))

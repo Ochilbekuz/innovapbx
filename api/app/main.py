@@ -37,6 +37,7 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
         await _recover_stale_jobs()
     if settings.startup_dialplan_regen_enabled:
         await _regenerate_dialplan_on_startup()
+    _ensure_web_certificate()
     tasks: list[asyncio.Task] = []
     if settings.vm_notify_enabled:
         from app.db.session import SessionLocal
@@ -85,6 +86,18 @@ async def _recover_stale_jobs() -> None:
         await recover_stale_jobs(SessionLocal, db_engine)
     except Exception:  # noqa: BLE001 — baza hali tayyor bo'lmasa ham API ko'tarilsin
         log.exception("qotib qolgan ishlarni tiklab bo'lmadi")
+
+
+def _ensure_web_certificate() -> None:
+    """1.0.4: nginx 443 uchun o'z-imzoli sertifikat — bo'lmasa BIR MARTA
+    yaratiladi (disk, DB kerak emas); diskka yoza olmasa API baribir ko'tarilsin
+    (HTTP ishlashda davom etadi, faqat HTTPS/mikrofon ogohlantirishi qolaveradi)."""
+    from app.services.web_tls_cert import ensure_web_certificate
+
+    try:
+        ensure_web_certificate()
+    except OSError:
+        log.exception("veb HTTPS sertifikati yaratilmadi")
 
 
 async def _regenerate_dialplan_on_startup() -> None:

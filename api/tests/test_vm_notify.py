@@ -233,21 +233,40 @@ class _FakeSession:
         return False
 
 
-async def test_claim_returns_id_and_commits_immediately(tmp_path):
-    s = _FakeSession([_Result(first=(7,))])
-    assert await vn._claim(s, _msg(tmp_path), "email") == 7
-    assert s.commits == 1
+async def test_claim_returns_id_and_attempts_without_committing(tmp_path):
+    s = _FakeSession([_Result(first=(7, 2))])
+    assert await vn._claim(s, _msg(tmp_path), "email") == (7, 2)
+    assert s.commits == 0  # 1.0.4 §3: claim o'zi commit qilmaydi — bitta tranzaksiya chaqiruvchida
     assert s.executed[0]["channel"] == "email" and s.executed[0]["msg_id"] == "m-1"
-    assert s.executed[0]["max_attempts"] == vn.settings.vm_notify_max_attempts
 
 
-async def test_claim_already_taken_returns_none(tmp_path):
+async def test_claim_not_due_or_already_terminal_returns_none(tmp_path):
     s = _FakeSession([_Result(first=None)])
     assert await vn._claim(s, _msg(tmp_path), "telegram") is None
 
 
+async def test_finish_reuses_outbox_schedule_for_retry_and_dead(tmp_path):
+    import datetime as dt
+
+    now = dt.datetime(2026, 11, 2, tzinfo=dt.timezone.utc)
+    s = _FakeSession()
+    await vn._finish(s, 1, attempts=0, error="smtp down", now=now)
+    params = s.executed[0]
+    assert params["status"] == "pending" and params["attempts"] == 1
+    assert params["next_attempt_at"] == now + dt.timedelta(seconds=30)
+
+    s2 = _FakeSession()
+    schedule_len = len(vn.parse_schedule(vn.settings.vm_notify_retry_schedule_s))
+    await vn._finish(s2, 1, attempts=schedule_len, error="smtp down", now=now)
+    assert s2.executed[0]["status"] == "dead"
+
+    s3 = _FakeSession()
+    await vn._finish(s3, 1, attempts=0, error=None, now=now)
+    assert s3.executed[0]["status"] == "sent"
+
+
 async def test_notify_message_marks_sent_failed_and_skips_claimed(tmp_path, monkeypatch):
-    claims = {"email": 1, "telegram": None}
+    claims = {"email": (1, 0), "telegram": None}
 
     async def fake_claim(session, msg, channel):
         return claims[channel]
@@ -259,8 +278,9 @@ async def test_notify_message_marks_sent_failed_and_skips_claimed(tmp_path, monk
     monkeypatch.setattr(vn, "deliver", fake_deliver)
     s = _FakeSession()
     await vn._notify_message(s, _CFG, _msg(tmp_path))
-    assert s.executed == [{"status": "failed", "error": "smtp down", "id": 1}]  # telegram egallanmagan -> yuborilmaydi
-    assert s.commits == 1
+    assert s.executed[0]["error"] == "smtp down" and s.executed[0]["status"] == "pending"
+    assert s.executed[0]["id"] == 1
+    assert s.commits == 2  # email: claim+finish bitta commit; telegram: egallanmagan ham commit (None claim -> commit())
 
     async def ok_deliver(cfg, msg, channel):
         return None
@@ -268,7 +288,24 @@ async def test_notify_message_marks_sent_failed_and_skips_claimed(tmp_path, monk
     monkeypatch.setattr(vn, "deliver", ok_deliver)
     s = _FakeSession()
     await vn._notify_message(s, _CFG, _msg(tmp_path))
-    assert s.executed == [{"status": "sent", "error": None, "id": 1}]
+    assert s.executed[0]["status"] == "sent" and s.executed[0]["error"] is None
+
+
+async def test_notify_message_crash_during_delivery_rolls_back_without_commit(tmp_path, monkeypatch):
+    """1.0.4 §3 — asosiy tuzatish: yetkazish paytida kutilmagan xato BUTUN
+    tranzaksiyani (claim ham) commitsiz qoldiradi -> keyingi skanida qayta urinadi."""
+    async def fake_claim(session, msg, channel):
+        return (1, 0) if channel == "email" else None
+
+    async def boom_deliver(cfg, msg, channel):
+        raise RuntimeError("process o'ldi")
+
+    monkeypatch.setattr(vn, "_claim", fake_claim)
+    monkeypatch.setattr(vn, "deliver", boom_deliver)
+    s = _FakeSession()
+    with pytest.raises(RuntimeError):
+        await vn._notify_message(s, _CFG, _msg(tmp_path))
+    assert s.commits == 0  # claim committed emas -> DB darajasida avtomatik rollback bo'ladi
 
 
 async def test_scan_once_loads_config_once_per_tenant(tmp_path, monkeypatch):

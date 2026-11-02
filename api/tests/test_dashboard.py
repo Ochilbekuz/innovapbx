@@ -210,3 +210,16 @@ def test_build_alerts_disk_low_threshold_is_90_percent():
     alerts = build_alerts(asterisk_up=True, disk_used_pct=90, trunk_down=False,
                            has_outbound_route=True, last_revision_rolled_back=False)
     assert [a.code for a in alerts] == ["disk_low"]
+
+
+# Panel sahifa yo'llari (web/src/shell/screens.ts + router.tsx). Noma'lum yo'l «Ko'rish»ni
+# bosh sahifaga qaytarardi (1.0.3: `/outbound-routes`, `/system` — mavjud emas edi).
+_PANEL_PATHS = {"/trunks", "/outbound", "/settings/status", "/settings/revisions"}
+
+
+def test_every_dashboard_alert_links_to_an_existing_panel_page():
+    from app.services import dashboard
+
+    alerts = [v for k, v in vars(dashboard).items() if k.isupper() and hasattr(v, "link")]
+    assert len(alerts) >= 5
+    assert {a.link for a in alerts} <= _PANEL_PATHS

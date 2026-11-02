@@ -25,6 +25,7 @@ test('setup -> login -> ichki raqam -> trunk -> marshrut -> tarix (faqat klaviat
   await page.goto('/');
   await expect(page).toHaveURL(/\/setup$/);
 
+  await page.getByLabel('Oʻrnatish kodi').fill('e2e-setup-code');
   await page.getByLabel('Login').fill(ADMIN_LOGIN);
   await page.getByLabel('Toʻliq ism').fill('E2E Administrator');
   await page.getByLabel('Parol').fill(ADMIN_PASSWORD);

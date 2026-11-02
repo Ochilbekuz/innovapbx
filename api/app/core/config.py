@@ -69,6 +69,17 @@ class Settings(BaseSettings):
     tls_cert_filename: str = "innova.crt"
     tls_key_filename: str = "innova.key"
 
+    # --- 1.0.4: veb (nginx 443) HTTPS sertifikati (app/services/web_tls_cert.py) ---
+    # BIR MARTA (birinchi ishga tushishda) generatsiya qilinadi, keyin
+    # YANGILANMAYDI (xuddi shu `certs_dir` hajmida — yangilashlarda saqlanadi).
+    # SAN = `web_tls_hostname` + `web_tls_san_ips` (vergul bilan, install.sh/
+    # innova-start.sh server IP'larini aniqlab beradi).
+    web_tls_cert_filename: str = "web.crt"
+    web_tls_key_filename: str = "web.key"
+    web_tls_hostname: str = "innova-pbx"
+    web_tls_san_ips: str = ""
+    web_tls_validity_days: int = 3650
+
     # --- Ovozli pochta (M1c §2) --- `voicemail` umumiy hajm (asterisk + api);
     # konfiguratsiya `dialplan` hajmiga (voicemail.conf #include) —
     # app/services/voicemail.py. Bildirishnoma fon vazifasi — app/services/vm_notify.py.
@@ -81,7 +92,10 @@ class Settings(BaseSettings):
     confbridge_filename: str = "confbridge_innova.conf"
     vm_notify_enabled: bool = True
     vm_notify_interval_s: float = 5.0
-    vm_notify_max_attempts: int = 3
+    # 1.0.4 §3: kamida-bir-marta qayta urinish — `integrations`dagi outbox qolipi
+    # bilan BIR XIL (`app/services/integrations/outbox.py` `parse_schedule`/`transition`),
+    # urinishlar tugagach qator `dead` bo'ladi (`vm_notify_max_attempts` o'rnini bosadi).
+    vm_notify_retry_schedule_s: str = "30,120,600,1800,3600"
 
     # --- Chiquvchi marshrut PIN tekshiruvi (M1b) --- dialplan `CURL()` shu
     # ichki endpoint'ga PIN'ni tekshirish uchun murojaat qiladi; parolni
@@ -152,6 +166,11 @@ class Settings(BaseSettings):
     # --- M5a: FreePBX'dan ko'chirish — yuklangan to'plamlar hajmi (`migrations` volume).
     migrations_dir: str = "/var/lib/innova/migrations"
     migration_upload_max_bytes: int = 20 * 1024 * 1024 * 1024
+
+    # --- 1.0.4: o'rnatish kodi (Jenkins uslubi) — `install.sh` generatsiya qiladi,
+    # faqat root o'qiydigan `.env`da saqlanadi. Bo'sh = eski/allaqachon o'rnatilgan
+    # serverlar uchun tekshiruv o'chirilgan (orqaga moslik).
+    setup_code: str = Field(default="")
 
     def require_internal_api_token(self) -> str:
         return self._require(self.internal_api_token, "INTERNAL_API_TOKEN")

@@ -5,7 +5,7 @@ from __future__ import annotations
 
 from app.services.fpbx import astdb as astdb_mod
 from app.services.fpbx import tsv as tsv_mod
-from app.services.fpbx.mappers import Ctx, Entry, target_payload, target_warnings
+from app.services.fpbx.mappers import Ctx, Entry, int_or, target_payload, target_warnings
 
 
 def _static_members(details_rows: list[dict]) -> list[dict]:
@@ -23,6 +23,31 @@ def _static_members(details_rows: list[dict]) -> list[dict]:
     return members
 
 
+def _dynamic_members(astdb: dict[str, str], number: str) -> list[dict]:
+    return [{
+        "extension_number": ext, "penalty": int_or(penalty, 0), "dynamic": True,
+    } for ext, penalty in astdb_mod.family(astdb, f"QPENALTY/{number}/agents").items()]
+
+
+def _queue_payload(row: dict, name: str, pivoted: dict, timeout_target, members: list[dict]) -> dict:
+    return {
+        "name": name, "strategy": pivoted.get("strategy") or "ringall",
+        "moh_class_name": pivoted.get("music") or None,
+        "agent_ring_seconds": int_or(pivoted.get("timeout"), 15),
+        "retry_seconds": int_or(pivoted.get("retry"), 5),
+        "wrapup_seconds": int_or(pivoted.get("wrapuptime"), 0),
+        "max_wait_seconds": int_or(row.get("maxwait"), 0),
+        "max_callers": int_or(pivoted.get("maxlen"), 0),
+        "announce_position": (pivoted.get("announce-position") or "no") == "yes",
+        "announce_frequency_seconds": int_or(pivoted.get("announce-frequency"), 0),
+        "sla_seconds": int_or(pivoted.get("servicelevel"), 60),
+        "join_empty": (pivoted.get("joinempty") or "no") == "yes",
+        "record": (pivoted.get("recording") or "dontcare") in ("force", "yes"),
+        "timeout_target_id": target_payload(timeout_target),
+        "members": members,
+    }
+
+
 def map_queue(ctx: Ctx) -> list[Entry]:
     details_by_id = tsv_mod.group_by(ctx.table("queues_details"), "id")
     entries: list[Entry] = []
@@ -33,12 +58,7 @@ def map_queue(ctx: Ctx) -> list[Entry]:
         pivoted = tsv_mod.pivot_first(details_by_id.get(number, []))
         entry_warnings: list[dict[str, str]] = []
 
-        members = _static_members(details_by_id.get(number, []))
-        for ext, penalty in astdb_mod.family(ctx.astdb, f"QPENALTY/{number}/agents").items():
-            members.append({
-                "extension_number": ext, "penalty": int(penalty) if penalty.isdigit() else 0,
-                "dynamic": True,
-            })
+        members = _static_members(details_by_id.get(number, [])) + _dynamic_members(ctx.astdb, number)
 
         timeout_target = ctx.resolve(row.get("dest"))
         entry_warnings += target_warnings(timeout_target)
@@ -46,21 +66,6 @@ def map_queue(ctx: Ctx) -> list[Entry]:
         entries.append(Entry(
             kind="queue", source_ref=source_ref, name=name, number=number,
             action="create", warnings=entry_warnings,
-            payload={
-                "name": name, "strategy": pivoted.get("strategy") or "ringall",
-                "moh_class_name": pivoted.get("music") or None,
-                "agent_ring_seconds": int(pivoted["timeout"]) if (pivoted.get("timeout") or "").isdigit() else 15,
-                "retry_seconds": int(pivoted["retry"]) if (pivoted.get("retry") or "").isdigit() else 5,
-                "wrapup_seconds": int(pivoted["wrapuptime"]) if (pivoted.get("wrapuptime") or "").isdigit() else 0,
-                "max_wait_seconds": int(row["maxwait"]) if (row.get("maxwait") or "").isdigit() else 0,
-                "max_callers": int(pivoted["maxlen"]) if (pivoted.get("maxlen") or "").isdigit() else 0,
-                "announce_position": (pivoted.get("announce-position") or "no") == "yes",
-                "announce_frequency_seconds": int(pivoted["announce-frequency"]) if (pivoted.get("announce-frequency") or "").isdigit() else 0,
-                "sla_seconds": int(pivoted["servicelevel"]) if (pivoted.get("servicelevel") or "").isdigit() else 60,
-                "join_empty": (pivoted.get("joinempty") or "no") == "yes",
-                "record": (pivoted.get("recording") or "dontcare") in ("force", "yes"),
-                "timeout_target_id": target_payload(timeout_target),
-                "members": members,
-            },
+            payload=_queue_payload(row, name, pivoted, timeout_target, members),
         ))
     return entries

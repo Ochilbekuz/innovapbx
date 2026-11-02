@@ -134,13 +134,13 @@ class _ListSession:
 
 @pytest.mark.asyncio
 async def test_free_numbers_skips_taken_and_park():
-    out = await numbers.free_numbers(_ListSession(["698"], ["721"]), "t1", from_n=698, to_n=730, limit=3)
+    out = await numbers.free_numbers(_ListSession(["698"], ["721"], []), "t1", from_n=698, to_n=730, limit=3)
     assert out == ["699", "722", "723"]
 
 
 @pytest.mark.asyncio
 async def test_free_numbers_respects_range_end():
-    assert await numbers.free_numbers(_ListSession([], []), "t1", from_n=719, to_n=721, limit=5) == ["721"]
+    assert await numbers.free_numbers(_ListSession([], [], []), "t1", from_n=719, to_n=721, limit=5) == ["721"]
 
 
 # ------------------------------------------------------------------ create_extension
