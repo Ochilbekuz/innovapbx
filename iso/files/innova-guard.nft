@@ -1,0 +1,18 @@
+#!/usr/sbin/nft -f
+# Innova PBX — skript bilan o'rnatishda (install.sh) qo'shiladigan TOR himoya.
+# Asterisk host tarmog'ida, AMI (5038) va HTTP/ARI (8088) 0.0.0.0 da tinglaydi — ularni faqat
+# lokal va Docker tarmoqlari ko'radi. Serverdagi boshqa firewall qoidalariga TEGMAYDI (policy accept).
+# ISO o'rnatishda buni to'liq `nftables.conf` qiladi.
+
+table inet innova_guard
+delete table inet innova_guard
+
+table inet innova_guard {
+  chain input {
+    type filter hook input priority filter - 1; policy accept;
+    iifname "lo" accept
+    iifname "docker0" accept
+    iifname "br-*" accept
+    tcp dport { 5038, 8088 } drop
+  }
+}
