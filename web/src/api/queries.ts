@@ -39,6 +39,8 @@ import type {
   FollowMeTarget, UpdateFollowMePayload,
   // M6 — qarang ../../replica/m6-contract.md
   CampaignAction, CreateCampaignPayload, ImportCampaignContactsPayload, ListCampaignContactsParams, UpdateCampaignPayload,
+  // Tizim holati (status) — pbx-klon vazifa (2026-11-02)
+  CleanupIn,
 } from './types';
 
 export const qk = {
@@ -130,6 +132,8 @@ export const qk = {
   // M6 — qarang ../../replica/m6-contract.md
   campaigns: ['campaigns'] as const,
   campaignContacts: (id: string, p: ListCampaignContactsParams) => ['campaigns', id, 'contacts', p] as const,
+  // Tizim holati (status) — pbx-klon vazifa (2026-11-02)
+  systemStatus: ['system-status'] as const,
 };
 
 export function useSetupState() {
@@ -1316,5 +1320,21 @@ export function useImportCampaignContacts() {
   return useMutation({
     mutationFn: ({ id, payload }: { id: string; payload: ImportCampaignContactsPayload }) => apiClient.importCampaignContacts(id, payload),
     onSuccess: () => invalidate([qk.campaigns]),
+  });
+}
+
+// ─────────────────────── Tizim holati (status) — pbx-klon vazifa (2026-11-02), S36 ───────────────────────
+
+export function useSystemStatus() {
+  return useQuery({ queryKey: qk.systemStatus, queryFn: () => apiClient.systemStatus(), refetchInterval: 30_000 });
+}
+export function usePreviewCleanup() {
+  return useMutation({ mutationFn: (payload: CleanupIn) => apiClient.previewCleanup(payload) });
+}
+export function useCleanup() {
+  const invalidate = useInvalidate();
+  return useMutation({
+    mutationFn: (payload: CleanupIn) => apiClient.cleanup(payload),
+    onSuccess: () => invalidate([qk.systemStatus]),
   });
 }

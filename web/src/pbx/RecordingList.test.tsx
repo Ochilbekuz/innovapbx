@@ -2,7 +2,7 @@
 // Qarang ../../../replica/m3b-contract.md §1.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ReactNode } from 'react';
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
@@ -39,6 +39,44 @@ describe('RecordingList', () => {
     await waitFor(() => expect(fetchRecordingAudio).toHaveBeenCalledWith('rec-1'));
     expect(container.querySelector('audio')).toHaveAttribute('src', 'blob:sinov');
     expect(HTMLMediaElement.prototype.play).toHaveBeenCalled();
+  });
+
+  it('tezlik tugmasi 1× → 1.5× → 2× → 1×; tanlangan tezlik fayl yuklanganda ham saqlanadi', async () => {
+    const user = userEvent.setup();
+    const { container } = wrap(<RecordingList recordings={[{ id: 'rec-r', duration_s: 30 }]} canDelete={false} />);
+    const audio = container.querySelector('audio') as HTMLAudioElement;
+    const rate = screen.getByRole('button', { name: /^Tezlik 1x/ });
+    await user.click(rate);
+    await user.click(rate);
+    expect(rate).toHaveTextContent('2×');
+    expect(audio.playbackRate).toBe(2);
+    expect(audio.defaultPlaybackRate).toBe(2);
+    await user.click(rate);
+    expect(rate).toHaveTextContent('1×');
+  });
+
+  it('oʻrin chizigʻi: ijrodan oldin — tanlangan joydan boshlaydi', async () => {
+    const { container } = wrap(<RecordingList recordings={[{ id: 'rec-s', duration_s: 60 }]} canDelete={false} />);
+    const seek = screen.getByTestId('recording-seek-rec-s') as HTMLInputElement;
+    expect(seek.max).toBe('60');
+    fireEvent.change(seek, { target: { value: '25' } });
+    await waitFor(() => expect(HTMLMediaElement.prototype.play).toHaveBeenCalled());
+    expect(fetchRecordingAudio).toHaveBeenCalledWith('rec-s');
+    expect((container.querySelector('audio') as HTMLAudioElement).currentTime).toBe(25);
+  });
+
+  it('oʻrin chizigʻi: ijro paytida — oʻsha joyga oʻtadi, vaqt «oʻrin / davomiylik» koʻrinadi', async () => {
+    const user = userEvent.setup();
+    const { container } = wrap(<RecordingList recordings={[{ id: 'rec-t', duration_s: 90 }]} canDelete={false} />);
+    const audio = container.querySelector('audio') as HTMLAudioElement;
+    await user.click(screen.getByTestId('recording-play-rec-t'));
+    Object.defineProperty(audio, 'duration', { configurable: true, value: 90 });
+    fireEvent.loadedMetadata(audio);
+    fireEvent.playing(audio);
+    fireEvent.change(screen.getByTestId('recording-seek-rec-t'), { target: { value: '61' } });
+    expect(audio.currentTime).toBe(61);
+    fireEvent.timeUpdate(audio);
+    expect(screen.getByTestId('recording-time-rec-t')).toHaveTextContent('1:01 / 1:30');
   });
 
   it('yuklab olish tugmasi faylni oladi', async () => {

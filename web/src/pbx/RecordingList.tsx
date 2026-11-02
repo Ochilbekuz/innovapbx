@@ -1,15 +1,14 @@
-import { useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Download, FileWarning, LoaderCircle, Pause, Play, Trash2 } from 'lucide-react';
+import { Download, Trash2 } from 'lucide-react';
 import { apiClient } from '@/api';
 import { useDeleteRecording } from '@/api/queries';
 import type { Call, CallRecordingRef } from '@/api/types';
 import { formatDurationSec, TENANT_TZ } from '@/lib/time';
+import { fmt, playIcon, RateButton, usePlayback } from '@/pbx/AudioPlayer';
 import { Button } from '@/ui/Button';
 import { Modal } from '@/ui/Dialog';
 import { useToast } from '@/ui/Toast';
-
-type PlayState = 'idle' | 'loading' | 'playing' | 'paused' | 'error';
 
 // `sv-SE` — tilga bogʻliq boʻlmagan «YYYY-MM-DD HH:MM:SS» shakli (fayl nomi interfeys tiliga qarab oʻzgarmasin).
 const FILE_STAMP = new Intl.DateTimeFormat('sv-SE', {
@@ -28,45 +27,25 @@ export function recordingFileName(fileBase: string | undefined, id: string, inde
   return total > 1 ? `${fileBase}_${index + 1}.wav` : `${fileBase}.wav`;
 }
 
-/** Lazy Blob manba — birinchi bosishda bir marta `fetchRecordingAudio` chaqiradi, keyin `<audio>`ga bog'laydi. */
-function useRecordingPlayback(id: string) {
-  const audio = useRef<HTMLAudioElement>(null);
-  const objectUrl = useRef<string | null>(null);
-  const [state, setState] = useState<PlayState>('idle');
-  useEffect(() => () => { if (objectUrl.current) URL.revokeObjectURL(objectUrl.current); }, []);
-
-  const toggle = async () => {
-    const a = audio.current;
-    if (!a || state === 'error') return;
-    if (!a.paused) { a.pause(); return; }
-    setState('loading');
-    try {
-      if (!objectUrl.current) {
-        objectUrl.current = URL.createObjectURL(await apiClient.fetchRecordingAudio(id));
-        a.src = objectUrl.current;
-      }
-      await a.play();
-    } catch {
-      setState('error');
-    }
-  };
-
-  return {
-    audio, state, toggle,
-    events: {
-      onPlaying: () => setState('playing'),
-      onPause: () => setState('paused'),
-      onWaiting: () => setState('loading'),
-      onEnded: () => setState('paused'),
-      onError: () => setState('error'),
-    },
-  };
-}
-
-function PlayIcon({ state }: { state: PlayState }) {
-  if (state === 'loading') return <LoaderCircle className="animate-spin" />;
-  if (state === 'error') return <FileWarning />;
-  return state === 'playing' ? <Pause /> : <Play className="translate-x-px" />;
+/** Jadval qatoridagi ixcham oʻrin chizigʻi — sudrab yoki bosib istalgan joydan tinglash.
+ * Hali ijro boshlanmagan boʻlsa — tanlangan joydan boshlaydi (davomiylik serverdagi `duration_s`dan). */
+function SeekBar({ p, durationS, id }: { p: ReturnType<typeof usePlayback>; durationS: number; id: string }) {
+  const { t } = useTranslation('common');
+  const max = p.dur || durationS;
+  return (
+    <input
+      type="range" min={0} max={max || 0} step="any" value={Math.min(p.t, max)}
+      data-testid={`recording-seek-${id}`}
+      aria-label={t('audioPlayer.positionDefault')}
+      aria-valuetext={`${fmt(p.t)} / ${fmt(max)}`}
+      disabled={!max}
+      onChange={(e) => {
+        const to = Number(e.target.value);
+        if (p.state === 'idle') void p.toggle(to); else p.seek(to);
+      }}
+      className="h-1.5 w-28 shrink-0 cursor-pointer accent-brand disabled:cursor-default"
+    />
+  );
 }
 
 /** Bitta yozuv qatori — tinglash (inline pleer), yuklab olish va, admin boʻlsa, oʻchirish. M3b §1. */
@@ -75,7 +54,7 @@ function RecordingRow({ rec, canDelete, fileName }: { rec: CallRecordingRef; can
   const toast = useToast();
   const deleteM = useDeleteRecording();
   const [confirming, setConfirming] = useState(false);
-  const p = useRecordingPlayback(rec.id);
+  const p = usePlayback(() => apiClient.fetchRecordingAudio(rec.id));
   const playLabel = p.state === 'playing' ? t('pauseAriaLabel') : t('playAriaLabel');
 
   const download = async () => {
@@ -97,13 +76,19 @@ function RecordingRow({ rec, canDelete, fileName }: { rec: CallRecordingRef; can
         data-testid={`recording-play-${rec.id}`}
         aria-label={playLabel}
         disabled={p.state === 'error'}
-        icon={<PlayIcon state={p.state} />}
+        icon={playIcon(p.state)}
         onClick={() => void p.toggle()}
       />
       {p.state === 'error' ? (
         <span className="text-sm text-danger">{t('unplayable')}</span>
       ) : (
-        <span className="num text-xs text-muted">{formatDurationSec(rec.duration_s)}</span>
+        <>
+          <SeekBar p={p} durationS={rec.duration_s} id={rec.id} />
+          <span className="num w-[76px] shrink-0 text-xs text-muted" data-testid={`recording-time-${rec.id}`}>
+            {p.state === 'idle' ? formatDurationSec(rec.duration_s) : `${fmt(p.t)} / ${fmt(p.dur || rec.duration_s)}`}
+          </span>
+          <RateButton rate={p.rate} nextRate={p.nextRate} />
+        </>
       )}
       <Button
         size="sm" variant="ghost" iconOnly

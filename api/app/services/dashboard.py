@@ -3,9 +3,14 @@ hisoblash funksiyalari: router faqat ma'lumot YIG'ADI (CDR qatorlari, AMI
 javoblari), BUTUN mantiq shu yerda — testlash uchun."""
 from __future__ import annotations
 
+import asyncio
 from datetime import date, datetime, timedelta
 from zoneinfo import ZoneInfo
 
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.db.models import Trunk, TrunkHealth
 from app.schemas import (
     CallOut,
     DashboardAlertOut,
@@ -15,7 +20,8 @@ from app.schemas import (
     MissedCallOut,
     TrunkDashboardOut,
 )
-from app.services.trunk_health import state_from_db_health, state_from_registration
+from app.services.live_status import trunk_registration_state
+from app.services.trunk_health import endpoint_id_for, state_from_db_health, state_from_registration
 
 _HOURS_IN_DAY = 24
 _BYTES_PER_GB = 1024 ** 3
@@ -102,6 +108,37 @@ def build_trunk_dashboard_items(
             items.append(TrunkDashboardOut(id=str(trunk.id), name=trunk.name, state=state,
                                             registration=None, reason=None))
     return items
+
+
+async def trunk_dashboard_items(session: AsyncSession, ami, tenant_id: str, tenant_code: str,
+                                 ) -> list[TrunkDashboardOut]:
+    """Ma'lumotni YIG'ADI (DB/AMI) — holat QOIDASI `build_trunk_dashboard_items`da
+    (sof, bazasiz sinaladi). Samaradorlik (m1b-contract.md bo'lim 5, 300ms
+    chegarasi, o'lchab aniqlangan): `ip` rejim — BITTA bulk SELECT (N alohida
+    emas), `register` rejim — AMI so'rovlari BIR VAQTDA (`asyncio.gather`,
+    AMI mijozi ActionID bilan konkurent javoblarni to'g'ri taqsimlaydi) —
+    N ketma-ket AMI round-trip 300ms chegarasini buzgani o'lchab aniqlandi.
+
+    `/dashboard` VA `GET /system/status` ikkisi ham shu BITTA funksiyadan
+    foydalanadi (ub-mode DRY: avval ikki routerda nusxalangan edi)."""
+    trunks = (await session.execute(
+        select(Trunk).where(Trunk.tenant_id == tenant_id).order_by(Trunk.name)
+    )).scalars().all()
+    enabled_ip_ids = [t.id for t in trunks if t.enabled and t.auth_mode != "register"]
+    db_health_by_id = {}
+    if enabled_ip_ids:
+        rows = (await session.execute(
+            select(TrunkHealth).where(TrunkHealth.trunk_id.in_(enabled_ip_ids))
+        )).scalars().all()
+        db_health_by_id = {row.trunk_id: row for row in rows}
+
+    register_trunks = [t for t in trunks if t.enabled and t.auth_mode == "register"]
+    registrations = await asyncio.gather(*(
+        trunk_registration_state(ami, endpoint_id_for(tenant_code, t.id)) for t in register_trunks
+    ))
+    reg_by_trunk_id = dict(zip((t.id for t in register_trunks), registrations, strict=True))
+
+    return build_trunk_dashboard_items(trunks, db_health_by_id, reg_by_trunk_id)
 
 
 def _was_called_back(missed_call: CallOut, all_calls: list[CallOut]) -> bool:

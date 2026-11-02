@@ -50,12 +50,13 @@ from app.schemas_backup import (
     RestoreJobOut,
     UserRef,
 )
+from app.services import backup_delete
 from app.services import backup_job
 from app.services import restore_job as rj
 from app.services.audit import record_audit
 from app.services.backup_format import BackupCorruptError, BadPassphraseError
 from app.services.backup_settings import s3_target_from_settings, sftp_target_from_settings
-from app.services.backup_targets import BackupTargetError, delete_s3, delete_sftp, fetch_s3, fetch_sftp
+from app.services.backup_targets import BackupTargetError, fetch_s3, fetch_sftp
 from app.services.crypto import decrypt_secret
 from app.services.job_lock import JobAlreadyRunningError, try_acquire_job_lock
 
@@ -233,20 +234,6 @@ async def get_backup(
     return await _backup_item(session, backup)
 
 
-async def _delete_one_copy(session: AsyncSession, backups_dir: Path, backup_cfg: dict, copy: BackupCopy) -> None:
-    if copy.status != "ok" or not copy.remote_path:
-        return
-    try:
-        if copy.target == "local":
-            (backups_dir / copy.remote_path).unlink(missing_ok=True)
-        elif copy.target == "s3":
-            await delete_s3(await s3_target_from_settings(session, backup_cfg), copy.remote_path)
-        elif copy.target == "sftp":
-            await delete_sftp(await sftp_target_from_settings(session, backup_cfg), copy.remote_path)
-    except BackupTargetError:  # noqa: BLE001 — bitta nishonni o'chira olmaslik qolganlarini to'xtatmasin
-        return
-
-
 @router.delete("/{backup_id}", status_code=204, response_model=None)
 async def delete_backup(
     backup_id: str, session: AsyncSession = Depends(get_session), user: User = Depends(require_access),
@@ -258,9 +245,9 @@ async def delete_backup(
         session, Backup, tenant_id, backup_id, not_found_message="Zaxira topilmadi",
         options=(selectinload(Backup.copies),))
     backups_dir = Path(settings.backups_dir)
-    backup_cfg = await _backup_cfg_of(session, tenant_id)
+    backup_cfg = await backup_delete.backup_cfg_of(session, tenant_id)
     for copy in backup.copies:
-        await _delete_one_copy(session, backups_dir, backup_cfg, copy)
+        await backup_delete.delete_one_copy(session, backups_dir, backup_cfg, copy)
     await record_audit(session, tenant_id=tenant_id, user_id=str(user.id), action="backup.delete",
                         entity="backup", entity_id=backup.id, diff={"file_name": backup.file_name})
     await session.delete(backup)
@@ -285,11 +272,6 @@ async def download_backup(
 def _find_remote_copy(backup: Backup) -> BackupCopy | None:
     return next((c for c in backup.copies if c.target in ("s3", "sftp") and c.status == "ok"
                  and c.remote_path), None)
-
-
-async def _backup_cfg_of(session: AsyncSession, tenant_id: str) -> dict:
-    settings_row = await session.get(SystemSettings, tenant_id)
-    return (settings_row.backup if settings_row else None) or {}
 
 
 async def _fetch_remote_to_local(session: AsyncSession, backup_cfg: dict, remote: BackupCopy,
@@ -334,7 +316,7 @@ async def fetch_backup_copy(
     remote = _find_remote_copy(backup)
     if remote is None:
         raise ApiError(409, "no_remote_copy", "Masofaviy nusxa topilmadi")
-    backup_cfg = await _backup_cfg_of(session, tenant_id)
+    backup_cfg = await backup_delete.backup_cfg_of(session, tenant_id)
     backups_dir.mkdir(parents=True, exist_ok=True)
     await _fetch_remote_to_local(session, backup_cfg, remote, local_path)
 

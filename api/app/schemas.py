@@ -371,6 +371,73 @@ class SystemHealth(BaseModel):
     revision: int | None
 
 
+# --------------------------------------------------------------- GET /system/status
+DiskCategoryKey = Literal["recordings", "backups", "migrations", "voicemail", "logs"]
+
+
+class DiskCategoryOut(BaseModel):
+    key: DiskCategoryKey
+    bytes: int
+    files: int
+    cleanable: bool
+
+
+class SystemDiskOut(BaseModel):
+    total_gb: float
+    used_gb: float
+    free_gb: float
+    used_pct: int
+    categories: list[DiskCategoryOut]
+
+
+class SystemInternetOut(BaseModel):
+    up: bool
+    dns_ok: bool
+    latency_ms: int | None
+    target: str
+    error: str | None
+
+
+class SipTransportOut(BaseModel):
+    name: str
+    protocol: str
+    bind: str
+
+
+class SystemSipOut(BaseModel):
+    asterisk_up: bool
+    transports: list[SipTransportOut]
+    endpoints_total: int
+    endpoints_online: int
+
+
+class SystemStatusOut(BaseModel):
+    disk: SystemDiskOut
+    trunks: list[TrunkDashboardOut]
+    internet: SystemInternetOut
+    sip: SystemSipOut
+
+
+# --------------------------------------------------------------- disk tozalash
+class CleanupIn(BaseModel):
+    recordings_older_than_days: int | None = Field(default=None, ge=1)
+    backups_keep_last: int | None = Field(default=None, ge=1)
+    migrations: bool = False
+
+
+class CleanupCategoryOut(BaseModel):
+    files: int
+    bytes: int
+
+
+class CleanupResultOut(BaseModel):
+    recordings: CleanupCategoryOut
+    backups: CleanupCategoryOut
+    migrations: CleanupCategoryOut
+    total_bytes: int
+    errors: list[str]
+
+
 class ConfigRevisionOut(BaseModel):
     id: str
     sha256: str
@@ -1050,6 +1117,9 @@ class TrunkDashboardOut(BaseModel):
     state: TrunkHealthState
     registration: RegistrationState | None
     reason: str | None
+
+
+SystemStatusOut.model_rebuild()  # `TrunkDashboardOut` undan keyin e'lon qilingan (forward ref)
 
 
 class DiskHealthOut(BaseModel):

@@ -29,7 +29,7 @@ const SEEK_KEYS: Record<string, (t: number, dur: number, step: number) => number
   End: (_t, dur) => dur,
 };
 
-const fmt = (s: number) => {
+export const fmt = (s: number) => {
   if (!Number.isFinite(s)) return '0:00';
   const m = Math.floor(s / 60);
   return `${m}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
@@ -71,8 +71,30 @@ function useLazySource(src: AudioSource | null) {
   };
 }
 
+// `src` oʻrnatilganda brauzer `playbackRate`ni `defaultPlaybackRate`ga qaytaradi — ikkalasi ham shart,
+// aks holda ijrodan oldin tanlangan 2× birinchi «Tinglash»da yoʻqoladi.
+function applyRate(a: HTMLAudioElement, rate: number) {
+  a.defaultPlaybackRate = rate;
+  a.playbackRate = rate;
+}
+
+/** Ijro paytida oddiy bosish — pauza; chiziqdan joy tanlash (`startAt`) esa ijroni toʻxtatmaydi. */
+const isPauseClick = (a: HTMLAudioElement, startAt?: number) => !a.paused && startAt === undefined;
+
+function seekAudio(a: HTMLAudioElement | null, s: number, dur: number) {
+  if (a && dur) a.currentTime = clamp(s, dur);
+}
+
+const nextRateOf = (r: number) => RATES[(RATES.indexOf(r as (typeof RATES)[number]) + 1) % RATES.length]!;
+
+async function startPlayback(a: HTMLAudioElement, prepare: ReturnType<typeof useLazySource>, startAt?: number) {
+  await prepare(a);
+  if (startAt !== undefined) a.currentTime = Math.max(0, startAt);
+  await a.play();
+}
+
 /** Ijro holati — `<audio>` hodisalari va funksiya manbani birinchi «Tinglash»da bir marta olish. */
-function usePlayback(src: AudioSource | null) {
+export function usePlayback(src: AudioSource | null) {
   const audio = useRef<HTMLAudioElement>(null);
   const prepare = useLazySource(src);
   const [state, setState] = useState<PlayState>(src ? 'idle' : 'error');
@@ -80,29 +102,25 @@ function usePlayback(src: AudioSource | null) {
   const [dur, setDur] = useState(0);
   const [rate, setRate] = useState<number>(1);
 
-  useEffect(() => { if (audio.current) audio.current.playbackRate = rate; }, [rate]);
+  useEffect(() => { if (audio.current) applyRate(audio.current, rate); }, [rate]);
 
-  const toggle = async () => {
+  /** `startAt` — hali ijro boshlanmagan yozuvni chiziqning istalgan joyidan boshlash. */
+  const toggle = async (startAt?: number) => {
     const a = audio.current;
     if (!a || state === 'error') return;
-    if (!a.paused) return a.pause();
+    if (isPauseClick(a, startAt)) return a.pause();
     setState('loading');
-    try {
-      await prepare(a);
-      await a.play();
-    } catch {
-      setState('error');
-    }
+    await startPlayback(a, prepare, startAt).catch(() => setState('error'));
   };
 
-  const seek = (s: number) => { if (audio.current && dur) audio.current.currentTime = clamp(s, dur); };
-  const nextRate = () => setRate((r) => RATES[(RATES.indexOf(r as (typeof RATES)[number]) + 1) % RATES.length]!);
+  const seek = (s: number) => seekAudio(audio.current, s, dur);
+  const nextRate = () => setRate(nextRateOf);
 
   const events = mediaEvents(setState, setT, setDur);
   return { audio, state, t, dur, rate, toggle, seek, nextRate, events };
 }
 
-function playIcon(state: PlayState) {
+export function playIcon(state: PlayState) {
   if (state === 'loading') return <LoaderCircle className="animate-spin" />;
   if (state === 'error') return <FileWarning />;
   return state === 'playing' ? <Pause /> : <Play className="translate-x-px" />;
@@ -154,18 +172,26 @@ function Waveform({ title, variant, seed, t: pos, dur, seek }: WaveProps) {
   );
 }
 
+/** Tezlik tugmasi: 1× → 1.5× → 2× → 1× (toʻliq pleer va jadvaldagi yozuv qatori uchun bitta). */
+export function RateButton({ rate, nextRate }: { rate: number; nextRate: () => void }) {
+  const { t } = useTranslation('common');
+  return (
+    <button
+      type="button"
+      onClick={nextRate}
+      aria-label={t('audioPlayer.rateChange', { rate })}
+      className={cn('num h-ctl-sm min-w-[2.25rem] shrink-0 rounded-sm border px-1.5 text-xs hover:bg-surface-2', rate === 1 ? 'border-line text-fg' : 'border-brand/40 bg-accent-soft text-on-accent-soft')}
+    >
+      {rate}×
+    </button>
+  );
+}
+
 function ExtraControls({ rate, nextRate, href }: { rate: number; nextRate: () => void; href: string | null }) {
   const { t } = useTranslation('common');
   return (
     <>
-      <button
-        type="button"
-        onClick={nextRate}
-        aria-label={t('audioPlayer.rateChange', { rate })}
-        className="num h-ctl-sm rounded-sm border border-line px-1.5 text-xs text-fg hover:bg-surface-2"
-      >
-        {rate}×
-      </button>
+      <RateButton rate={rate} nextRate={nextRate} />
       {href && (
         <a href={href} download className="grid size-ctl-sm place-items-center rounded-sm text-muted hover:bg-surface-2 hover:text-fg" aria-label={t('audioPlayer.download')}>
           <Download aria-hidden className="size-4" />
@@ -213,7 +239,7 @@ export function AudioPlayer({ src, title, meta, variant = 'full', seed = 7 }: Pr
         aria-label={playLabel}
         disabled={failed}
         icon={playIcon(p.state)}
-        onClick={p.toggle}
+        onClick={() => void p.toggle()}
       />
       <div className="min-w-0 flex-1">
         {full && <TitleRow title={title} meta={meta} />}

@@ -27,12 +27,17 @@ const LEVEL_CLS: Record<HealthLevel, { cls: string; bar: string }> = {
   crit: { cls: 'text-danger', bar: 'bg-status-error' },
 };
 
+/** Darajaga mos chiziq rangi — foiz bar (masalan disk toʻlganligi) uchun ham shu rang shkalasi ishlatiladi. */
+export function healthLevelBarClass(level: HealthLevel): string {
+  return LEVEL_CLS[level].bar;
+}
+
 export function worstLevel(items: readonly HealthItem[]): HealthLevel {
   return items.some((i) => i.level === 'crit') ? 'crit' : items.some((i) => i.level === 'warn') ? 'warn' : 'ok';
 }
 
-/** Tizim sog'ligi ro'yxati: har qator — ikon shakli + matn + sabab. */
-export function HealthList({ items, title }: { items: HealthItem[]; title?: string }) {
+/** Tizim sog'ligi ro'yxati: har qator — ikon shakli + matn + sabab. `action` — sarlavha yonida ixtiyoriy havola/tugma (masalan, batafsil sahifaga). */
+export function HealthList({ items, title, action }: { items: HealthItem[]; title?: string; action?: ReactNode }) {
   const { t } = useTranslation('common');
   const levelText: Record<HealthLevel, string> = { ok: t('health.ok'), warn: t('health.warn'), crit: t('health.crit') };
   const LEVEL: Record<HealthLevel, { icon: ReactNode; text: string; cls: string; bar: string }> = {
@@ -44,12 +49,15 @@ export function HealthList({ items, title }: { items: HealthItem[]; title?: stri
   const worst = LEVEL[worstLevel(items)];
   return (
     <section aria-label={resolvedTitle} className="overflow-hidden rounded-lg border border-line bg-surface shadow-card">
-      <header className="flex items-center justify-between border-b border-line px-4 py-2.5">
+      <header className="flex items-center justify-between gap-3 border-b border-line px-4 py-2.5">
         <h3 className="font-display text-base font-semibold">{resolvedTitle}</h3>
-        <span className={cn('inline-flex items-center gap-1.5 text-sm font-medium [&_svg]:size-4', worst.cls)}>
-          {worst.icon}
-          {worst.text}
-        </span>
+        <div className="flex items-center gap-3">
+          <span className={cn('inline-flex items-center gap-1.5 text-sm font-medium [&_svg]:size-4', worst.cls)}>
+            {worst.icon}
+            {worst.text}
+          </span>
+          {action}
+        </div>
       </header>
       <ul className="divide-y divide-line">
         {items.map((i) => {

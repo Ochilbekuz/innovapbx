@@ -9,7 +9,7 @@ export const uz = {
   health: {
     asterisk: 'Asterisk', database: 'Maʼlumotlar bazasi', disk: 'Disk',
     asteriskDown: 'Asterisk prosessi javob bermayapti', dbDown: 'PostgreSQLga ulanmadi',
-    freeSpace: 'Boʻsh joy: {{gb}} GB', trunk: 'Trunk: {{name}}',
+    freeSpace: 'Boʻsh joy: {{gb}} GB', trunk: 'Trunk: {{name}}', viewDetails: 'Batafsil',
   },
   alertView: 'Koʻrish',
   kpi: {
@@ -44,7 +44,7 @@ export const ru = {
   health: {
     asterisk: 'Asterisk', database: 'База данных', disk: 'Диск',
     asteriskDown: 'Процесс Asterisk не отвечает', dbDown: 'Нет соединения с PostgreSQL',
-    freeSpace: 'Свободно: {{gb}} ГБ', trunk: 'Транк: {{name}}',
+    freeSpace: 'Свободно: {{gb}} ГБ', trunk: 'Транк: {{name}}', viewDetails: 'Подробнее',
   },
   alertView: 'Открыть',
   kpi: {
@@ -79,7 +79,7 @@ export const en = {
   health: {
     asterisk: 'Asterisk', database: 'Database', disk: 'Disk',
     asteriskDown: 'The Asterisk process is not responding', dbDown: 'Could not connect to PostgreSQL',
-    freeSpace: 'Free space: {{gb}} GB', trunk: 'Trunk: {{name}}',
+    freeSpace: 'Free space: {{gb}} GB', trunk: 'Trunk: {{name}}', viewDetails: 'Details',
   },
   alertView: 'View',
   kpi: {

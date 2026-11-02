@@ -102,6 +102,8 @@ import type {
   // M5a — qarang ../../replica/m5a-contract.md
   ApplyMigrationPayload, ListMigrationPlanParams, MigrationAction, MigrationIgnoredItem, MigrationJob,
   MigrationPlanItem, MigrationWarning, PatchMigrationPlanPayload, SshFetchPayload, SshTestPayload, SshTestResult,
+  // Tizim holati (status) — pbx-klon vazifa (2026-11-02)
+  CleanupIn, CleanupResult, DiskCategory, SystemDisk, SystemStatus,
 } from './types';
 import { API_KEY_SCOPES, DEVICE_VENDORS, WEBHOOK_EVENTS, WEBRTC_CODECS } from './types';
 
@@ -367,6 +369,15 @@ export function createFakeClient(): ApiClient {
   let sftpTrustedHost: string | null = backupSettingsCore.targets.sftp.host_key_fp ? backupSettingsCore.targets.sftp.host : null;
   /** `uploadBackup`da fayl nomidan aniqlanadigan demo holat — `inspectBackup`/`restoreBackup` shu bo'yicha xato qaytaradi. */
   const uploadedFixtures = new Map<string, 'ok' | 'corrupt' | 'newer'>();
+
+  // ─────────────────────── Tizim holati (status/cleanup) — pbx-klon vazifa (2026-11-02) ───────────────────────
+  /** Qo'ng'iroq yozuvlari diskda — `zaxiralar`dan farqli, hajmi demo CDR ro'yxatiga bog'liq emas (haqiqiy yig'ilgan hajm). */
+  let diskRecordings = { bytes: 51_539_607_552, files: 2140 };
+  /** Yuklangan FreePBX migratsiya bog'lamalari (shartnoma: `migrations: boolean` — hammasi birdan tozalanadi). */
+  let diskMigrations = { bytes: 644_245_094, files: 4 };
+  /** Ovozli pochta va jurnal fayllari — cleanup shartnomasida tozalash parametri yo'q, faqat ko'rsatish uchun. */
+  const diskVoicemail = { bytes: 1_288_490_189, files: 96 };
+  const diskLogs = { bytes: 322_122_547, files: 140 };
   const backupJobs = new Map<string, FakeBackupJob>();
 
   // ─────────────────────── M5a — qarang ../../replica/m5a-contract.md ───────────────────────
@@ -1107,6 +1118,79 @@ export function createFakeClient(): ApiClient {
       },
       missed: missedCalls,
       alerts,
+    };
+  }
+
+  // ─────────────────────── Tizim holati (status/cleanup) — pbx-klon vazifa (2026-11-02) ───────────────────────
+
+  const DISK_TOTAL_GB = 100;
+  /** Asterisk/OS/DB va boshqa alohida hisoblanmaydigan hajm — kategoriyalar ustiga qo'shiladi. */
+  const DISK_OTHER_GB = 21.8;
+  const GB = 1024 ** 3;
+
+  function diskCategories(): DiskCategory[] {
+    const backupsBytes = backups.reduce((s, b) => s + (b.size_bytes ?? 0), 0);
+    return [
+      { key: 'recordings', bytes: diskRecordings.bytes, files: diskRecordings.files, cleanable: true },
+      { key: 'backups', bytes: backupsBytes, files: backups.length, cleanable: true },
+      { key: 'migrations', bytes: diskMigrations.bytes, files: diskMigrations.files, cleanable: true },
+      { key: 'voicemail', bytes: diskVoicemail.bytes, files: diskVoicemail.files, cleanable: false },
+      { key: 'logs', bytes: diskLogs.bytes, files: diskLogs.files, cleanable: false },
+    ];
+  }
+
+  /** Kategoriyalar + "boshqa" (OS/Asterisk/DB) hajmidan hisoblanadi — tozalashdan keyin qayta chaqirilganda avtomatik kamayadi. */
+  function buildDisk(): SystemDisk {
+    const categories = diskCategories();
+    const categoriesGb = categories.reduce((s, c) => s + c.bytes, 0) / GB;
+    const usedGb = Math.min(DISK_TOTAL_GB, categoriesGb + DISK_OTHER_GB);
+    return {
+      total_gb: DISK_TOTAL_GB,
+      used_gb: Math.round(usedGb * 10) / 10,
+      free_gb: Math.round((DISK_TOTAL_GB - usedGb) * 10) / 10,
+      used_pct: Math.round((usedGb / DISK_TOTAL_GB) * 100),
+      categories,
+    };
+  }
+
+  function buildSystemStatus(): SystemStatus {
+    return {
+      disk: buildDisk(),
+      trunks: trunks.map((t) => ({ id: t.id, name: t.name, state: t.health.state, registration: t.health.registration, reason: t.health.reason })),
+      internet: { up: true, dns_ok: true, latency_ms: 18, target: '1.1.1.1', error: null },
+      sip: {
+        asterisk_up: true,
+        transports: [
+          { name: 'udp', protocol: 'udp', bind: '0.0.0.0:5060' },
+          { name: 'tcp', protocol: 'tcp', bind: '0.0.0.0:5060' },
+          { name: 'wss', protocol: 'wss', bind: '0.0.0.0:8089' },
+        ],
+        endpoints_total: extensions.length,
+        endpoints_online: extensions.filter((e) => e.status === 'online').length,
+      },
+    };
+  }
+
+  function clamp(v: number, min: number, max: number): number {
+    return Math.min(max, Math.max(min, v));
+  }
+
+  /** Kiritilgan parametrlarga qarab qancha bo'shaydi — kunlar qancha kichik bo'lsa, shuncha ko'p yozuv eskirgan hisoblanadi (demo formula). */
+  function cleanupPlan(payload: CleanupIn): CleanupResult {
+    const recordingsFraction = payload.recordings_older_than_days == null ? 0 : clamp(1 - payload.recordings_older_than_days / 365, 0.05, 0.95);
+    const recordings = {
+      files: Math.round(diskRecordings.files * recordingsFraction),
+      bytes: Math.round(diskRecordings.bytes * recordingsFraction),
+    };
+    const excessBackups = payload.backups_keep_last == null ? [] : backups.slice(payload.backups_keep_last);
+    const backupsResult = { files: excessBackups.length, bytes: excessBackups.reduce((s, b) => s + (b.size_bytes ?? 0), 0) };
+    const migrationsResult = payload.migrations ? { files: diskMigrations.files, bytes: diskMigrations.bytes } : { files: 0, bytes: 0 };
+    return {
+      recordings,
+      backups: backupsResult,
+      migrations: migrationsResult,
+      total_bytes: recordings.bytes + backupsResult.bytes + migrationsResult.bytes,
+      errors: [],
     };
   }
 
@@ -2178,6 +2262,29 @@ export function createFakeClient(): ApiClient {
     async dashboard(): Promise<DashboardResult> {
       await delay(200);
       return buildDashboard();
+    },
+
+    async systemStatus(): Promise<SystemStatus> {
+      requireManage('*');
+      await delay(200);
+      return buildSystemStatus();
+    },
+
+    async previewCleanup(payload: CleanupIn): Promise<CleanupResult> {
+      requireManage('*');
+      await delay(150);
+      return cleanupPlan(payload);
+    },
+
+    async cleanup(payload: CleanupIn): Promise<CleanupResult> {
+      requireManage('*');
+      await delay(300);
+      const result = cleanupPlan(payload);
+      diskRecordings = { bytes: diskRecordings.bytes - result.recordings.bytes, files: diskRecordings.files - result.recordings.files };
+      if (payload.backups_keep_last != null) backups = backups.slice(0, payload.backups_keep_last);
+      if (payload.migrations) diskMigrations = { bytes: 0, files: 0 };
+      auditAdd('delete', 'system', null, 'Disk tozalash', { freed_bytes: [null, result.total_bytes] });
+      return result;
     },
 
     async listAudit({ entity, user_id, action, from, to, q = '', page = 1, size = 50 }: ListAuditParams): Promise<Paged<AuditEntry>> {

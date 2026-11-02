@@ -12,7 +12,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_ami, get_session, require_access
-from app.db.models import Cdr, ConfigRevision, OutboundRoute, Queue, Trunk, TrunkHealth, User
+from app.db.models import Cdr, ConfigRevision, OutboundRoute, Queue, User
 from app.schemas import (
     DashboardHealthOut,
     DashboardLiveOut,
@@ -20,50 +20,20 @@ from app.schemas import (
     DashboardQueueOut,
     DbHealth,
     LiveCallOut,
-    TrunkDashboardOut,
 )
 from app.services.cdr_grouping import calls_from_rows
 from app.services.dashboard import (
     build_alerts,
     build_missed_calls,
     build_today_stats,
-    build_trunk_dashboard_items,
     disk_health,
     today_bounds_utc,
+    trunk_dashboard_items,
 )
 from app.services.health import asterisk_health, db_up
-from app.services.live_status import active_calls_live, queue_live_status, trunk_registration_state
-from app.services.trunk_health import endpoint_id_for
+from app.services.live_status import active_calls_live, queue_live_status
 
 router = APIRouter(tags=["dashboard"])
-
-
-async def _trunk_dashboard_items(session: AsyncSession, ami, tenant_id: str, tenant_code: str,
-                                  ) -> list[TrunkDashboardOut]:
-    """Ma'lumotni YIG'ADI (DB/AMI) — holat QOIDASI `build_trunk_dashboard_items`da
-    (sof, bazasiz sinaladi). Samaradorlik (m1b-contract.md bo'lim 5, 300ms
-    chegarasi, o'lchab aniqlangan): `ip` rejim — BITTA bulk SELECT (N alohida
-    emas), `register` rejim — AMI so'rovlari BIR VAQTDA (`asyncio.gather`,
-    AMI mijozi ActionID bilan konkurent javoblarni to'g'ri taqsimlaydi) —
-    N ketma-ket AMI round-trip 300ms chegarasini buzgani o'lchab aniqlandi."""
-    trunks = (await session.execute(
-        select(Trunk).where(Trunk.tenant_id == tenant_id).order_by(Trunk.name)
-    )).scalars().all()
-    enabled_ip_ids = [t.id for t in trunks if t.enabled and t.auth_mode != "register"]
-    db_health_by_id = {}
-    if enabled_ip_ids:
-        rows = (await session.execute(
-            select(TrunkHealth).where(TrunkHealth.trunk_id.in_(enabled_ip_ids))
-        )).scalars().all()
-        db_health_by_id = {row.trunk_id: row for row in rows}
-
-    register_trunks = [t for t in trunks if t.enabled and t.auth_mode == "register"]
-    registrations = await asyncio.gather(*(
-        trunk_registration_state(ami, endpoint_id_for(tenant_code, t.id)) for t in register_trunks
-    ))
-    reg_by_trunk_id = dict(zip((t.id for t in register_trunks), registrations, strict=True))
-
-    return build_trunk_dashboard_items(trunks, db_health_by_id, reg_by_trunk_id)
 
 
 async def _live_section(ami) -> DashboardLiveOut:
@@ -111,7 +81,7 @@ async def get_dashboard(
     tenant_id = str(user.tenant_id)
     tenant = user.tenant
 
-    trunks = await _trunk_dashboard_items(session, ami, tenant_id, tenant.code)
+    trunks = await trunk_dashboard_items(session, ami, tenant_id, tenant.code)
     health = DashboardHealthOut(
         asterisk=await asterisk_health(ami), db=DbHealth(up=await db_up(session)),
         disk=disk_health(*shutil.disk_usage("/")[::2]), trunks=trunks,

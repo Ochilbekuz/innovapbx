@@ -52,6 +52,8 @@ import type {
   ImportCampaignContactsResult, ListCampaignContactsParams, UpdateCampaignPayload,
   // M7 — qarang ../../replica/m7-roles-contract.md
   CreateRolePayload, RoleOut, UpdateRolePayload,
+  // Tizim holati (status) — pbx-klon vazifa (2026-11-02)
+  CleanupIn, CleanupResult, SystemStatus,
 } from './types';
 import type { ApplyResult } from './types';
 
@@ -367,6 +369,11 @@ export interface ApiClient {
   importCampaignContacts(id: string, payload: ImportCampaignContactsPayload): Promise<ImportCampaignContactsResult>;
   listCampaignContacts(id: string, params: ListCampaignContactsParams): Promise<{ items: CampaignContact[]; total: number }>;
   exportCampaignCsv(id: string): Promise<Blob>;
+
+  // Tizim holati (status) — pbx-klon vazifa (2026-11-02), qarang S36 «Tizim holati»
+  systemStatus(): Promise<SystemStatus>;
+  previewCleanup(payload: CleanupIn): Promise<CleanupResult>;
+  cleanup(payload: CleanupIn): Promise<CleanupResult>;
 }
 
 export const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));

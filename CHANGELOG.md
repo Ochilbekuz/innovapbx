@@ -1,5 +1,20 @@
 # O'zgarishlar tarixi
 
+## 1.0.7 — 2026-11-03
+- **Yangi: «Tizim holati» sahifasi** (Sozlamalar → Tizim holati, bosh paneldagi «Batafsil» havolasi ham shu yerga):
+  - **Disk** — band/bo'sh joy va nima egallayotgani: qo'ng'iroq yozuvlari, zaxiralar, migratsiya fayllari,
+    ovozli pochta, jurnallar (hajm va fayl soni);
+  - **Tranklar** — har bir trank holati;
+  - **Internet** — ulanish, DNS va kechikish (ms);
+  - **SIP interfeysi** — Asterisk ishlayaptimi, transportlar (UDP/TCP/WSS, manzil:port), ro'yxatdan o'tgan qurilmalar soni.
+- **Yangi: diskni tozalash.** «Diskni tozalash» oynasida tanlaysiz: N kundan eski yozuvlar, oxirgi N tadan tashqari
+  zaxiralar, yuklangan FreePBX migratsiya fayllari. O'chirishdan oldin **qancha joy bo'shashi** ko'rsatiladi;
+  ketayotgan zaxira/tiklash va faol migratsiyaga tegilmaydi; har bir tozalash auditga yoziladi. Faqat admin uchun.
+- **Pleer: tezlik va istalgan joydan tinglash.** Qo'ng'iroqlar tarixidagi yozuv qatorida endi o'rin chizig'i —
+  istalgan joyini bosib o'sha yerdan tinglaysiz (ijro boshlanmagan bo'lsa ham), vaqt «o'rin / davomiylik» ko'rinadi;
+  **1× → 1.5× → 2×** tezlik tugmasi.
+- Tuzatildi: ijrodan oldin tanlangan 2× tezlik birinchi «Tinglash»da 1× ga qaytib qolardi.
+
 ## 1.0.6 — 2026-11-03
 - **Qo'ng'iroq yozuvlari — Qo'ng'iroqlar tarixida.** «Yozuv» ustuni endi jadvalning **oxirgi ustuni**:
   yozib olingan qo'ng'iroq qatorida ▶ **tinglash**, ⬇ **yuklab olish** (va huquqi bor admin uchun 🗑 o'chirish).

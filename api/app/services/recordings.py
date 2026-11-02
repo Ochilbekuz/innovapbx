@@ -197,12 +197,28 @@ def unlink_file(path: Path) -> None:
         path.unlink()
 
 
+# `purge_tenant` bir chaqiruvda ko'pi bilan shuncha qatorni o'chiradi (juda katta
+# tenant uchun bitta so'rov cheksiz uzoq ketmasin) — `/system/cleanup` shu
+# chegaraga qarab natija to'liq bo'lmaganini aniqlaydi (loop kerakligini).
+PURGE_BATCH_LIMIT = 5000
+
+
+async def purge_candidates(session: AsyncSession, tenant_id: str, retention_days: int, now: datetime,
+                            ) -> list[CallRecording]:
+    """O'chirish NOMZODLARI — fayl/bazaga TEGMAYDI (faqat o'qiydi). `/system/cleanup/preview`
+    bayt/fayl sonini shu ro'yxatdan hisoblaydi; haqiqiy o'chirish `purge_tenant`da."""
+    return list((await session.execute(select(CallRecording).where(
+        CallRecording.tenant_id == tenant_id, CallRecording.deleted_at.is_(None),
+        CallRecording.started_at < retention_cutoff(now, retention_days),
+    ))).scalars().all())
+
+
 async def purge_tenant(session: AsyncSession, tenant_id: str, retention_days: int, now: datetime) -> tuple[int, list[str]]:
     """Muddati o'tgan fayllar o'chiriladi va `deleted_at` qo'yiladi; disk xatosi — qator qoladi, xato qaytadi."""
     rows = (await session.execute(select(CallRecording).where(
         CallRecording.tenant_id == tenant_id, CallRecording.deleted_at.is_(None),
         CallRecording.started_at < retention_cutoff(now, retention_days),
-    ).limit(5000))).scalars().all()
+    ).limit(PURGE_BATCH_LIMIT))).scalars().all()
     errors: list[str] = []
     for row in rows:
         try:

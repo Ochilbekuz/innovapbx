@@ -11,10 +11,11 @@ import type {
 } from '@/api/types';
 import { formatDurationSec, formatTime } from '@/lib/time';
 import { cn } from '@/lib/cn';
+import { diskLevel, trunkHealthLevel } from '@/lib/health';
 import { AppShellPage } from '@/shell/AppShellPage';
 import { Button } from '@/ui/Button';
 import { BarChart, ChartCard, ChartLegend } from '@/ui/Chart';
-import type { HealthItem, HealthLevel } from '@/ui/Health';
+import type { HealthItem } from '@/ui/Health';
 import { HealthList } from '@/ui/Health';
 import { Kpi } from '@/ui/Kpi';
 import { Badge, type Tone } from '@/ui/Status';
@@ -55,7 +56,7 @@ export function DashboardPage() {
     ...data.health.trunks.map((tr) => ({
       id: tr.id,
       label: t('health.trunk', { name: tr.name }),
-      level: (tr.state === 'ok' ? 'ok' : tr.state === 'unreachable' ? 'crit' : 'warn') as HealthLevel,
+      level: trunkHealthLevel(tr.state),
       value: tr.registration ? registrationShort[tr.registration] : undefined,
       reason: tr.reason ?? undefined,
     })),
@@ -93,7 +94,10 @@ export function DashboardPage() {
 
       <div className="mt-5 grid gap-4 lg:grid-cols-[1.3fr_1fr]">
         <HourlyChart buckets={data.today.by_hour} />
-        <HealthList items={healthItems} />
+        <HealthList
+          items={healthItems}
+          action={<Link to="/settings/status" className="text-xs font-medium text-accent hover:underline">{t('health.viewDetails')}</Link>}
+        />
       </div>
 
       <div className="mt-4 grid gap-4 lg:grid-cols-2">
@@ -107,10 +111,6 @@ export function DashboardPage() {
       </div>
     </AppShellPage>
   );
-}
-
-function diskLevel(usedPct: number): HealthLevel {
-  return usedPct >= 95 ? 'crit' : usedPct >= 85 ? 'warn' : 'ok';
 }
 
 function HourlyChart({ buckets }: { buckets: DashboardHourBucket[] }) {

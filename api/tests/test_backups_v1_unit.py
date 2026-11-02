@@ -249,8 +249,8 @@ async def test_delete_backup_swallows_remote_target_error(monkeypatch, env):
         raise BackupTargetError("bo'lmadi")
 
     monkeypatch.setattr(bk, "get_tenant_scoped_or_404", fake_scoped)
-    monkeypatch.setattr(bk, "s3_target_from_settings", fake_s3_target)
-    monkeypatch.setattr(bk, "delete_s3", fake_delete_s3)
+    monkeypatch.setattr(bk.backup_delete, "s3_target_from_settings", fake_s3_target)
+    monkeypatch.setattr(bk.backup_delete, "delete_s3", fake_delete_s3)
     settings_row = SimpleNamespace(backup={"targets": {"s3": {}}})
     session = _Session(get_map={("SystemSettings", "t1"): settings_row})
     resp = await bk.delete_backup("b1", session=session, user=USER)
@@ -637,8 +637,8 @@ async def test_delete_backup_deletes_sftp_copy(monkeypatch, env):
         calls.append(path)
 
     monkeypatch.setattr(bk, "get_tenant_scoped_or_404", fake_scoped)
-    monkeypatch.setattr(bk, "sftp_target_from_settings", fake_sftp_target)
-    monkeypatch.setattr(bk, "delete_sftp", fake_delete_sftp)
+    monkeypatch.setattr(bk.backup_delete, "sftp_target_from_settings", fake_sftp_target)
+    monkeypatch.setattr(bk.backup_delete, "delete_sftp", fake_delete_sftp)
     settings_row = SimpleNamespace(backup={"targets": {"sftp": {}}})
     session = _Session(get_map={("SystemSettings", "t1"): settings_row})
     resp = await bk.delete_backup("b1", session=session, user=USER)

@@ -462,6 +462,46 @@ export type DashboardResult = {
   alerts: DashboardAlert[];
 };
 
+// ─────────────────────── Tizim holati (status) — pbx-klon vazifa (2026-11-02) ───────────────────────
+
+export type DiskCategoryKey = 'recordings' | 'backups' | 'migrations' | 'voicemail' | 'logs';
+export type DiskCategory = { key: DiskCategoryKey; bytes: number; files: number; cleanable: boolean };
+export type SystemDisk = {
+  total_gb: number;
+  used_gb: number;
+  free_gb: number;
+  used_pct: number;
+  categories: DiskCategory[];
+};
+export type SystemInternet = { up: boolean; dns_ok: boolean; latency_ms: number | null; target: string; error: string | null };
+export type SipTransportInfo = { name: string; protocol: string; bind: string };
+export type SystemSip = {
+  asterisk_up: boolean;
+  transports: SipTransportInfo[];
+  endpoints_total: number;
+  endpoints_online: number;
+};
+export type SystemStatus = {
+  disk: SystemDisk;
+  trunks: DashboardTrunkHealth[];
+  internet: SystemInternet;
+  sip: SystemSip;
+};
+
+export type CleanupIn = {
+  recordings_older_than_days: number | null;
+  backups_keep_last: number | null;
+  migrations: boolean;
+};
+export type CleanupCategoryResult = { files: number; bytes: number };
+export type CleanupResult = {
+  recordings: CleanupCategoryResult;
+  backups: CleanupCategoryResult;
+  migrations: CleanupCategoryResult;
+  total_bytes: number;
+  errors: string[];
+};
+
 export type AuditAction = 'create' | 'update' | 'delete' | 'login' | 'login_failed' | 'restore' | 'restart' | 'override' | 'spy';
 export type AuditDiff = Record<string, [unknown, unknown]>;
 export type AuditEntry = {

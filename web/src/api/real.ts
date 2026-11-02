@@ -53,6 +53,8 @@ import type {
   ImportCampaignContactsResult, ListCampaignContactsParams, UpdateCampaignPayload,
   // M7 — qarang ../../replica/m7-roles-contract.md
   CreateRolePayload, RoleOut, UpdateRolePayload,
+  // Tizim holati (status) — pbx-klon vazifa (2026-11-02)
+  CleanupIn, CleanupResult, SystemStatus,
 } from './types';
 import type { ApplyResult } from './types';
 
@@ -394,4 +396,9 @@ export const realClient: ApiClient = {
   listCampaignContacts: (id: string, params: ListCampaignContactsParams) =>
     request<{ items: CampaignContact[]; total: number }>(`/campaigns/${id}/contacts${qs(params)}`),
   exportCampaignCsv: (id: string) => requestBlob(`/campaigns/${id}/export.csv`),
+
+  // Tizim holati (status) — pbx-klon vazifa (2026-11-02)
+  systemStatus: () => request<SystemStatus>('/system/status'),
+  previewCleanup: (payload: CleanupIn) => request<CleanupResult>('/system/cleanup/preview', { method: 'POST', body: payload }),
+  cleanup: (payload: CleanupIn) => request<CleanupResult>('/system/cleanup', { method: 'POST', body: payload }),
 };

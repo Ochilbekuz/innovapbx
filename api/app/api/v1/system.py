@@ -2,27 +2,38 @@
 m1b-contract.md bo'lim 7 (reviziya tafsiloti/diff/tiklash)."""
 from __future__ import annotations
 
+import asyncio
 import difflib
+import shutil
+from datetime import datetime, timezone
+from pathlib import Path
 
 from fastapi import APIRouter, Depends
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_ami, get_session, require_access
+from app.core.config import settings
 from app.core.errors import ApiError
 from app.db.models import ConfigRevision, Tenant, User
 from app.schemas import (
     AuditUserRef,
+    CleanupIn,
+    CleanupResultOut,
     ConfigRevisionDetailOut,
     ConfigRevisionDiffOut,
     ConfigRevisionOut,
     DbHealth,
     RestoreRevisionResult,
     SystemHealth,
+    SystemStatusOut,
 )
+from app.services import system_cleanup
 from app.services.apply import restore_revision
 from app.services.audit import record_audit
+from app.services.dashboard import trunk_dashboard_items
 from app.services.health import asterisk_health, db_up
+from app.services.system_status import check_internet, disk_categories, disk_status_out, sip_status
 
 router = APIRouter(tags=["system"])
 
@@ -149,3 +160,47 @@ async def restore_config_revision(
     item = ConfigRevisionOut(id=str(revision.id), sha256=revision.dialplan_sha256, status=revision.status,
                               created_at=revision.created_at, message=revision.error)
     return RestoreRevisionResult(item=item, apply=apply_result.to_dict(), drift=True)
+
+
+@router.get("/system/status", response_model=SystemStatusOut)
+async def system_status(
+    session: AsyncSession = Depends(get_session), user: User = Depends(require_access), ami=Depends(get_ami),
+) -> SystemStatusOut:
+    """Disk/trunk/internet/SIP — 4 bo'lim BIR VAQTDA (`asyncio.gather`, mustaqil
+    I/O manbalar: fayl tizimi, AMI, DB, tarmoq) — ketma-ket chaqirilsa javob
+    sezilarli sekinlashardi (m1b-contract.md bo'lim 5dagi 300ms qoidasi bilan BIR XIL g'oya)."""
+    tenant_id = str(user.tenant_id)
+    tenant = user.tenant
+    total, _used, free = shutil.disk_usage(settings.recordings_dir)
+    categories, trunks, internet, sip = await asyncio.gather(
+        disk_categories(settings), trunk_dashboard_items(session, ami, tenant_id, tenant.code),
+        check_internet(), sip_status(ami, session, tenant_id),
+    )
+    return SystemStatusOut(disk=disk_status_out(total, free, categories), trunks=trunks, internet=internet, sip=sip)
+
+
+@router.post("/system/cleanup/preview", response_model=CleanupResultOut)
+async def cleanup_preview(
+    payload: CleanupIn, session: AsyncSession = Depends(get_session), user: User = Depends(require_access),
+) -> CleanupResultOut:
+    """Hech narsani o'chirmaydi — faqat qancha fayl/bayt bo'shashini ko'rsatadi."""
+    system_cleanup.validate_cleanup_payload(payload)
+    return await system_cleanup.preview(session, str(user.tenant_id), payload, datetime.now(timezone.utc))
+
+
+@router.post("/system/cleanup", response_model=CleanupResultOut)
+async def cleanup_execute(
+    payload: CleanupIn, session: AsyncSession = Depends(get_session), user: User = Depends(require_access),
+) -> CleanupResultOut:
+    """Haqiqiy o'chirish — faqat shu yerda audit yoziladi (`preview`da EMAS)."""
+    system_cleanup.validate_cleanup_payload(payload)
+    tenant_id = str(user.tenant_id)
+    result = await system_cleanup.execute(
+        session, tenant_id, Path(settings.backups_dir), payload, datetime.now(timezone.utc),
+    )
+    await record_audit(session, tenant_id=tenant_id, user_id=str(user.id), action="system.delete",
+                        entity="system", entity_id=tenant_id,
+                        diff={"payload": payload.model_dump(), "total_bytes": result.total_bytes,
+                              "errors": len(result.errors)})
+    await session.commit()
+    return result
