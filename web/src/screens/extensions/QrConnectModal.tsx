@@ -12,6 +12,7 @@ import { Button } from '@/ui/Button';
 import { Modal } from '@/ui/Dialog';
 import { Badge } from '@/ui/Status';
 import { useToast } from '@/ui/Toast';
+import { copyText } from '@/lib/browser';
 
 const QR_SIZE = 216;
 const TTL_SECONDS = 15 * 60;
@@ -68,7 +69,7 @@ export function QrConnectModal({ target, number, open, onOpenChange }: {
   // Ochilganda token olinadi; yopilganda havola xotiradan o'chiriladi.
   useEffect(() => { if (open) mutate(); else reset(); }, [open, mutate, reset]);
 
-  const copy = (url: string) => void navigator.clipboard.writeText(url).then(() => toast({ kind: 'success', title: t('qr.copied') }));
+  const copy = (url: string) => void copyText(url).then((ok) => ok && toast({ kind: 'success', title: t('qr.copied') }));
 
   return (
     <Modal

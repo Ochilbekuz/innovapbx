@@ -11,6 +11,7 @@ import { Modal } from '@/ui/Dialog';
 import { Tabs } from '@/ui/Tabs';
 import { useToast } from '@/ui/Toast';
 import { bundleFileValid, sshFetchPayload, sshTestPayload, sshTestValid, useSshForm } from './migrationForms';
+import { copyText } from '@/lib/browser';
 
 /** Blob'ni berilgan nom bilan brauzerda yuklab oladi — qarang `screens/backup/BackupsTab.tsx` namunasi. */
 function triggerDownload(blob: Blob, fileName: string) {
@@ -139,7 +140,7 @@ function ExportScriptBlock() {
     onSuccess: (blob) => triggerDownload(blob, 'innova-fpbx-export.sh'),
   });
   const copy = () => {
-    navigator.clipboard?.writeText(t('source.exportScript.command'));
+    void copyText(t('source.exportScript.command'));
     toast({ kind: 'success', title: t('source.exportScript.copied') });
   };
   return (

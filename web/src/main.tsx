@@ -10,6 +10,7 @@ import { useTheme } from './lib/theme';
 import { installSoftphoneDiagnostics } from './softphone/diag';
 import { ToastProvider } from './ui/Toast';
 import { AppRouter } from './router';
+import { AppErrorBoundary } from './shell/AppErrorBoundary';
 
 useTheme.getState();
 installSoftphoneDiagnostics();
@@ -20,7 +21,9 @@ createRoot(document.getElementById('root')!).render(
       <BrowserRouter>
         <Tooltip.Provider delayDuration={300}>
           <ToastProvider>
-            <AppRouter />
+            <AppErrorBoundary>
+              <AppRouter />
+            </AppErrorBoundary>
           </ToastProvider>
         </Tooltip.Provider>
       </BrowserRouter>

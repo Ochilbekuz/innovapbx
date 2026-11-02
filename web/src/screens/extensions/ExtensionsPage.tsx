@@ -23,6 +23,7 @@ import { useToast } from '@/ui/Toast';
 import { FollowMeSection } from './FollowMeSection';
 import { QrConnectModal } from './QrConnectModal';
 import type { RecordingPolicy } from '@/api/types';
+import { copyText } from '@/lib/browser';
 
 const RECORDING_POLICIES: RecordingPolicy[] = ['always', 'never', 'on_demand'];
 
@@ -81,7 +82,7 @@ function SipFields({ sip }: { sip: SipCredentials }) {
             <span className="num text-sm font-medium text-fg">{value}</span>
             <Button
               size="sm" variant="ghost" iconOnly icon={<Copy />} aria-label={t('sip.copyAriaLabel', { label })}
-              onClick={() => void navigator.clipboard.writeText(value)}
+              onClick={() => void copyText(value)}
             />
           </div>
         </div>

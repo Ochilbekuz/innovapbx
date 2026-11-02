@@ -2,6 +2,11 @@
 // O'zbekcha qiymatlar manba ekranlardan o'zgarmagan holda ko'chirilgan.
 
 export const uz = {
+  crash: {
+    title: 'Sahifada xato yuz berdi',
+    body: 'Maʼlumotlaringiz saqlangan. Sahifani qayta yuklang; xato takrorlansa — quyidagi matnni administratorga yuboring.',
+    reload: 'Qayta yuklash',
+  },
   day: {
     short: { mon: 'Du', tue: 'Se', wed: 'Ch', thu: 'Pa', fri: 'Ju', sat: 'Sh', sun: 'Ya' },
     long: { mon: 'Dushanba', tue: 'Seshanba', wed: 'Chorshanba', thu: 'Payshanba', fri: 'Juma', sat: 'Shanba', sun: 'Yakshanba' },
@@ -255,6 +260,11 @@ export const uz = {
 };
 
 export const ru = {
+  crash: {
+    title: 'На странице произошла ошибка',
+    body: 'Ваши данные сохранены. Перезагрузите страницу; если ошибка повторится — отправьте текст ниже администратору.',
+    reload: 'Перезагрузить',
+  },
   day: {
     short: { mon: 'Пн', tue: 'Вт', wed: 'Ср', thu: 'Чт', fri: 'Пт', sat: 'Сб', sun: 'Вс' },
     long: { mon: 'Понедельник', tue: 'Вторник', wed: 'Среда', thu: 'Четверг', fri: 'Пятница', sat: 'Суббота', sun: 'Воскресенье' },
@@ -508,6 +518,11 @@ export const ru = {
 };
 
 export const en = {
+  crash: {
+    title: 'Something went wrong on this page',
+    body: 'Your data is safe. Reload the page; if the error repeats, send the text below to your administrator.',
+    reload: 'Reload',
+  },
   day: {
     short: { mon: 'Mon', tue: 'Tue', wed: 'Wed', thu: 'Thu', fri: 'Fri', sat: 'Sat', sun: 'Sun' },
     long: { mon: 'Monday', tue: 'Tuesday', wed: 'Wednesday', thu: 'Thursday', fri: 'Friday', sat: 'Saturday', sun: 'Sunday' },

@@ -6,6 +6,7 @@ import { applyRoute, describePattern, parsePattern, type RouteRule } from '@/dom
 import { patternText } from './domainText';
 import { Button } from '@/ui/Button';
 import { controlBase } from '@/ui/Field';
+import { newId } from '@/lib/browser';
 
 export type PatternRow = RouteRule & { id: string; callerId: string };
 
@@ -84,7 +85,7 @@ export function PatternEditor({ rows, onChange }: { rows: PatternRow[]; onChange
         })}
       </ol>
       <div className="flex flex-wrap items-center gap-3 border-t border-line bg-surface-2/60 px-3 py-2.5">
-        <Button size="sm" variant="ghost" icon={<Plus />} onClick={() => onChange([...rows, { id: crypto.randomUUID(), prepend: '', prefix: '', pattern: '', callerId: '' }])}>
+        <Button size="sm" variant="ghost" icon={<Plus />} onClick={() => onChange([...rows, { id: newId(), prepend: '', prefix: '', pattern: '', callerId: '' }])}>
           {t('patternEditor.addRule')}
         </Button>
         <div className="ml-auto flex items-center gap-2 text-sm">

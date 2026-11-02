@@ -29,6 +29,7 @@ import {
   removeKeyRow, updateKeyRow, useAssignForm, useEditDeviceForm, useKeysForm,
 } from './deviceForms';
 import { closeOnOpenChange, fieldError, itemsOrEmpty, otherFieldError } from '@/lib/formHelpers';
+import { copyText } from '@/lib/browser';
 
 const STATUS_TONE: Record<Device['status'], Tone> = { never: 'neutral', provisioned: 'info', registered: 'success', stale_config: 'warning' };
 const KEY_TYPES: DeviceKeyType[] = ['blf', 'speed_dial', 'line', 'park', 'dnd', 'none'];
@@ -42,7 +43,7 @@ function ProvisioningCard({ canManage }: { canManage: boolean }) {
   const [confirmOpen, setConfirmOpen] = useState(false);
 
   const copy = () => {
-    void navigator.clipboard.writeText(data?.url ?? '');
+    void copyText(data?.url ?? '');
     toast({ kind: 'success', title: t('copied') });
   };
 

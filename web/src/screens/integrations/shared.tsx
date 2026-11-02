@@ -6,6 +6,7 @@ import { isApiError } from '@/api/errors';
 import { Button } from '@/ui/Button';
 import { Modal } from '@/ui/Dialog';
 import { useToast } from '@/ui/Toast';
+import { copyText } from '@/lib/browser';
 
 export type MutationErrorInfo = { field: string | undefined; message: string | undefined; stale: boolean };
 
@@ -55,7 +56,7 @@ export function SecretOnceModal({
           <span data-testid={secretTestId} className="num text-sm font-medium text-fg break-all">{secret}</span>
           <Button
             size="sm" variant="ghost" iconOnly icon={<Copy />} aria-label={t('apiKeys.copy')}
-            onClick={() => { void navigator.clipboard.writeText(secret ?? ''); toast({ kind: 'success', title: t('apiKeys.copied') }); }}
+            onClick={() => { void copyText(secret ?? ''); toast({ kind: 'success', title: t('apiKeys.copied') }); }}
           />
         </div>
       </div>
