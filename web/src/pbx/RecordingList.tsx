@@ -3,13 +3,30 @@ import { useTranslation } from 'react-i18next';
 import { Download, FileWarning, LoaderCircle, Pause, Play, Trash2 } from 'lucide-react';
 import { apiClient } from '@/api';
 import { useDeleteRecording } from '@/api/queries';
-import type { CallRecordingRef } from '@/api/types';
-import { formatDurationSec } from '@/lib/time';
+import type { Call, CallRecordingRef } from '@/api/types';
+import { formatDurationSec, TENANT_TZ } from '@/lib/time';
 import { Button } from '@/ui/Button';
 import { Modal } from '@/ui/Dialog';
 import { useToast } from '@/ui/Toast';
 
 type PlayState = 'idle' | 'loading' | 'playing' | 'paused' | 'error';
+
+// `sv-SE` — tilga bogʻliq boʻlmagan «YYYY-MM-DD HH:MM:SS» shakli (fayl nomi interfeys tiliga qarab oʻzgarmasin).
+const FILE_STAMP = new Intl.DateTimeFormat('sv-SE', {
+  timeZone: TENANT_TZ, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit',
+});
+const fileSafeNumber = (n: string) => n.replace(/[^0-9A-Za-z+]/g, '') || 'nomalum';
+
+/** Yuklab olinadigan fayl nomi asosi: `2026-11-03_01-12-35_<kimdan>_<kimga>` (Toshkent vaqti). */
+export function recordingFileBase(call: Pick<Call, 'started_at' | 'src' | 'dst'>): string {
+  const stamp = FILE_STAMP.format(new Date(call.started_at)).replace(' ', '_').replace(/:/g, '-');
+  return `${stamp}_${fileSafeNumber(call.src)}_${fileSafeNumber(call.dst)}`;
+}
+
+export function recordingFileName(fileBase: string | undefined, id: string, index: number, total: number): string {
+  if (!fileBase) return `${id}.wav`;
+  return total > 1 ? `${fileBase}_${index + 1}.wav` : `${fileBase}.wav`;
+}
 
 /** Lazy Blob manba — birinchi bosishda bir marta `fetchRecordingAudio` chaqiradi, keyin `<audio>`ga bog'laydi. */
 function useRecordingPlayback(id: string) {
@@ -53,7 +70,7 @@ function PlayIcon({ state }: { state: PlayState }) {
 }
 
 /** Bitta yozuv qatori — tinglash (inline pleer), yuklab olish va, admin boʻlsa, oʻchirish. M3b §1. */
-function RecordingRow({ rec, canDelete }: { rec: CallRecordingRef; canDelete: boolean }) {
+function RecordingRow({ rec, canDelete, fileName }: { rec: CallRecordingRef; canDelete: boolean; fileName: string }) {
   const { t } = useTranslation('recordings');
   const toast = useToast();
   const deleteM = useDeleteRecording();
@@ -66,9 +83,10 @@ function RecordingRow({ rec, canDelete }: { rec: CallRecordingRef; canDelete: bo
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `${rec.id}.wav`;
+    a.download = fileName;
     a.click();
-    URL.revokeObjectURL(url);
+    // Darhol bekor qilinsa Firefox yuklashni boshlamay qoladi.
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
   };
 
   return (
@@ -130,11 +148,13 @@ function RecordingRow({ rec, canDelete }: { rec: CallRecordingRef; canDelete: bo
 }
 
 /** Qoʻngʻiroqqa bogʻlangan yozuvlar roʻyxati — boʻlmasa hech narsa chiqarmaydi (jadval qatorida joy band qilmaydi). */
-export function RecordingList({ recordings, canDelete }: { recordings: CallRecordingRef[]; canDelete: boolean }) {
+export function RecordingList({ recordings, canDelete, fileBase }: { recordings: CallRecordingRef[]; canDelete: boolean; fileBase?: string }) {
   if (recordings.length === 0) return null;
   return (
     <div className="flex flex-col gap-1.5">
-      {recordings.map((rec) => <RecordingRow key={rec.id} rec={rec} canDelete={canDelete} />)}
+      {recordings.map((rec, i) => (
+        <RecordingRow key={rec.id} rec={rec} canDelete={canDelete} fileName={recordingFileName(fileBase, rec.id, i, recordings.length)} />
+      ))}
     </div>
   );
 }

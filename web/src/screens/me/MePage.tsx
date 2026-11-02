@@ -16,7 +16,7 @@ import { Button } from '@/ui/Button';
 import { Modal } from '@/ui/Dialog';
 import { Field, Input } from '@/ui/Field';
 import { AudioPlayer } from '@/pbx/AudioPlayer';
-import { RecordingList } from '@/pbx/RecordingList';
+import { RecordingList, recordingFileBase } from '@/pbx/RecordingList';
 import { FollowMeSection } from '@/screens/extensions/FollowMeSection';
 import { QrConnectModal } from '@/screens/extensions/QrConnectModal';
 import { Badge, type Tone } from '@/ui/Status';
@@ -234,7 +234,7 @@ function RecentCallsCard() {
       },
     },
     { key: 'duration', header: t('me:recentCalls.column.duration'), align: 'right', cell: (r) => <span className="num">{formatDurationSec(r.duration)}</span> },
-    { key: 'recording', header: '', cell: (r) => <RecordingList recordings={r.recordings} canDelete={canManageRecordings} /> },
+    { key: 'recording', header: '', cell: (r) => <RecordingList recordings={r.recordings} canDelete={canManageRecordings} fileBase={recordingFileBase(r)} /> },
   ];
 
   return (

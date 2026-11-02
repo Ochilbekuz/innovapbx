@@ -1,5 +1,15 @@
 # O'zgarishlar tarixi
 
+## 1.0.6 — 2026-11-03
+- **Qo'ng'iroq yozuvlari — Qo'ng'iroqlar tarixida.** «Yozuv» ustuni endi jadvalning **oxirgi ustuni**:
+  yozib olingan qo'ng'iroq qatorida ▶ **tinglash**, ⬇ **yuklab olish** (va huquqi bor admin uchun 🗑 o'chirish).
+  Yozuvi yo'q qo'ng'iroqda ustun bo'sh turadi.
+- Yuklab olingan fayl nomi endi tushunarli: `2026-11-03_01-12-35_<kimdan>_<kimga>.wav` (Toshkent vaqti);
+  bitta qo'ng'iroqda bir nechta yozuv bo'lsa — `_1`, `_2`. Avval fayl nomi ichki ID edi. «Mening kabinetim»da ham shunday.
+- Tuzatildi: Firefox'da yuklab olish ba'zan boshlanmay qolardi.
+- Eslatma: qaysi qo'ng'iroq yozilishi **Ichki raqamlar → raqam → «Kiruvchi / Chiquvchi yozib olish»**
+  (har doim / hech qachon / talab bo'yicha `*1`) sozlamasiga bog'liq.
+
 ## 1.0.5 — 2026-11-02
 - **Yangi: rollar muharriri.** Sozlamalar → Foydalanuvchilar → **Rollar** bo'limida o'z rollaringizni yaratasiz
   (FreePBX'dagi User Management guruhlari kabi). Har bir rol uchun 6 ta bo'limning har biriga daraja beriladi:

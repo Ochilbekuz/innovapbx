@@ -6,7 +6,7 @@ import { useCalls, useCreateBlacklistEntry } from '@/api/queries';
 import { isApiError } from '@/api/errors';
 import type { Call, CallDirection } from '@/api/types';
 import { useCanEdit } from '@/auth/permissions';
-import { RecordingList } from '@/pbx/RecordingList';
+import { RecordingList, recordingFileBase } from '@/pbx/RecordingList';
 import { AppShellPage } from '@/shell/AppShellPage';
 import { ClickToCallButton } from '@/softphone/ClickToCallButton';
 import { Button } from '@/ui/Button';
@@ -56,7 +56,6 @@ export function CallsPage() {
     { key: 'disposition', header: t('column.disposition'), cell: (r) => <Badge tone={DISPOSITION_TONE[r.disposition]}>{r.disposition === 'no_answer' ? <PhoneMissed aria-hidden className="size-3" /> : null}{dispositionLabel[r.disposition]}</Badge> },
     { key: 'duration', header: t('column.duration'), align: 'right', sortValue: (r) => r.duration, cell: (r) => <span className="num">{formatDurationSec(r.duration)}</span> },
     { key: 'trunk', header: t('column.trunk'), cell: (r) => <span className="text-muted">{r.trunk ?? '—'}</span> },
-    { key: 'recording', header: t('column.recording'), cell: (r) => <RecordingList recordings={r.recordings} canDelete={canManageRecordings} /> },
     {
       key: 'actions', header: t('column.actions'), align: 'right', cell: (r) => r.direction === 'in' ? (
         <Button size="sm" variant="ghost" icon={<ShieldOff />} disabled={!canManage} aria-label={t('block.ariaLabel', { number: r.src })} onClick={() => setBlocking(r)}>
@@ -64,6 +63,8 @@ export function CallsPage() {
         </Button>
       ) : null,
     },
+    // Oxirgi ustun — yozilgan qoʻngʻiroqni shu yerdan tinglash / yuklab olish.
+    { key: 'recording', header: t('column.recording'), cell: (r) => <RecordingList recordings={r.recordings} canDelete={canManageRecordings} fileBase={recordingFileBase(r)} /> },
   ];
 
   return (

@@ -13,7 +13,7 @@ vi.mock('@/api', async (importOriginal) => {
   return { ...actual, apiClient: { ...actual.apiClient, fetchRecordingAudio, deleteRecording } };
 });
 
-const { RecordingList } = await import('./RecordingList');
+const { RecordingList, recordingFileBase, recordingFileName } = await import('./RecordingList');
 
 function wrap(children: ReactNode) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
@@ -46,6 +46,26 @@ describe('RecordingList', () => {
     wrap(<RecordingList recordings={[{ id: 'rec-2', duration_s: 10 }]} canDelete={false} />);
     await user.click(screen.getByTestId('recording-download-rec-2'));
     await waitFor(() => expect(fetchRecordingAudio).toHaveBeenCalledWith('rec-2'));
+  });
+
+  it('yuklab olingan fayl nomi — Toshkent vaqti + kimdan + kimga (bir nechta yozuvda tartib raqami)', async () => {
+    const user = userEvent.setup();
+    const names: string[] = [];
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (this: HTMLAnchorElement) { names.push(this.download); });
+    const call = { started_at: '2026-11-02T20:12:35Z', src: '+998 90 123-45-67', dst: '101' };
+    wrap(<RecordingList recordings={[{ id: 'a', duration_s: 1 }, { id: 'b', duration_s: 1 }]} canDelete={false} fileBase={recordingFileBase(call)} />);
+    await user.click(screen.getByTestId('recording-download-a'));
+    await user.click(screen.getByTestId('recording-download-b'));
+    await waitFor(() => expect(names).toEqual([
+      '2026-11-03_01-12-35_+998901234567_101_1.wav',
+      '2026-11-03_01-12-35_+998901234567_101_2.wav',
+    ]));
+  });
+
+  it('fayl nomi: bitta yozuv — tartib raqamisiz; raqam boʻsh — «nomalum»; fileBase yoʻq — id', () => {
+    expect(recordingFileName(recordingFileBase({ started_at: '2026-01-05T03:04:05Z', src: '', dst: '*97' }), 'r', 0, 1))
+      .toBe('2026-01-05_08-04-05_nomalum_97.wav');
+    expect(recordingFileName(undefined, 'rec-9', 0, 1)).toBe('rec-9.wav');
   });
 
   it('canDelete=false boʻlsa — oʻchirish tugmasi koʻrinmaydi', () => {
