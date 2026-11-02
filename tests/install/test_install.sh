@@ -65,7 +65,20 @@ echo x > "$TMPD/junk"
 ok fails --images "$TMPD/junk"
 rm -rf "$TMPD"
 # shellcheck disable=SC2016
-ok eval '[[ $(args) =~ ^80\|[0-9]{4}\.[0-9]{2}\.[0-9]{2} ]]'   # sukut versiya: sana(-commit)
+ok eq "$(args)" "80|$(cat "$HERE/../../VERSION")|"   # sukut versiya: repo ildizidagi VERSION
+# shellcheck disable=SC2016
+ok eval '[[ $(cat "$HERE/../../VERSION") =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]'
+
+# install_files: innova-update buyrug'i va manba papka (keyingi yangilashlar uchun)
+TMPD=$(mktemp -d)
+stub_root() { (DEST=$TMPD/opt UNIT=$TMPD/unit DROPIN=$TMPD/dropin VERSION=1.0.1 WEB_PORT=80 SBIN=$TMPD/sbin
+  systemctl() { :; }; install_files >/dev/null 2>&1); }
+mkdir -p "$TMPD/sbin"
+stub_root
+ok test -x "$TMPD/sbin/innova-update"
+ok eq "$(cat "$TMPD/opt/SOURCE")" "$(cd "$HERE/../.." && pwd)"
+ok eq "$(cat "$TMPD/opt/VERSION")" 1.0.1
+rm -rf "$TMPD"
 
 # detect_os: os-release dagi VERSION bizning VERSION'ni bosib ketmasin (VM'da topilgan xato)
 TMPD=$(mktemp -d)

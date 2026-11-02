@@ -5,14 +5,17 @@
 #   sudo ./install.sh                          # obrazlarni shu serverda yig'adi (internet kerak)
 #   sudo ./install.sh --images images.tar.zst  # tayyor obrazlar bilan (yig'ishsiz)
 #
-# Parametrlar: --images FAYL, --version V (sukut: git commit), --web-port N (sukut 80), -h.
+# Parametrlar: --images FAYL, --version V (sukut: VERSION fayli), --web-port N (sukut 80), -h.
 # Qayta ishga tushirish = YANGILASH: `.env` (sirlar) va baza saqlanadi, faqat obrazlar almashadi.
+# O'rnatilgandan keyin yangilash: `innova-update` (GitHub'dan, baza zaxirasi bilan; --check, --images).
 # Joylashuv ISO bilan bir xil: /opt/innova, servis `innova-pbx`, ishga tushirish `iso/files/innova-start.sh`.
 set -euo pipefail
 
 ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 DEST=${INNOVA_DEST:-/opt/innova}
 UNIT=/etc/systemd/system/innova-pbx.service
+DROPIN=$UNIT.d
+SBIN=/usr/local/sbin
 SERVICES="api asterisk web"
 MIN_COMPOSE=2.24 # deploy/docker-compose.appliance.yml dagi `!reset` shuni talab qiladi
 
@@ -45,7 +48,7 @@ parse_args() {
 }
 
 default_version() {
-  git -c safe.directory="$ROOT" -C "$ROOT" log -1 --format='%cd-%h' --date=format:%Y.%m.%d 2>/dev/null || date +%Y.%m.%d
+  cat "$ROOT/VERSION" 2>/dev/null || date +%Y.%m.%d
 }
 
 # Obrazlar faylidagi versiya (innova-pbx/api:<V> tegi). --version berilgan bo'lsa — mos kelishi shart.
@@ -147,11 +150,13 @@ install_files() {
   install -m 0755 "$ROOT/iso/files/innova-start.sh" "$DEST/bin/innova-start"
   install -m 0644 "$ROOT/iso/files/innova-pbx.service" "$UNIT"
   install -m 0644 "$ROOT/iso/files/innova-guard.nft" "$DEST/guard.nft"
-  install -d /etc/systemd/system/innova-pbx.service.d
+  install -m 0755 "$ROOT/iso/files/innova-update.sh" "$SBIN/innova-update"
+  [ ! -d "$ROOT/.git" ] || echo "$ROOT" > "$DEST/SOURCE" # innova-update shu klonni yangilaydi
+  install -d "$DROPIN"
   # Asterisk host tarmog'ida: AMI/HTTP faqat lokal va konteynerlardan (ISO'da buni to'liq nftables qiladi)
   # INNOVA_WEB_PORT — innova-start uni faqat `.env` birinchi yaratilganda yozadi
   printf '[Service]\nEnvironment=INNOVA_WEB_PORT=%s\nExecStartPre=/usr/sbin/nft -f %s/guard.nft\n' "$WEB_PORT" "$DEST" \
-    > /etc/systemd/system/innova-pbx.service.d/script.conf
+    > "$DROPIN/script.conf"
   echo "$VERSION" > "$DEST/VERSION"
   [ ! -f "$DEST/deploy/.env" ] || sed -i "s/^INNOVA_VERSION=.*/INNOVA_VERSION=$VERSION/" "$DEST/deploy/.env"
   systemctl daemon-reload

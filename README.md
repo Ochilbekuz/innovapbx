@@ -28,7 +28,10 @@ Parametrlar:
 - `--web-port 8080` — 80-port band bo'lsa (masalan, serverda nginx bor). Faqat birinchi o'rnatishda yoziladi.
 - `--version V` — obraz tegi (sukut: `YYYY.MM.DD-<commit>`).
 
-**Yangilash** — `git pull && sudo ./install.sh` (yoki yangi `--images`). `.env` (sirlar) va baza saqlanadi.
+**Yangilash** — `innova-update` (GitHub'dan yangi versiyani oladi, avval bazani `/opt/innova/backups/` ga zaxiralaydi,
+so'ng qayta o'rnatadi; `.env` sirlari, baza va port saqlanadi). `innova-update --check` — faqat tekshirish,
+`--force` — buzilgan o'rnatishni qayta o'rnatish, `--images FAYL` — oflayn. Joriy versiya: `cat /opt/innova/VERSION`.
+`innova-update` 1.0.1 dan boshlab bor; undan eski o'rnatishda bir marta: `cd innovapbx && git pull && ./install.sh`.
 
 Skript nima qiladi:
 
