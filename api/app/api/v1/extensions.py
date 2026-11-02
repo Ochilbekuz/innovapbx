@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import re
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -14,7 +14,7 @@ from app.core.errors import ApiError
 from app.core.lookups import get_tenant_code, get_tenant_scoped_or_404
 from app.core.optimistic import check_not_stale
 from app.core.security import generate_sip_secret
-from app.db.models import CallTarget, Extension, User, VoicemailBox
+from app.db.models import CallTarget, Extension, SystemSettings, User, VoicemailBox
 from app.schemas import (
     CreateExtensionPayload,
     ExtensionCreated,
@@ -22,6 +22,7 @@ from app.schemas import (
     ExtensionOut,
     Paged,
     RotateSecretResult,
+    SetSecretPayload,
     SipCredentials,
     UpdateExtensionPayload,
 )
@@ -34,6 +35,8 @@ from app.services.ext_media import resolve_codecs
 from app.services.live_status import endpoint_states
 from app.services.number_normalize import normalize_number
 from app.services.numbers import ensure_number_free
+from app.services.sip_identity import endpoint_id
+from app.services.sip_secret_policy import validate_sip_password
 from app.services.usages import usages_for_target
 from app.services.voicemail import remove_box_dir
 
@@ -53,6 +56,18 @@ _CLEARABLE = ("forward_always", "forward_busy", "pickup_group")  # aniq null/"" 
 _FORWARD_RE = re.compile(r"^[0-9]{2,15}$")
 _PICKUP_GROUP_RE = re.compile(r"^[a-z0-9_-]{1,32}$")
 _REALTIME_APPLY = {"status": "applied", "revision": None, "message": None}
+
+
+async def _sip_credentials(session: AsyncSession, request: Request, tenant_id: str, number: str,
+                           password: str) -> SipCredentials:
+    """Yagona joy — `SipCredentials` qurilishi (create/rotate-secret/set-secret BIR XIL, dryer).
+    `username` — ichki raqamning o'zi (`sip_identity.endpoint_id`); `domain` — so'rov host'i
+    (port'siz); `port` — `SystemSettings.sip_udp_port` (sozlanmagan bo'lsa 5060, `devices.py`
+    `server_port()` bilan bir xil qoida)."""
+    row = await session.get(SystemSettings, tenant_id)
+    port = (row.sip_udp_port if row else None) or 5060
+    return SipCredentials(username=endpoint_id(number), password=password,
+                          domain=request.url.hostname or "", port=port)
 
 
 async def _next_free_number(session: AsyncSession, tenant_id: str) -> str:
@@ -78,13 +93,12 @@ def _ext_out(ext: Extension, state: dict | None = None) -> ExtensionOut:
     )
 
 
-async def _bulk_extension_out(session: AsyncSession, ami, items: list[Extension]) -> list[ExtensionOut]:
+async def _bulk_extension_out(ami, items: list[Extension]) -> list[ExtensionOut]:
+    # m-sip-login-plain-number: endpoint id endi tenant-kod prefiksisiz (sip_identity.endpoint_id).
     if not items:
         return []
-    code = await get_tenant_code(session, items[0].tenant_id)
-    ids = [f"{code}-{e.number}" for e in items]
-    states = await endpoint_states(ami, ids)
-    return [_ext_out(ext, states.get(f"{code}-{ext.number}")) for ext in items]
+    states = await endpoint_states(ami, [e.number for e in items])
+    return [_ext_out(ext, states.get(ext.number)) for ext in items]
 
 
 @router.get("", response_model=Paged)
@@ -102,7 +116,7 @@ async def list_extensions(
     total = (await session.execute(count_stmt)).scalar_one()
     stmt = stmt.order_by(Extension.number).offset((page - 1) * size).limit(size)
     items = (await session.execute(stmt)).scalars().all()
-    return Paged(items=await _bulk_extension_out(session, ami, items), total=total)
+    return Paged(items=await _bulk_extension_out(ami, items), total=total)
 
 
 def new_extension(*, codecs: list[str] | None, **fields) -> Extension:
@@ -115,7 +129,7 @@ def new_extension(*, codecs: list[str] | None, **fields) -> Extension:
 
 @router.post("", response_model=ExtensionCreated, status_code=201)
 async def create_extension(
-    payload: CreateExtensionPayload, session: AsyncSession = Depends(get_session),
+    payload: CreateExtensionPayload, request: Request, session: AsyncSession = Depends(get_session),
     user: User = Depends(require_admin), ami=Depends(get_ami),
 ) -> ExtensionCreated:
     codecs = resolve_codecs(webrtc=payload.webrtc, requested=payload.codecs, current=None,
@@ -123,8 +137,15 @@ async def create_extension(
     number = payload.number or await _next_free_number(session, str(user.tenant_id))
     # M2a: dial_numbers (IVR/navbat/guruh raqami) va park raqamlari (700–720) bilan ham to'qnashmasin.
     await ensure_number_free(session, str(user.tenant_id), number)
+    # Admin PATCH bilan BIR XIL tekshiruv (dryer) — yoziluvdan OLDIN (422 hech narsaga tegmaydi).
+    changes = _requested_changes(payload)
+    _validate_call_fields(changes, number)
 
-    secret = generate_sip_secret()
+    if payload.password:
+        validate_sip_password(payload.password, number)  # 422 `weak_password`
+        secret = payload.password
+    else:
+        secret = generate_sip_secret()
     secret_enc = await encrypt_secret(session, secret)
 
     target = CallTarget(tenant_id=user.tenant_id, kind="extension", label=f"{number} · {payload.name}")
@@ -133,8 +154,7 @@ async def create_extension(
 
     ext = new_extension(tenant_id=user.tenant_id, target_id=target.id, number=number, name=payload.name,
                         sip_password_enc=secret_enc, webrtc=payload.webrtc, codecs=codecs)
-    if payload.recording:
-        ext.recording = payload.recording
+    settings_diff = _apply_changes(ext, changes)
     session.add(ext)
     try:
         await session.flush()
@@ -144,13 +164,11 @@ async def create_extension(
 
     await record_audit(session, tenant_id=str(user.tenant_id), user_id=str(user.id),
                         action="extension.create", entity="extension", entity_id=str(ext.id),
-                        diff={"number": number, "name": payload.name, "webrtc": payload.webrtc})
+                        diff={"number": number, "name": payload.name, "webrtc": payload.webrtc, **settings_diff})
     apply_result = await apply_config(session, tenant_id=str(user.tenant_id), user_id=str(user.id), ami=ami)
     await session.commit()
 
-    tenant_code = await get_tenant_code(session, ext.tenant_id)
-    sip = SipCredentials(username=f"{tenant_code}-{ext.number}", password=secret,
-                          domain=tenant_code, port=5060)
+    sip = await _sip_credentials(session, request, str(ext.tenant_id), ext.number, secret)
     return ExtensionCreated(item=_ext_out(ext), sip=sip, apply=apply_result.to_dict())
 
 
@@ -244,23 +262,45 @@ async def update_extension(
     return ExtensionMutated(item=_ext_out(ext), apply=apply)
 
 
-@router.post("/{ext_id}/rotate-secret", response_model=RotateSecretResult)
-async def rotate_secret(
-    ext_id: str, session: AsyncSession = Depends(get_session), user: User = Depends(require_admin),
-    ami=Depends(get_ami),
+async def _finish_secret_change(
+    session: AsyncSession, ami, request: Request, user: User, ext: Extension, secret: str, *, action: str,
 ) -> RotateSecretResult:
-    ext = await _get_extension_or_404(session, str(user.tenant_id), ext_id)
-    secret = generate_sip_secret()
+    """`rotate-secret` VA `PUT .../secret` uchun BIR XIL yakunlash qadami (dryer):
+    shifrlash, audit, commit, qurilma NOTIFY, `SipCredentials`."""
     ext.sip_password_enc = await encrypt_secret(session, secret)
     await record_audit(session, tenant_id=str(user.tenant_id), user_id=str(user.id),
-                        action="extension.rotate_secret", entity="extension", entity_id=str(ext.id))
+                        action=action, entity="extension", entity_id=str(ext.id))
     await session.commit()
 
     tenant_code = await get_tenant_code(session, ext.tenant_id)
     # M4a §2: biriktirilgan apparatlarga check-sync NOTIFY (xato jim — parol baribir almashgan)
     await notify_extension_devices(session, ami, ext, tenant_code)
-    sip = SipCredentials(username=f"{tenant_code}-{ext.number}", password=secret, domain=tenant_code, port=5060)
+    sip = await _sip_credentials(session, request, str(ext.tenant_id), ext.number, secret)
     return RotateSecretResult(sip=sip, apply={"status": "realtime", "revision": None, "message": None})
+
+
+@router.post("/{ext_id}/rotate-secret", response_model=RotateSecretResult)
+async def rotate_secret(
+    ext_id: str, request: Request, session: AsyncSession = Depends(get_session),
+    user: User = Depends(require_admin), ami=Depends(get_ami),
+) -> RotateSecretResult:
+    ext = await _get_extension_or_404(session, str(user.tenant_id), ext_id)
+    secret = generate_sip_secret()
+    return await _finish_secret_change(session, ami, request, user, ext, secret,
+                                       action="extension.rotate_secret")
+
+
+@router.put("/{ext_id}/secret", response_model=RotateSecretResult)
+async def set_secret(
+    ext_id: str, payload: SetSecretPayload, request: Request, session: AsyncSession = Depends(get_session),
+    user: User = Depends(require_admin), ami=Depends(get_ami),
+) -> RotateSecretResult:
+    """Foydalanuvchi o'zi tanlagan SIP paroli (FreePBX-uslubida) — `rotate-secret`dan farqli,
+    tasodifiy EMAS, qoida bo'yicha (`sip_secret_policy.validate_sip_password`) tekshiriladi."""
+    ext = await _get_extension_or_404(session, str(user.tenant_id), ext_id)
+    validate_sip_password(payload.password, ext.number)
+    return await _finish_secret_change(session, ami, request, user, ext, payload.password,
+                                       action="extension.set_secret")
 
 
 @router.delete("/{ext_id}", status_code=204, response_model=None)

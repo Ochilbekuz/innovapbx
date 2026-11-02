@@ -11,8 +11,8 @@ import type {
   ListCallsParams, ListExtensionsParams, ListTargetsParams, ListVoicemailBoxesParams, MohClass, NotifySettings,
   NotifyTestPayload, NotifyTestResult, NumbersFreeParams, OutboundOrderPayload,
   OutboundRoute, OutboundSimulateParams, OutboundSimulateResult, OverrideTimeConditionPayload, Paged, Parking, Queue,
-  RestartAsteriskResult, RestoreRevisionResult, RevisionDetail, RevisionDiff, RevisionDiffAgainst, RingGroup,
-  SelfSignedTlsPayload, SetupPayload, SipCredentials, SipSettings, SipTls, SystemHealth, Target, TimeCondition,
+  RestartAsteriskResult, RestoreRevisionResult, RevisionDetail, RevisionDiff, RevisionDiffAgainst, RingGroup, RotateSecretResult,
+  SelfSignedTlsPayload, SetupPayload, SipSettings, SipTls, SystemHealth, Target, TimeCondition,
   TimeGroup, Trunk, TrunkTestResult, UpdateConferencePayload, UpdateExtensionPayload, UpdateFeatureCodePayload,
   UpdateHolidayPayload, UpdateInboundRoutePayload,
   UpdateIvrPayload, UpdateMePayload, UpdateMohClassPayload, UpdateNotifySettingsPayload,
@@ -77,7 +77,9 @@ export const realClient: ApiClient = {
   listExtensions: (params: ListExtensionsParams) => request<Paged<Extension>>(`/extensions${qs(params)}`),
   createExtension: (payload: CreateExtensionPayload) => request<Created<Extension>>('/extensions', { method: 'POST', body: payload }),
   updateExtension: (id: string, payload: UpdateExtensionPayload) => request<Mutated<Extension>>(`/extensions/${id}`, { method: 'PATCH', body: payload }),
-  rotateExtensionSecret: (id: string) => request<{ sip: SipCredentials; apply: ApplyResult }>(`/extensions/${id}/rotate-secret`, { method: 'POST' }),
+  rotateExtensionSecret: (id: string) => request<RotateSecretResult>(`/extensions/${id}/rotate-secret`, { method: 'POST' }),
+  setExtensionSecret: (id: string, password: string) =>
+    request<RotateSecretResult>(`/extensions/${id}/secret`, { method: 'PUT', body: { password } }),
   deleteExtension: (id: string) => request<void>(`/extensions/${id}`, { method: 'DELETE' }),
 
   listTrunks: () => request('/trunks'),

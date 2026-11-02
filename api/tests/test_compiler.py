@@ -49,7 +49,7 @@ def test_generates_static_from_internal_context():
     assert "[t1-from-internal]" in text
     # M2a: ichki raqamga qo'ng'iroq — yagona `<code>-ext` oqimi (DND/yo'naltirish realtime).
     assert " same => n,Goto(t1-ext,${EXTEN},1)" in text.split("[t1-ext]")[0]
-    assert "Dial(PJSIP/t1-${EXTEN},${INNOVA_RING}," in text
+    assert "Dial(PJSIP/${EXTEN},${INNOVA_RING}," in text
 
 
 def test_from_internal_is_independent_of_extension_list():
@@ -371,7 +371,7 @@ def test_ring_group_ringall_dials_all_members_at_once():
     )
     text = compile_dialplan(snap)
     ctx = text.split("[t1-dest-rg-1]")[1].split("[t1-dest-")[0]
-    assert _rg_sets(ctx) == [["PJSIP/t1-101", "PJSIP/t1-102"]]
+    assert _rg_sets(ctx) == [["PJSIP/101", "PJSIP/102"]]
     assert "Dial(${INNOVA_RG:1},20," in ctx
     assert "Goto(t1-dest-hangup-1,s,1)" in ctx
 
@@ -383,7 +383,7 @@ def test_ring_group_hunt_dials_members_sequentially():
     )
     text = compile_dialplan(snap)
     ctx = text.split("[t1-dest-rg-1]")[1].split("[t1-dest-")[0]
-    assert _rg_sets(ctx) == [["PJSIP/t1-101"], ["PJSIP/t1-102"]]
+    assert _rg_sets(ctx) == [["PJSIP/101"], ["PJSIP/102"]]
 
 
 def test_ring_group_memoryhunt_rings_growing_set_of_members():
@@ -395,8 +395,8 @@ def test_ring_group_memoryhunt_rings_growing_set_of_members():
         ring_groups=[_rg(strategy="memoryhunt", members=members)],
     )
     ctx = compile_dialplan(snap).split("[t1-dest-rg-1]")[1].split("[t1-dest-")[0]
-    assert _rg_sets(ctx) == [["PJSIP/t1-101"], ["PJSIP/t1-101", "PJSIP/t1-102"],
-                             ["PJSIP/t1-101", "PJSIP/t1-102", "PJSIP/t1-103"]]
+    assert _rg_sets(ctx) == [["PJSIP/101"], ["PJSIP/101", "PJSIP/102"],
+                             ["PJSIP/101", "PJSIP/102", "PJSIP/103"]]
 
 
 def test_ring_group_without_members_falls_back_to_no_answer():
@@ -545,4 +545,4 @@ def test_dial_numbers_route_from_internal_before_catchall():
     # Regressiya (2026-10-28, m1c-proof 5): marshrutga ulanmagan guruhning ichki raqami
     # mavjud bo'lmagan kontekstga Goto qilardi — CDR FAILED, chaqiruvchi 603.
     assert "[t1-dest-rg-1]" in text
-    assert _rg_sets(text.split("[t1-dest-rg-1]")[1]) == [["PJSIP/t1-101", "PJSIP/t1-102"]]
+    assert _rg_sets(text.split("[t1-dest-rg-1]")[1]) == [["PJSIP/101", "PJSIP/102"]]

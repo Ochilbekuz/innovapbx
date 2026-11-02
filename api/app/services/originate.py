@@ -9,6 +9,8 @@ from __future__ import annotations
 
 import re
 
+from app.services.sip_identity import pjsip_interface
+
 _FORMATTING = re.compile(r"[ \-().]")
 _TO_RE = re.compile(r"\+?[0-9*#]{1,32}")
 _EXTERNAL_ID_RE = re.compile(r"[A-Za-z0-9_.:-]{1,64}")
@@ -40,8 +42,10 @@ def validate_external_id(raw: str | None) -> str | None:
 
 
 def originate_fields(code: str, extension: str, to: str, *, request_id: str, external_id: str | None) -> dict[str, str]:
+    # `Channel` endi tenant kod prefiksisiz (sip_identity.endpoint_id,
+    # m-sip-login-plain-number); `Context` o'zgarmaydi (tenant bo'yicha).
     return {
-        "Channel": f"PJSIP/{code}-{extension}",
+        "Channel": pjsip_interface(extension),
         "Context": f"{code}-originate",
         "Exten": to,
         "Priority": "1",

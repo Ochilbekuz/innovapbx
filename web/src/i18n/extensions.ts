@@ -16,8 +16,21 @@ export const uz = {
   deleteModal: { title: '{{number}}ni oʻchirish', description: "Bu amalni ortga qaytarib bo'lmaydi.", body: '{{name}} ({{number}}) butunlay oʻchiriladi. Agar kiruvchi marshrutda ishlatilayotgan boʻlsa, oʻchirish rad etiladi.', inUseBody: 'Ishlatilmoqda: {{usages}}' },
   cancel: 'Bekor qilish', delete: 'Oʻchirish', save: 'Saqlash', create: 'Yaratish',
   closeSaved: 'Saqladim, yopish',
-  createModal: { title: 'Yangi ichki raqam', description: 'Raqamni boʻsh qoldirsangiz, boʻsh turgan birinchi raqam avtomatik tanlanadi.' },
+  createModal: { title: 'Yangi ichki raqam', description: 'Raqamni boʻsh qoldirsangiz, boʻsh turgan birinchi raqam avtomatik tanlanadi.', advancedToggle: 'Qoʻshimcha sozlamalar' },
   field: { number: 'Raqam', numberHint: 'Masalan 101', numberPlaceholder: 'avtomatik', optional: 'ixtiyoriy', name: 'Nom', nameHint: 'Koʻpi bilan {{max}} belgi', enabled: 'Yoqilgan', enabledDesc: 'Oʻchirilgan ichki raqamga qoʻngʻiroq ulanmaydi' },
+  password: {
+    label: 'SIP paroli', hint: '8–64 belgi, kamida bitta harf va bitta raqam, ichki raqamni oʻz ichiga olmasin.',
+    showAriaLabel: 'Parolni koʻrsatish', hideAriaLabel: 'Parolni yashirish',
+    regenerateAriaLabel: 'Yangi tasodifiy parol', copyAriaLabel: 'Parolni nusxalash',
+    issue: {
+      too_short: 'Parol kamida 8 belgidan iborat boʻlsin.',
+      too_long: 'Parol 64 belgidan oshmasin.',
+      bad_chars: 'Faqat lotin harflari, raqamlar va !@#$%^*_+=.,:- belgilari ruxsat etilgan.',
+      no_letter: 'Kamida bitta harf boʻlsin.',
+      no_digit: 'Kamida bitta raqam boʻlsin.',
+      contains_number: 'Parol ichki raqamni oʻz ichiga olmasin.',
+    },
+  },
   webrtc: {
     label: 'Brauzer softfoni (WebRTC)',
     desc: 'Yoqilsa, bu raqamga stol telefoni emas, brauzerdagi softfon orqali kiriladi — stol telefoni bu raqamda ishlamaydi.',
@@ -28,6 +41,8 @@ export const uz = {
     login: 'SIP login', password: 'Parol', domain: 'Domen', port: 'Port',
     revealWarning: 'Parol faqat hozir koʻrsatiladi — keyin qayta koʻrib boʻlmaydi. Telefon sozlamalariga saqlab qoʻying.',
     copyAriaLabel: '{{label}}ni nusxalash',
+    loginReadonlyLabel: 'SIP login', loginReadonlyHint: 'Telefonga shu login kiritiladi — ichki raqamning oʻzi',
+    loginPending: '(raqam tanlanganda koʻrinadi)',
   },
   voicemail: {
     title: 'Ovozli pochta',
@@ -55,6 +70,8 @@ export const uz = {
     badgeForwardBusy: 'Band → {{number}}',
     badgeTollBlocked: 'Toll blok',
     realtimeNotice: 'Bu sozlamalar darhol kuchga kiradi — qayta ishga tushirish shart emas. Telefondan (*-kod) oʻzgartirilsa, sahifani yangilaganda koʻrinadi.',
+    outboundAllowedLabel: 'Tashqi qoʻngʻiroqlarga ruxsat', outboundAllowedDesc: 'Oʻchirilsa — bu ichki raqamdan faqat ichki qoʻngʻiroqlar mumkin',
+    outboundCalleridLabel: 'Chiquvchi CallerID', outboundCalleridHint: 'Tashqi qoʻngʻiroqda koʻrsatiladigan raqam — boʻsh qoldirsangiz, standart ishlatiladi',
   },
   recording: {
     label: 'Yozib olish', hint: '«Talab boʻyicha» — telefondan *1 bilan yoqiladi/oʻchiriladi.',
@@ -65,6 +82,14 @@ export const uz = {
     empty: 'Ushbu ichki raqamga apparat biriktirilmagan',
     add: 'Apparat qoʻshish',
     openLink: 'Qurilmalar sahifasiga oʻtish',
+  },
+  changePassword: {
+    title: 'SIP parolini almashtirish',
+    enterOwn: 'Oʻz parolimni kiritaman',
+    generateNew: 'Yangi tasodifiy parol',
+    newPasswordLabel: 'Yangi parol',
+    save: 'Saqlash',
+    changed: 'Parol almashtirildi',
   },
 };
 
@@ -84,8 +109,21 @@ export const ru = {
   deleteModal: { title: 'Удаление {{number}}', description: 'Это действие нельзя отменить.', body: '{{name}} ({{number}}) будет удалён полностью. Если номер используется во входящем маршруте, удаление будет отклонено.', inUseBody: 'Используется: {{usages}}' },
   cancel: 'Отмена', delete: 'Удалить', save: 'Сохранить', create: 'Создать',
   closeSaved: 'Сохранил, закрыть',
-  createModal: { title: 'Новый внутренний номер', description: 'Если оставить номер пустым, автоматически выберется первый свободный.' },
+  createModal: { title: 'Новый внутренний номер', description: 'Если оставить номер пустым, автоматически выберется первый свободный.', advancedToggle: 'Дополнительные настройки' },
   field: { number: 'Номер', numberHint: 'Например 101', numberPlaceholder: 'автоматически', optional: 'необязательно', name: 'Имя', nameHint: 'Не более {{max}} символов', enabled: 'Включён', enabledDesc: 'На отключённый внутренний номер звонки не поступают' },
+  password: {
+    label: 'SIP-пароль', hint: '8–64 символа, минимум одна буква и одна цифра, без внутреннего номера.',
+    showAriaLabel: 'Показать пароль', hideAriaLabel: 'Скрыть пароль',
+    regenerateAriaLabel: 'Новый случайный пароль', copyAriaLabel: 'Скопировать пароль',
+    issue: {
+      too_short: 'Пароль должен быть не короче 8 символов.',
+      too_long: 'Пароль не должен превышать 64 символа.',
+      bad_chars: 'Разрешены только латинские буквы, цифры и символы !@#$%^*_+=.,:-',
+      no_letter: 'Должна быть хотя бы одна буква.',
+      no_digit: 'Должна быть хотя бы одна цифра.',
+      contains_number: 'Пароль не должен содержать внутренний номер.',
+    },
+  },
   webrtc: {
     label: 'Браузерный софтфон (WebRTC)',
     desc: 'Если включено, этот номер работает через софтфон в браузере, а не настольный телефон — настольный телефон на этом номере не будет работать.',
@@ -96,6 +134,8 @@ export const ru = {
     login: 'SIP логин', password: 'Пароль', domain: 'Домен', port: 'Порт',
     revealWarning: 'Пароль показывается только сейчас — повторно его увидеть нельзя. Сохраните его в настройках телефона.',
     copyAriaLabel: 'Скопировать {{label}}',
+    loginReadonlyLabel: 'SIP логин', loginReadonlyHint: 'Этот логин вводится в телефоне — сам внутренний номер',
+    loginPending: '(появится после выбора номера)',
   },
   voicemail: {
     title: 'Голосовая почта',
@@ -123,6 +163,8 @@ export const ru = {
     badgeForwardBusy: 'Занято → {{number}}',
     badgeTollBlocked: 'Toll-блок',
     realtimeNotice: 'Эти настройки вступают в силу сразу — перезапуск не нужен. Если изменены с телефона (*-код), появятся после обновления страницы.',
+    outboundAllowedLabel: 'Разрешить исходящие звонки', outboundAllowedDesc: 'Если отключено — с этого номера возможны только внутренние звонки',
+    outboundCalleridLabel: 'Исходящий CallerID', outboundCalleridHint: 'Номер, показываемый при исходящем звонке — оставьте пустым для значения по умолчанию',
   },
   recording: {
     label: 'Запись', hint: '«По требованию» — включается/отключается с телефона кодом *1.',
@@ -133,6 +175,14 @@ export const ru = {
     empty: 'К этому внутреннему номеру аппарат не привязан',
     add: 'Добавить аппарат',
     openLink: 'Перейти на страницу устройств',
+  },
+  changePassword: {
+    title: 'Смена SIP-пароля',
+    enterOwn: 'Введу свой пароль',
+    generateNew: 'Новый случайный пароль',
+    newPasswordLabel: 'Новый пароль',
+    save: 'Сохранить',
+    changed: 'Пароль заменён',
   },
 };
 
@@ -152,8 +202,21 @@ export const en = {
   deleteModal: { title: 'Delete {{number}}', description: 'This action cannot be undone.', body: '{{name}} ({{number}}) will be permanently deleted. If it is used by an inbound route, the deletion will be rejected.', inUseBody: 'In use by: {{usages}}' },
   cancel: 'Cancel', delete: 'Delete', save: 'Save', create: 'Create',
   closeSaved: 'Saved it, close',
-  createModal: { title: 'New extension', description: 'Leave the number blank to auto-pick the first free one.' },
+  createModal: { title: 'New extension', description: 'Leave the number blank to auto-pick the first free one.', advancedToggle: 'Advanced settings' },
   field: { number: 'Number', numberHint: 'E.g. 101', numberPlaceholder: 'automatic', optional: 'optional', name: 'Name', nameHint: 'Up to {{max}} characters', enabled: 'Enabled', enabledDesc: 'A disabled extension cannot receive calls' },
+  password: {
+    label: 'SIP password', hint: '8–64 characters, at least one letter and one digit, must not contain the extension number.',
+    showAriaLabel: 'Show password', hideAriaLabel: 'Hide password',
+    regenerateAriaLabel: 'Generate a new random password', copyAriaLabel: 'Copy password',
+    issue: {
+      too_short: 'Password must be at least 8 characters.',
+      too_long: 'Password must not exceed 64 characters.',
+      bad_chars: 'Only Latin letters, digits and !@#$%^*_+=.,:- are allowed.',
+      no_letter: 'Must contain at least one letter.',
+      no_digit: 'Must contain at least one digit.',
+      contains_number: 'Password must not contain the extension number.',
+    },
+  },
   webrtc: {
     label: 'Browser softphone (WebRTC)',
     desc: "When on, this extension connects through the in-browser softphone instead of a desk phone — a desk phone won't work on this extension.",
@@ -164,6 +227,8 @@ export const en = {
     login: 'SIP login', password: 'Password', domain: 'Domain', port: 'Port',
     revealWarning: "The password is shown only now — it can't be viewed again later. Save it in your phone settings.",
     copyAriaLabel: 'Copy {{label}}',
+    loginReadonlyLabel: 'SIP login', loginReadonlyHint: 'This is the login entered on the phone — the extension number itself',
+    loginPending: '(shown once a number is chosen)',
   },
   voicemail: {
     title: 'Voicemail',
@@ -191,6 +256,8 @@ export const en = {
     badgeForwardBusy: 'Busy → {{number}}',
     badgeTollBlocked: 'Toll block',
     realtimeNotice: 'These settings take effect immediately — no restart needed. If changed from a phone (*-code), they appear after refreshing the page.',
+    outboundAllowedLabel: 'Allow outbound calls', outboundAllowedDesc: 'When off, this extension can only place internal calls',
+    outboundCalleridLabel: 'Outbound CallerID', outboundCalleridHint: 'Number shown on outbound calls — leave blank to use the default',
   },
   recording: {
     label: 'Recording', hint: '"On demand" is toggled from the phone with *1.',
@@ -201,5 +268,13 @@ export const en = {
     empty: 'No device is attached to this extension',
     add: 'Add device',
     openLink: 'Go to Devices page',
+  },
+  changePassword: {
+    title: 'Change SIP password',
+    enterOwn: 'Enter my own password',
+    generateNew: 'Generate a new random password',
+    newPasswordLabel: 'New password',
+    save: 'Save',
+    changed: 'Password changed',
   },
 };

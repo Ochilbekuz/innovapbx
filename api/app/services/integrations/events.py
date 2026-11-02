@@ -1,7 +1,9 @@
 """Hodisa payload'i (m3b-contract.md §2) — SOF funksiyalar: AMI `DialBegin`/`DialEnd` dan
 `call.ringing`/`call.answered`, `cdr` qatorlaridan `call.ended`.
 
-Kanal nomlari: ichki raqam `PJSIP/<code>-<raqam>-<hex>`, trunk `PJSIP/<code>-trunk-<uuid>-<hex>`.
+Kanal nomlari: ichki raqam endi prefiksiz `PJSIP/<raqam>-<hex>` (eski tarixiy shakl
+`PJSIP/<code>-<raqam>-<hex>` ham tanib olinadi, `sip_identity.extension_from_channel`),
+trunk `PJSIP/<code>-trunk-<uuid>-<hex>` (o'zgarmaydi).
 Yo'nalish qoidasi `call_direction.classify_direction` bilan BIR XIL (tarix va jonli panel kabi).
 """
 from __future__ import annotations
@@ -15,17 +17,18 @@ from typing import Any
 from app.services.call_direction import classify_direction
 from app.services.integrations.outbox import iso_z
 from app.services.number_normalize import normalize_number
+from app.services.sip_identity import extension_from_channel
 
 DIRECTION = {"in": "inbound", "out": "outbound", "internal": "internal"}
-_EXT_CHANNEL = re.compile(r"^PJSIP/([a-z][a-z0-9]{1,15})-([0-9*#]{2,10})-[0-9a-f]+$")
 _PJSIP_CODE = re.compile(r"^PJSIP/([a-z][a-z0-9]{1,15})-")
 _QUEUE_ID = re.compile(r"-q-([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})")
 
 
 # ------------------------------------------------------------ kanal nomlari
 def channel_extension(channel: str | None) -> str | None:
-    match = _EXT_CHANNEL.match(channel or "")
-    return match.group(2) if match else None
+    """YANGI (prefiksiz) VA ESKI (tenant-prefiksli) kanal shakllarining
+    ikkisini ham tanib oladi (`sip_identity`, m-sip-login-plain-number)."""
+    return extension_from_channel(channel)
 
 
 def channel_code(channel: str | None) -> str | None:
@@ -80,11 +83,17 @@ class LiveEvent:
         return self.direction == "internal"
 
 
-def _dial_party(evt: dict[str, str]) -> tuple[str, str, str | None, str | None] | None:
-    """(code, direction, ichki raqam, tashqi raqam) — ichki raqam ishtirok etmasa `None`."""
+def _dial_party(
+    evt: dict[str, str], *, default_code: str | None = None,
+) -> tuple[str, str, str | None, str | None] | None:
+    """(code, direction, ichki raqam, tashqi raqam) — ichki raqam ishtirok etmasa `None`.
+    `default_code` — ICHKI (ikki tomon ham ichki raqam) qo'ng'iroqda endi hech
+    bir oyoqda tenant-kod prefiksi yo'q (m-sip-login-plain-number), shu sabab
+    `channel_code` ikkisidan ham `None` qaytaradi — yagona-tenant tizimda
+    chaqiruvchi (`call_events.CallEventService`) standart tenant kodini beradi."""
     src, dst = evt.get("Channel", ""), evt.get("DestChannel", "")
     src_ext, dst_ext = channel_extension(src), channel_extension(dst)
-    code = channel_code(dst) or channel_code(src)
+    code = channel_code(dst) or channel_code(src) or default_code
     if code is None:
         return None
     if dst_ext and is_trunk(src):
@@ -106,18 +115,24 @@ def _var_fields(direction: str, variables: Mapping[str, str] | None) -> tuple[st
 _LIVE_TYPES = {"DialBegin": "call.ringing", "DialEnd": "call.answered"}
 
 
-def _live_type(evt: dict[str, str]) -> str | None:
+def live_type(evt: dict[str, str]) -> str | None:
+    """Hodisa `call.ringing`/`call.answered`ga mos kelmasa — `None` (chaqiruvchi
+    `call_events.CallEventService.handle` shu orqali keraksiz DB so'rovidan
+    qochadi — PG sessiyasi FAQAT haqiqatan jonli hodisa bo'lsa ochiladi)."""
     name = evt.get("Event") or ""
     if name == "DialEnd" and evt.get("DialStatus") != "ANSWER":
         return None
     return _LIVE_TYPES.get(name)
 
 
-def live_event(evt: dict[str, str], variables: Mapping[str, str] | None = None) -> LiveEvent | None:
+def live_event(
+    evt: dict[str, str], variables: Mapping[str, str] | None = None, *, default_code: str | None = None,
+) -> LiveEvent | None:
     """`DialBegin` → `call.ringing` (har jiringlagan raqam uchun), `DialEnd ANSWER` → `call.answered`.
-    `variables` — shu qo'ng'iroqning `VarSet` orqali yig'ilgan `INNOVA_DID`/`INNOVA_QUEUE` qiymatlari."""
-    event_type = _live_type(evt)
-    party = _dial_party(evt) if event_type else None
+    `variables` — shu qo'ng'iroqning `VarSet` orqali yig'ilgan `INNOVA_DID`/`INNOVA_QUEUE` qiymatlari.
+    `default_code` — `_dial_party`ga uzatiladi (ichki qo'ng'iroq, kod prefiksi yo'q holat)."""
+    event_type = live_type(evt)
+    party = _dial_party(evt, default_code=default_code) if event_type else None
     linkedid = evt.get("Linkedid") or evt.get("DestLinkedid")
     if party is None or not linkedid:
         return None

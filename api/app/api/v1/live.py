@@ -12,6 +12,7 @@ from app.db.models import Extension, User
 from app.schemas import LiveSpyOut, LiveSpyPayload, LiveStatusOut
 from app.services.audit import record_audit
 from app.services.live import active_channels, build_live_status, pick_agent_channel
+from app.services.sip_identity import pjsip_interface
 
 router = APIRouter(prefix="/live", tags=["live"])
 
@@ -32,11 +33,13 @@ async def get_live(
 async def _originate_spy(ami, *, tenant_code: str, number: str, target_channel: str, mode: str) -> None:
     """So'rovchining O'Z ichki raqamiga (`number`) qo'ng'iroq qilinadi
     (Originate) — javob bersa `ChanSpy(<target_channel>,q[w|B])` ishga tushadi.
-    `Application`/`Data` bilan Originate — alohida dialplan eksten SHART EMAS."""
+    `Application`/`Data` bilan Originate — alohida dialplan eksten SHART EMAS.
+    `tenant_code` endi kanal nomiga qo'shilmaydi (sip_identity.endpoint_id,
+    m-sip-login-plain-number) — imzo chaqiruvchilar uchun o'zgarmay qoldi."""
     try:
         await ami.ensure_connected()
         resp = await ami.action(
-            "Originate", Channel=f"PJSIP/{tenant_code}-{number}", Application="ChanSpy",
+            "Originate", Channel=pjsip_interface(number), Application="ChanSpy",
             Data=f"{target_channel},{_SPY_FLAGS[mode]}", Async="true", CallerID="Spy <0000>",
         )
     except Exception as exc:  # noqa: BLE001

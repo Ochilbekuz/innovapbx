@@ -46,15 +46,11 @@ def env(monkeypatch):
     async def fake_decrypt(_session, enc):
         return f"plain-{enc}"
 
-    async def fake_code(_session, _tenant_id):
-        return "t1"
-
     async def fake_audit(_session, **kw):
         state["audit"].append(kw)
 
     monkeypatch.setattr(softphone.settings, "secret_key", KEY)
     monkeypatch.setattr(softphone, "decrypt_secret", fake_decrypt)
-    monkeypatch.setattr(softphone, "get_tenant_code", fake_code)
     monkeypatch.setattr(softphone, "record_audit", fake_audit)
     monkeypatch.setattr(softphone, "_limiter", softphone.SlidingWindowLimiter())
     app.dependency_overrides[get_current_user] = lambda: state["user"]
@@ -84,7 +80,7 @@ def test_softphone_returns_own_credentials_and_valid_ticket(env):
     assert r.headers["cache-control"] == "no-store"
     body = r.json()
     assert body["number"] == "101" and body["display_name"] == "Ali" and body["ws_path"] == "/sip-ws"
-    assert body["sip"] == {"uri": "sip:t1-101@innova", "auth_user": "t1-101", "password": "plain-ENC",
+    assert body["sip"] == {"uri": "sip:101@innova", "auth_user": "101", "password": "plain-ENC",
                            "realm": "asterisk"}
     assert body["ice_servers"] == []
     claims = verify_ticket(body["ticket"], secret=KEY)

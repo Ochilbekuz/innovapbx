@@ -176,6 +176,10 @@ export function useRotateExtensionSecret() {
   return useMutation({ mutationFn: (id: string) => apiClient.rotateExtensionSecret(id) });
 }
 
+export function useSetExtensionSecret() {
+  return useMutation({ mutationFn: ({ id, password }: { id: string; password: string }) => apiClient.setExtensionSecret(id, password) });
+}
+
 export function useDeleteExtension() {
   const invalidate = useInvalidate();
   return useMutation({

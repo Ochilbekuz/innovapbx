@@ -34,7 +34,10 @@ export const SEED_OPERATOR_PASSWORD = 'Operator12345!';
 
 export function seedExtensions(): Extension[] {
   const now = '2026-10-27T05:00:00Z';
-  const base = { dnd: false, forward_always: null, forward_busy: null, pickup_group: null, toll_blocked_at: null, toll_block_reason: null, webrtc: false, codecs: [] as string[], recording: 'never' as const };
+  const base = {
+    dnd: false, forward_always: null, forward_busy: null, pickup_group: null, outbound_allowed: true, outbound_callerid: null,
+    toll_blocked_at: null, toll_block_reason: null, webrtc: false, codecs: [] as string[], recording: 'never' as const,
+  };
   // M3a §4 — demo uchun 101 va 102 brauzer softfoni (webrtc); operator (102) ham shu bilan sinaladi.
   const webrtcCodecs = ['opus', 'ulaw', 'alaw'];
   return [

@@ -23,6 +23,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.errors import ApiError
 from app.db.models import QueueMember
 from app.services.apply import AmiLike
+from app.services.sip_identity import pjsip_interface
 
 Source = str  # "admin" | "portal" — "phone" faqat dialplan *-kod yo'li uchun.
 
@@ -71,7 +72,10 @@ async def unpause_member(session: AsyncSession, member: QueueMember, *, source: 
 
 
 def queue_interface(tenant_code: str, number: str) -> str:
-    return f"PJSIP/{tenant_code}-{number}"
+    # `tenant_code` endi ishlatilmaydi (imzo chaqiruvchilar uchun o'zgarmay
+    # qoldi) — PJSIP interfeysi prefiksiz (sip_identity.endpoint_id).
+    del tenant_code
+    return pjsip_interface(number)
 
 
 def queue_asterisk_name(tenant_code: str, queue_id: str) -> str:

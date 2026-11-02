@@ -260,7 +260,7 @@ def test_device_views_builds_status(monkeypatch):
         return {"e1": "pw"}
 
     async def fake_hosts(_ami, endpoints):
-        assert endpoints == ["t1-101"]
+        assert endpoints == ["101"]
         return {}
 
     monkeypatch.setattr(views, "tenant_prov", fake_tp)

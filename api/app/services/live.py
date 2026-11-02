@@ -11,7 +11,6 @@ Sof funksiyalar (DB/AMI'siz sinaladi) — pastda, boshida; orkestratsiya oxirida
 from __future__ import annotations
 
 import asyncio
-import re
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 
@@ -25,18 +24,17 @@ from app.services.dashboard import today_bounds_utc
 from app.services.live_status import channel_creation_seq, duration_seconds, endpoint_states
 from app.services.numbers import dial_number_for_target
 from app.services.queue_agents import queue_asterisk_name, queue_interface
+from app.services.sip_identity import extension_from_channel
 
 _DIRECTION_WORDS = {"in": "inbound", "out": "outbound", "internal": "internal"}
-_EXT_CHANNEL_RE = re.compile(r"^PJSIP/[^-]+-(\d+)-")
 
 
 # ------------------------------------------------------------- sof: kanallar
 def channel_extension_number(channel: str) -> str | None:
-    """Trunk kanal (`-trunk-` ichida) — `None`; aks holda ichki raqam."""
-    if not channel or "-trunk-" in channel:
-        return None
-    m = _EXT_CHANNEL_RE.match(channel)
-    return m.group(1) if m else None
+    """Trunk kanal (`-trunk-` ichida) — `None`; aks holda ichki raqam. Yangi
+    (`PJSIP/103-...`) VA eski (`PJSIP/t1-103-...`) shakllarning ikkisi ham
+    tushuniladi (`sip_identity.extension_from_channel`, dryer)."""
+    return extension_from_channel(channel)
 
 
 def group_channels_by_linkedid(channels: list[dict]) -> list[list[dict]]:
@@ -208,7 +206,7 @@ class _LiveCtx:
     answered_today: dict[tuple[str, str], int]
 
     def online(self, number: str) -> bool:
-        return f"{self.tenant_code}-{number}" in self.online_endpoints
+        return number in self.online_endpoints
 
 
 def _agent_item(member: QueueMember, *, ctx: _LiveCtx, queue_name: str) -> dict | None:
@@ -266,7 +264,7 @@ async def build_live_status(session: AsyncSession, ami, *, tenant_id: str, tenan
     channels, queue_entries, endpoint_state_map = await asyncio.gather(
         active_channels(ami),
         _safe_action_list(ami, "QueueStatus"),
-        endpoint_states(ami, [f"{tenant_code}-{e.number}" for e in extensions]),
+        endpoint_states(ami, [e.number for e in extensions]),
     )
     asterisk_up = channels is not None
     channels = channels or []

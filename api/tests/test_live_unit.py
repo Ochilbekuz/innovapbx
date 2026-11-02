@@ -20,7 +20,13 @@ _NOW = datetime(2026, 10, 28, 10, 0, 0, tzinfo=timezone.utc)
 
 # --------------------------------------------------------------- kanal raqami
 def test_channel_extension_number_extracts_from_pjsip_channel():
+    # Eski (tenant-prefiksli) kanal nomi — tarixiy ma'lumotlarda hamon uchraydi.
     assert channel_extension_number("PJSIP/t1-201-00000003") == "201"
+
+
+def test_channel_extension_number_extracts_from_new_format_channel():
+    # Yangi (prefiksiz, m-sip-login-plain-number) kanal nomi.
+    assert channel_extension_number("PJSIP/201-00000003") == "201"
 
 
 def test_channel_extension_number_none_for_trunk_leg():

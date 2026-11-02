@@ -6,6 +6,7 @@ from __future__ import annotations
 from types import SimpleNamespace
 
 import pytest
+from fastapi import Request
 
 from app.api.v1 import extensions as ex
 from app.core.errors import ApiError
@@ -153,6 +154,10 @@ async def test_create_extension_checks_number_with_dial_numbers(monkeypatch):
 
     monkeypatch.setattr(ex, "ensure_number_free", ensure)
     user = SimpleNamespace(id="u1", tenant_id="t1")
+    # `ensure_number_free` 409 bilan ko'taradi — `request` ishlatilishidan OLDIN (qiymati muhim emas).
+    request = Request({"type": "http", "method": "POST", "path": "/", "scheme": "http", "query_string": b"",
+                       "headers": [], "client": ("10.0.0.1", 1)})
     with pytest.raises(ApiError) as e:
-        await ex.create_extension(CreateExtensionPayload(number="610", name="X"), session=None, user=user, ami=None)
+        await ex.create_extension(CreateExtensionPayload(number="610", name="X"), request, session=None,
+                                  user=user, ami=None)
     assert e.value.code == "number_taken" and seen["ensure"] == ("t1", "610")

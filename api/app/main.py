@@ -35,6 +35,8 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     `*_ENABLED` bayroq bilan o'chiriladi, biri yiqilsa ikkinchisiga ta'sir qilmaydi."""
     if settings.stale_job_recovery_enabled:
         await _recover_stale_jobs()
+    if settings.startup_dialplan_regen_enabled:
+        await _regenerate_dialplan_on_startup()
     tasks: list[asyncio.Task] = []
     if settings.vm_notify_enabled:
         from app.db.session import SessionLocal
@@ -83,6 +85,20 @@ async def _recover_stale_jobs() -> None:
         await recover_stale_jobs(SessionLocal, db_engine)
     except Exception:  # noqa: BLE001 — baza hali tayyor bo'lmasa ham API ko'tarilsin
         log.exception("qotib qolgan ishlarni tiklab bo'lmadi")
+
+
+async def _regenerate_dialplan_on_startup() -> None:
+    """m-sip-login-plain-number §5: migratsiyadan keyin eski dialplan fayli
+    eskirgan bo'lishi mumkin — har ishga tushishda qayta qo'llash (arzon,
+    `apply_config` o'zi idempotent — hash bir xil bo'lsa yozmaydi)."""
+    from app.api.deps import get_ami
+    from app.db.session import SessionLocal
+    from app.services.startup_regen import regenerate_dialplan_on_startup
+
+    try:
+        await regenerate_dialplan_on_startup(SessionLocal, get_ami())
+    except Exception:  # noqa: BLE001 — baza hali tayyor bo'lmasa ham API ko'tarilsin
+        log.exception("ishga tushishda dialplan qayta qo'llanmadi")
 
 
 def _m3b_jobs() -> list:

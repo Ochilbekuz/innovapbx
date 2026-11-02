@@ -219,6 +219,7 @@ class CallEventService:
         self.resync = asyncio.Event()
         self._timers: dict[str, asyncio.Task] = {}
         self._vars: dict[str, dict[str, str]] = {}
+        self._default_code: str | None = None  # birinchi `handle()`da PGdan yuklanadi, keyin keshlanadi
         self.stream = AmiClient(settings.ami_host, settings.ami_port, settings.ami_username, settings.ami_password,
                                 events="call,dialplan", on_event=self.on_event, event_filters=AMI_FILTERS)
 
@@ -262,6 +263,14 @@ class CallEventService:
             self._vars.pop(next(iter(self._vars)))
         self._vars.setdefault(linkedid, {})[name] = value
 
+    async def _get_default_code(self, session: AsyncSession) -> str | None:
+        """Yagona-tenant bootstrap taxmini (`code`): sof ICHKI qo'ng'iroqda
+        (m-sip-login-plain-number) endi hech bir kanal oyog'ida tenant-kod
+        prefiksi yo'q — `ev.live_event`ga shu standart kerak bo'ladi."""
+        if self._default_code is None:
+            self._default_code = (await session.execute(select(Tenant.code).limit(1))).scalar_one_or_none()
+        return self._default_code
+
     async def handle(self, msg: dict[str, Any]) -> None:
         update = ev.var_update(msg)
         if update is not None:
@@ -270,9 +279,15 @@ class CallEventService:
         if msg.get("Event") == "Hangup":
             self._schedule_finalize(msg.get("Linkedid") or "")
             return
-        live = ev.live_event(msg, self._vars.get(msg.get("Linkedid") or msg.get("DestLinkedid") or ""))
-        if live is not None:
-            async with self.session_factory() as session:
+        if ev.live_type(msg) is None:
+            return  # DB sessiya FAQAT haqiqiy jonli hodisada ochiladi (default kod kerak)
+        async with self.session_factory() as session:
+            default_code = await self._get_default_code(session)
+            live = ev.live_event(
+                msg, self._vars.get(msg.get("Linkedid") or msg.get("DestLinkedid") or ""),
+                default_code=default_code,
+            )
+            if live is not None:
                 await emit_live(session, live)
 
     def _schedule_finalize(self, linkedid: str) -> None:

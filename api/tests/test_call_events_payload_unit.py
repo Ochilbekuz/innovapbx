@@ -20,6 +20,7 @@ def cdr(seq, *, channel, dstchannel="", src="", dst="", disposition="ANSWERED", 
 
 # ------------------------------------------------------------ kanal nomlari
 def test_channel_helpers():
+    # Eski (tenant-prefiksli) kanal nomi — tarixiy hodisalarda hamon uchraydi.
     assert ev.channel_extension("PJSIP/t1-101-0000001f") == "101"
     assert ev.channel_extension(TRUNK) is None
     assert ev.channel_extension("Local/101@t1-ext-00000001;2") is None
@@ -29,6 +30,12 @@ def test_channel_helpers():
     assert ev.is_trunk(TRUNK) and not ev.is_trunk("PJSIP/t1-101-00000001") and not ev.is_trunk(None)
     assert ev.queue_id_of(f"t1-q-{QID},,,,60") == QID
     assert ev.queue_id_of("PJSIP/t1-101") is None
+
+
+def test_channel_extension_new_format():
+    # Yangi (prefiksiz, m-sip-login-plain-number) kanal nomi.
+    assert ev.channel_extension("PJSIP/101-0000001f") == "101"
+    assert ev.channel_code("PJSIP/101-0000001f") is None  # endi kod prefiksi yo'q
 
 
 def test_var_update_tracks_only_innova_vars():
@@ -62,6 +69,16 @@ def test_internal_and_outbound_live_events():
     out = ev.live_event({"Event": "DialBegin", "Channel": "PJSIP/t1-101-00000001", "DestChannel": TRUNK,
                          "DialString": "998901234567@t1-trunk-x", "Linkedid": "9.2"})
     assert (out.direction, out.from_, out.to, out.extension) == ("outbound", "101", "998901234567", "101")
+
+
+def test_internal_live_event_new_format_needs_default_code():
+    """Yangi (prefiksiz) ICHKI qo'ng'iroqda hech bir oyoqda tenant kodi yo'q —
+    `default_code` berilmasa aniqlanmaydi, berilsa (yagona-tenant taxmin) ishlaydi."""
+    evt = {"Event": "DialBegin", "Channel": "PJSIP/101-00000001", "DestChannel": "PJSIP/102-00000002",
+           "Linkedid": "9.3"}
+    assert ev.live_event(evt) is None
+    internal = ev.live_event(evt, default_code="t1")
+    assert (internal.code, internal.direction, internal.from_, internal.to) == ("t1", "internal", "101", "102")
 
 
 def test_live_event_ignores_unrelated():

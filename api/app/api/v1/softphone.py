@@ -11,12 +11,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import get_current_user, get_session
 from app.core.config import settings
 from app.core.errors import ApiError
-from app.core.lookups import get_tenant_code
 from app.db.models import Extension, User
 from app.schemas_softphone import SoftphoneOut, SoftphoneSip
 from app.services.audit import record_audit
 from app.services.crypto import decrypt_secret
 from app.services.rate_limit import SlidingWindowLimiter
+from app.services.sip_identity import endpoint_id
 from app.services.softphone_ticket import issue_ticket
 
 router = APIRouter(prefix="/me", tags=["me"])
@@ -46,7 +46,7 @@ async def my_softphone(
     if not _limiter.allow(str(user.id), limit=settings.softphone_rate_limit_per_min):
         raise ApiError(429, "rate_limited", "Juda ko'p so'rov — birozdan keyin qayta urining")
     ext = softphone_extension(user)
-    endpoint = f"{await get_tenant_code(session, ext.tenant_id)}-{ext.number}"
+    endpoint = endpoint_id(ext.number)  # SIP domen/portdan mustaqil — fixed WSS-ichki ID (dizayn qarori)
     password = await decrypt_secret(session, ext.sip_password_enc)
     ticket, expires_at = issue_ticket(uid=str(user.id), ext_id=str(ext.id))
     await record_audit(session, tenant_id=str(user.tenant_id), user_id=str(user.id),

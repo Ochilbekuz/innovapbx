@@ -45,6 +45,9 @@ export type Extension = {
   forward_always: string | null;
   forward_busy: string | null;
   pickup_group: string | null;
+  // Tashqi qo'ng'iroq ruxsati va chiquvchi CallerID — ichki raqam darajasida (route darajasidagidan mustaqil).
+  outbound_allowed: boolean;
+  outbound_callerid: string | null;
   updated_at: string;
   // M2c §3 — qarang ../../replica/m2c-contract.md §3 (toll-fraud).
   toll_blocked_at: string | null;
@@ -65,6 +68,8 @@ export const WEBRTC_CODECS = ['opus', 'g722', 'ulaw', 'alaw'] as const;
 export type WebrtcCodec = (typeof WEBRTC_CODECS)[number];
 
 export type SipCredentials = { username: string; password: string; domain: string; port: number };
+/** `PUT /extensions/{id}/secret` javobi — qo'lda kiritilgan yoki generatsiya qilingan parolni qo'llash. */
+export type RotateSecretResult = { sip: SipCredentials; apply: ApplyResult };
 
 export type TrunkHealthState = 'ok' | 'unreachable' | 'unknown' | 'disabled';
 export type TrunkHealth = { state: TrunkHealthState; rtt_ms: number | null; checked_at: string | null };
@@ -156,7 +161,22 @@ export type ListCallsParams = { from?: string; to?: string; q?: string; directio
 /** `kind` — vergul bilan ajratilgan roʻyxat (`"extension,queue"`), boʻsh — hammasi. */
 export type ListTargetsParams = { kind?: string; q?: string };
 
-export type CreateExtensionPayload = { number?: string; name: string; webrtc?: boolean; codecs?: string[]; recording?: RecordingPolicy };
+export type CreateExtensionPayload = {
+  number?: string;
+  name: string;
+  /** Berilmasa — server generatsiya qiladi (siyosat: 8-64 belgi, kamida 1 harf+1 raqam, raqamni oʻz ichiga olmasin). */
+  password?: string;
+  enabled?: boolean;
+  dnd?: boolean;
+  forward_always?: string | null;
+  forward_busy?: string | null;
+  pickup_group?: string | null;
+  outbound_allowed?: boolean;
+  outbound_callerid?: string | null;
+  webrtc?: boolean;
+  codecs?: string[];
+  recording?: RecordingPolicy;
+};
 export type UpdateExtensionPayload = {
   name?: string;
   enabled?: boolean;
@@ -165,6 +185,8 @@ export type UpdateExtensionPayload = {
   forward_always?: string | null;
   forward_busy?: string | null;
   pickup_group?: string | null;
+  outbound_allowed?: boolean;
+  outbound_callerid?: string | null;
   // M3a §2 — webrtc va codecs birgalikda tekshiriladi (422 `webrtc_codec`, field `codecs`).
   webrtc?: boolean;
   codecs?: string[];

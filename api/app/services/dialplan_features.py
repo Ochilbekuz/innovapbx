@@ -49,8 +49,11 @@ def park_lot_name(code: str) -> str:
     return f"{code}-park"
 
 
-def realtime_read(code: str, number_expr: str, column: str) -> str:
-    return f"${{REALTIME_FIELD({EXT_STATE_FAMILY},endpoint,{code}-{number_expr},{column})}}"
+def realtime_read(_code: str, number_expr: str, column: str) -> str:
+    """`_code` endi ishlatilmaydi (imzo o'zgarmasin — chaqiruvchilar ko'p) —
+    `asterisk_ext_state.endpoint` endi prefikssiz (`sip_identity.endpoint_id`,
+    m-sip-login-plain-number)."""
+    return f"${{REALTIME_FIELD({EXT_STATE_FAMILY},endpoint,{number_expr},{column})}}"
 
 
 # ------------------------------------------------------------ <code>-ext
@@ -90,7 +93,8 @@ def ext_call_lines(code: str) -> list[str]:
         ' same => n,GotoIf($["${INNOVA_FWD}"!=""]?fwd)',
         f" same => n(dial),Set(__PICKUPMARK={code}-${{EXTEN}})",
         f" same => n,Set(__TRANSFER_CONTEXT={code}-from-internal)",
-        *recorded_dial_lines(f"PJSIP/{code}-${{EXTEN}}", "${INNOVA_RING}", XFER_OPTIONS),
+        # SIP endpoint id — prefikssiz (`sip_identity.endpoint_id`), ${EXTEN} shu bilan BIR XIL.
+        *recorded_dial_lines("PJSIP/${EXTEN}", "${INNOVA_RING}", XFER_OPTIONS),
         ' same => n,GotoIf($["${DIALSTATUS}"!="BUSY"]?noans)',
         f" same => n,Set(INNOVA_FWD={realtime_read(code, '${EXTEN}', 'forward_busy')})",
         " same => n,Set(INNOVA_FWD_STOP=noans)",
@@ -170,7 +174,8 @@ def fm_leg_lines(code: str) -> list[str]:
         f' same => n,GotoIf($["{realtime_read(code, "${EXTEN}", "dnd")}"="t"]?skip)',
         f" same => n,Set(__PICKUPMARK={code}-${{EXTEN}})",
         f" same => n,Set(__TRANSFER_CONTEXT={code}-from-internal)",
-        *recorded_dial_lines(f"PJSIP/{code}-${{EXTEN}}", "", XFER_OPTIONS),
+        # SIP endpoint id — prefikssiz (`sip_identity.endpoint_id`), ${EXTEN} shu bilan BIR XIL.
+        *recorded_dial_lines("PJSIP/${EXTEN}", "", XFER_OPTIONS),
         " same => n,Hangup()",
         " same => n(skip),Hangup(17)",
         # Tashqi: ruxsat/toll — Follow Me EGASINIKI (`INNOVA_FWD_FROM`, yo'naltirish kabi);
@@ -219,7 +224,8 @@ def ring_group_set_lines(code: str, idx: int, members: list[tuple[str, bool]], r
             lines.append(f" same => n,Set(INNOVA_RG=${{INNOVA_RG}}&Local/{number}@{code}-outbound-rg)")
             continue
         dnd = realtime_read(code, number, "dnd")
-        lines.append(f' same => n,ExecIf($["{dnd}"!="t"]?Set(INNOVA_RG=${{INNOVA_RG}}&PJSIP/{code}-{number}))')
+        # SIP endpoint id — prefikssiz (`sip_identity.endpoint_id`), `number` shu bilan BIR XIL.
+        lines.append(f' same => n,ExecIf($["{dnd}"!="t"]?Set(INNOVA_RG=${{INNOVA_RG}}&PJSIP/{number}))')
     lines += [
         f' same => n,GotoIf($["${{INNOVA_RG}}"=""]?rg{idx}_skip)',
         *recorded_dial_lines("${INNOVA_RG:1}", str(ring_seconds), XFER_OPTIONS),

@@ -46,7 +46,7 @@ def test_from_internal_falls_through_to_outbound_on_chanunavail():
     # M2a: endpoint mavjudligi realtime'da tekshiriladi (CHANUNAVAIL emas) —
     # ro'yxatdan o'tmagan ichki raqam chiquvchi marshrutga ketmaydi.
     ext = text.split("[t1-ext]")[1].split("[t1-ext-call]")[0]
-    assert ('exten => _X.,1,GotoIf($["${REALTIME_FIELD(ext_state,endpoint,t1-${EXTEN},endpoint)}"=""]'
+    assert ('exten => _X.,1,GotoIf($["${REALTIME_FIELD(ext_state,endpoint,${EXTEN},endpoint)}"=""]'
             '?t1-outbound,${EXTEN},1)') in ext
 
 

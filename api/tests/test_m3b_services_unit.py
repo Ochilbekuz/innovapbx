@@ -825,7 +825,7 @@ async def test_public_originate(monkeypatch):
     resp = await public.public_originate(payload, s, ami, KEY)
     assert resp.status_code == 202 and s.commits == 1
     fields = ami.sent[0][1]
-    assert (fields["Exten"], fields["Channel"]) == ("998901112233", "PJSIP/t1-101")
+    assert (fields["Exten"], fields["Channel"]) == ("998901112233", "PJSIP/101")
     assert audits[-1]["action"] == "api.originate" and audits[-1]["user_id"] is None
     assert s.added[0].to_number == "998901112233" and s.added[0].external_id == "crm:1"
 

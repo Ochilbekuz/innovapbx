@@ -3,6 +3,7 @@
 import type { ApiClient, Created, Mutated } from './client';
 import type { FollowMe, FollowMeInfo, FollowMeTarget, QrProvisioning, UpdateFollowMePayload } from './types';
 import { defaultFollowMe, sameFollowMe } from '@/domain/followMe';
+import { generateSipPassword, validateSipPassword, type SipPasswordIssue } from '@/domain/sipPassword';
 import { normalizeFollowMe } from './fakeFollowMe';
 import { createCampaignStore } from './fakeCampaigns';
 import { seedCampaigns } from './fakeCampaignSeed';
@@ -589,6 +590,47 @@ export function createFakeClient(): ApiClient {
   function clearsEmpty(v: string | null | undefined): string | null | undefined {
     if (v === undefined || v === null) return v;
     return v === '' ? null : v;
+  }
+
+  // SIP paroli — backend bilan bitta shartnoma: `src/domain/sipPassword.ts`dagi sof funksiya orqali
+  // tekshiriladi, shu yerda 422 `weak_password`ga aylantiriladi (field `password`).
+  const SIP_PASSWORD_ERROR_MESSAGE: Record<SipPasswordIssue, string> = {
+    too_short: 'SIP paroli kamida 8 belgidan iborat boʻlsin.',
+    too_long: 'SIP paroli 64 belgidan oshmasin.',
+    bad_chars: 'SIP parolida faqat lotin harflari, raqamlar va !@#$%^*_+=.,:- belgilari ruxsat etilgan.',
+    no_letter: 'SIP parolida kamida bitta harf boʻlsin.',
+    no_digit: 'SIP parolida kamida bitta raqam boʻlsin.',
+    contains_number: 'SIP paroli ichki raqamni oʻz ichiga olmasin.',
+  };
+
+  /** Qo'lda kiritilgan SIP parolini tekshiradi — notoʻgʻri boʻlsa 422 `weak_password` otadi. */
+  function checkSipPassword(password: string, extensionNumber: string) {
+    const issue = validateSipPassword(password, extensionNumber);
+    if (issue) err(422, 'weak_password', SIP_PASSWORD_ERROR_MESSAGE[issue], { field: 'password' });
+  }
+
+  /** SIP domeni — soʻrov kelgan server xosti (haqiqiy backend'da `Request.url.hostname`); fake'da brauzer manzili. */
+  function sipDomain(): string {
+    return typeof window !== 'undefined' && window.location.hostname ? window.location.hostname : 'pbx.innova.local';
+  }
+
+  /** Ichki raqamning qoʻng'iroq sozlamalari (DND/yoʻnaltirish/pickup/chiquvchi) — yaratish VA tahrirlashda bir xil tekshiruv. */
+  function resolveCallFields(payload: {
+    forward_always?: string | null; forward_busy?: string | null; pickup_group?: string | null; outbound_callerid?: string | null;
+  }, ownNumber: string) {
+    const forwardAlways = clearsEmpty(payload.forward_always);
+    const forwardBusy = clearsEmpty(payload.forward_busy);
+    const pickupGroup = clearsEmpty(payload.pickup_group);
+    const outboundCallerid = clearsEmpty(payload.outbound_callerid);
+    if (forwardAlways != null && !FORWARD_NUMBER_RE.test(forwardAlways)) err(422, 'bad_number', 'Raqam notoʻgʻri — faqat raqamlar (2-15 ta).', { field: 'forward_always' });
+    if (forwardBusy != null && !FORWARD_NUMBER_RE.test(forwardBusy)) err(422, 'bad_number', 'Raqam notoʻgʻri — faqat raqamlar (2-15 ta).', { field: 'forward_busy' });
+    if (pickupGroup != null && !PICKUP_GROUP_RE.test(pickupGroup)) err(422, 'bad_pickup_group', 'Guruh nomi notoʻgʻri — kichik lotin harflari, raqam, `_`/`-` (1-32 belgi).', { field: 'pickup_group' });
+    if (outboundCallerid != null && !FORWARD_NUMBER_RE.test(outboundCallerid)) err(422, 'bad_number', 'CallerID notoʻgʻri — faqat raqamlar (2-15 ta).', { field: 'outbound_callerid' });
+    const nextForwardAlways = forwardAlways != null ? forwardAlways.replace(/^\+/, '') : forwardAlways;
+    const nextForwardBusy = forwardBusy != null ? forwardBusy.replace(/^\+/, '') : forwardBusy;
+    if (nextForwardAlways === ownNumber) err(422, 'bad_number', 'Oʻz raqamiga yoʻnaltirib boʻlmaydi.', { field: 'forward_always' });
+    if (nextForwardBusy === ownNumber) err(422, 'bad_number', 'Oʻz raqamiga yoʻnaltirib boʻlmaydi.', { field: 'forward_busy' });
+    return { forwardAlways: nextForwardAlways, forwardBusy: nextForwardBusy, pickupGroup, outboundCallerid };
   }
 
   /** `anonymous`/`restricted`/boʻsh — yashirin CallerID uchun bitta maxsus qiymatga keltiriladi (§5). */
@@ -1231,15 +1273,21 @@ export function createFakeClient(): ApiClient {
       }
       const webrtc = payload.webrtc ?? false;
       const codecs = resolveWebrtcCodecs(webrtc, payload.codecs, []);
+      const call = resolveCallFields(payload, number);
+      const password = payload.password ?? generateSipPassword(number);
+      if (payload.password !== undefined) checkSipPassword(payload.password, number);
       const now = new Date().toISOString();
       const item: Extension = {
-        id: randomId('e'), number, name: payload.name.trim(), enabled: true, status: 'unknown', contact: null, user_agent: null,
-        dnd: false, forward_always: null, forward_busy: null, pickup_group: null, updated_at: now,
+        id: randomId('e'), number, name: payload.name.trim(), enabled: payload.enabled ?? true, status: 'unknown', contact: null, user_agent: null,
+        dnd: payload.dnd ?? false,
+        forward_always: call.forwardAlways ?? null, forward_busy: call.forwardBusy ?? null, pickup_group: call.pickupGroup ?? null,
+        outbound_allowed: payload.outbound_allowed ?? true, outbound_callerid: call.outboundCallerid ?? null,
+        updated_at: now,
         toll_blocked_at: null, toll_block_reason: null, webrtc, codecs,
         recording: payload.recording ?? 'never',
       };
       extensions = [...extensions, item];
-      const sip: SipCredentials = { username: number, password: randomSecret(), domain: 'pbx.innova.local', port: 5060 };
+      const sip: SipCredentials = { username: number, password, domain: sipDomain(), port: 5060 };
       return { item, sip, apply: apply(`Ichki raqam ${number} qoʻshildi`, payload.name) };
     },
 
@@ -1249,17 +1297,7 @@ export function createFakeClient(): ApiClient {
       const cur = extensions.find((e) => e.id === id);
       if (!cur) err(404, 'not_found', 'Ichki raqam topilmadi.');
       if (payload.updated_at !== cur.updated_at) err(409, 'stale', 'Bu yozuv boshqa joyda oʻzgartirilgan. Sahifani yangilang.', { details: { current: cur } });
-      // "" — `null` kabi tozalaydi (§1); yo'naltirish raqamining boshidagi `+` saqlanmaydi.
-      const forwardAlways = clearsEmpty(payload.forward_always);
-      const forwardBusy = clearsEmpty(payload.forward_busy);
-      const pickupGroup = clearsEmpty(payload.pickup_group);
-      if (forwardAlways != null && !FORWARD_NUMBER_RE.test(forwardAlways)) err(422, 'bad_number', 'Raqam notoʻgʻri — faqat raqamlar (2-15 ta).', { field: 'forward_always' });
-      if (forwardBusy != null && !FORWARD_NUMBER_RE.test(forwardBusy)) err(422, 'bad_number', 'Raqam notoʻgʻri — faqat raqamlar (2-15 ta).', { field: 'forward_busy' });
-      if (pickupGroup != null && !PICKUP_GROUP_RE.test(pickupGroup)) err(422, 'bad_pickup_group', 'Guruh nomi notoʻgʻri — kichik lotin harflari, raqam, `_`/`-` (1-32 belgi).', { field: 'pickup_group' });
-      const nextForwardAlways = forwardAlways != null ? forwardAlways.replace(/^\+/, '') : forwardAlways;
-      const nextForwardBusy = forwardBusy != null ? forwardBusy.replace(/^\+/, '') : forwardBusy;
-      if (nextForwardAlways === cur.number) err(422, 'bad_number', 'Oʻz raqamiga yoʻnaltirib boʻlmaydi.', { field: 'forward_always' });
-      if (nextForwardBusy === cur.number) err(422, 'bad_number', 'Oʻz raqamiga yoʻnaltirib boʻlmaydi.', { field: 'forward_busy' });
+      const call = resolveCallFields(payload, cur.number);
       const webrtc = payload.webrtc ?? cur.webrtc;
       const codecs = resolveWebrtcCodecs(webrtc, payload.codecs, cur.codecs);
       const now = new Date().toISOString();
@@ -1268,17 +1306,20 @@ export function createFakeClient(): ApiClient {
         name: payload.name ?? cur.name,
         enabled: payload.enabled ?? cur.enabled,
         dnd: payload.dnd ?? cur.dnd,
-        forward_always: payload.forward_always !== undefined ? (nextForwardAlways as string | null) : cur.forward_always,
-        forward_busy: payload.forward_busy !== undefined ? (nextForwardBusy as string | null) : cur.forward_busy,
-        pickup_group: payload.pickup_group !== undefined ? (pickupGroup as string | null) : cur.pickup_group,
+        forward_always: payload.forward_always !== undefined ? (call.forwardAlways as string | null) : cur.forward_always,
+        forward_busy: payload.forward_busy !== undefined ? (call.forwardBusy as string | null) : cur.forward_busy,
+        pickup_group: payload.pickup_group !== undefined ? (call.pickupGroup as string | null) : cur.pickup_group,
+        outbound_allowed: payload.outbound_allowed ?? cur.outbound_allowed,
+        outbound_callerid: payload.outbound_callerid !== undefined ? (call.outboundCallerid as string | null) : cur.outbound_callerid,
         webrtc, codecs,
         recording: payload.recording ?? cur.recording,
         updated_at: now,
       };
       extensions = extensions.map((e) => (e.id === id ? item : e));
-      // Faqat dnd/yo'naltirish/pickup o'zgarsa — realtime (§1): reviziya/dialplan reload shart emas. webrtc/codecs — M3a §2: reload'siz (realtime).
+      // Faqat dnd/yo'naltirish/pickup/chiquvchi o'zgarsa — realtime (§1): reviziya/dialplan reload shart emas. webrtc/codecs — M3a §2: reload'siz (realtime).
       const callFieldsOnly = payload.name === undefined && payload.enabled === undefined
         && (payload.dnd !== undefined || payload.forward_always !== undefined || payload.forward_busy !== undefined || payload.pickup_group !== undefined
+          || payload.outbound_allowed !== undefined || payload.outbound_callerid !== undefined
           || payload.webrtc !== undefined || payload.codecs !== undefined || payload.recording !== undefined);
       const applyResult: ApplyResult = callFieldsOnly ? { status: 'applied', revision: null, message: null } : apply(`Ichki raqam ${item.number} tahrirlandi`, payload.name);
       return { item, apply: applyResult };
@@ -1289,7 +1330,18 @@ export function createFakeClient(): ApiClient {
       requireManage('pbx.manage');
       const cur = extensions.find((e) => e.id === id);
       if (!cur) err(404, 'not_found', 'Ichki raqam topilmadi.');
-      const sip: SipCredentials = { username: cur.number, password: randomSecret(), domain: 'pbx.innova.local', port: 5060 };
+      const sip: SipCredentials = { username: cur.number, password: generateSipPassword(cur.number), domain: sipDomain(), port: 5060 };
+      return { sip, apply: { status: 'realtime', revision: null, message: null } as ApplyResult };
+    },
+
+    /** `PUT /extensions/{id}/secret` — admin oʻz parolini kiritadi; siyosatga mos boʻlmasa 422 `weak_password`. */
+    async setExtensionSecret(id: string, password: string) {
+      await delay();
+      requireManage('pbx.manage');
+      const cur = extensions.find((e) => e.id === id);
+      if (!cur) err(404, 'not_found', 'Ichki raqam topilmadi.');
+      checkSipPassword(password, cur.number);
+      const sip: SipCredentials = { username: cur.number, password, domain: sipDomain(), port: 5060 };
       return { sip, apply: { status: 'realtime', revision: null, message: null } as ApplyResult };
     },
 

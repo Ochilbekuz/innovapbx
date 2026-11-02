@@ -136,10 +136,22 @@ class SipCredentials(BaseModel):
 class CreateExtensionPayload(BaseModel):
     number: str | None = Field(default=None, pattern=r"^\d{2,10}$")
     name: str = Field(min_length=1, max_length=128)
+    # Foydalanuvchi o'zi belgilagan SIP paroli (FreePBX-uslubida); bo'sh — tasodifiy
+    # (`generate_sip_secret`). Tekshiruv — `sip_secret_policy.validate_sip_password`.
+    password: str | None = None
     # M3a §2: tekshiruv/standart — `app/services/ext_media.py` (422 `webrtc_codec`/`bad_codec`).
     webrtc: bool = False
     codecs: list[str] | None = None
     recording: RecordingPolicy | None = None
+    # Yaratishda darhol sozlash — `UpdateExtensionPayload` bilan BIR XIL maydonlar va
+    # tekshiruv (`apply_call_field_patch`, dryer): berilmagan = standart qiymat.
+    enabled: bool | None = None
+    outbound_allowed: bool | None = None
+    outbound_callerid: str | None = None
+    dnd: bool | None = None
+    forward_always: str | None = None
+    forward_busy: str | None = None
+    pickup_group: str | None = None
 
 
 class UpdateExtensionPayload(BaseModel):
@@ -173,6 +185,12 @@ class ExtensionMutated(BaseModel):
 class RotateSecretResult(BaseModel):
     sip: SipCredentials
     apply: ApplyResult
+
+
+class SetSecretPayload(BaseModel):
+    """`PUT /extensions/{id}/secret` — foydalanuvchi o'zi tanlagan SIP paroli
+    (`sip_secret_policy.validate_sip_password` tekshiradi)."""
+    password: str
 
 
 class Paged(BaseModel):

@@ -24,6 +24,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.db.models import CallRecording, Cdr, SystemSettings
+from app.services.sip_identity import extension_from_channel
 
 log = logging.getLogger(__name__)
 
@@ -156,9 +157,12 @@ async def recording_refs(session: AsyncSession, tenant_id: str, recs: list[CallR
 # ------------------------------------------------------------ kirish (admin/operator/ochiq API)
 def leg_mentions(number: str, code: str, *, src: str | None, dst: str | None, channel: str | None,
                  dstchannel: str | None) -> bool:
-    """CDR qatorida shu ichki raqam qatnashganmi (raqam yoki `PJSIP/<code>-<raqam>-` kanal)."""
-    prefix = f"PJSIP/{code}-{number}-"
-    return number in (src, dst) or any((c or "").startswith(prefix) for c in (channel, dstchannel))
+    """CDR qatorida shu ichki raqam qatnashganmi (raqam yoki kanal nomida) —
+    `code` endi kanal taqqoslashda ishlatilmaydi (imzo o'zgarmaydi, chaqiruvchilar
+    ko'p): `sip_identity.extension_from_channel` YANGI (`PJSIP/103-...`) VA
+    ESKI (`PJSIP/t1-103-...`) shakllarning ikkisini ham bir xil tanib oladi."""
+    del code
+    return number in (src, dst) or number in (extension_from_channel(channel), extension_from_channel(dstchannel))
 
 
 async def operator_can_access(session: AsyncSession, rec: CallRecording, *, code: str, number: str | None) -> bool:

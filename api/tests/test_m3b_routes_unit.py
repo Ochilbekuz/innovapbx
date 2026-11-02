@@ -300,11 +300,19 @@ async def test_authenticate_rate_limited(monkeypatch):
 
 # ------------------------------------------------------------ yozuvga kirish
 def test_leg_mentions():
+    # Eski (tenant-prefiksli) kanal nomi — tarixiy CDR yozuvlarida hamon uchraydi.
     kw = dict(src="998901", dst="s", channel="PJSIP/t1-trunk-x-01", dstchannel="PJSIP/t1-101-0000002a")
     assert recordings.leg_mentions("101", "t1", **kw)
     assert not recordings.leg_mentions("10", "t1", **kw)
     assert recordings.leg_mentions("998901", "t1", **kw)
     assert not recordings.leg_mentions("102", "t1", src=None, dst=None, channel=None, dstchannel=None)
+
+
+def test_leg_mentions_new_format_channel():
+    # Yangi (prefiksiz, m-sip-login-plain-number) kanal nomi.
+    kw = dict(src="998901", dst="s", channel="PJSIP/t1-trunk-x-01", dstchannel="PJSIP/101-0000002a")
+    assert recordings.leg_mentions("101", "t1", **kw)
+    assert not recordings.leg_mentions("102", "t1", **kw)
 
 
 def test_link_is_valid(monkeypatch):

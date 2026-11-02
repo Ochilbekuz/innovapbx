@@ -164,7 +164,7 @@ def test_fm_context_ring_all_and_sequential() -> None:
 def test_fm_leg_internal_and_external() -> None:
     text = "\n".join(feat.fm_leg_lines("t1"))
     assert "Set(INNOVA_FROM_TRUNK=${INNOVA_FM_TRUNK})" in text
-    assert "Dial(PJSIP/t1-${EXTEN},," in text and '"t"]?skip)' in text
+    assert "Dial(PJSIP/${EXTEN},," in text and '"t"]?skip)' in text
     assert "n(external),Set(INNOVA_FWD_FROM=${INNOVA_FM_OWNER})" in text
     assert "Set(__INNOVA_FM_CONFIRM=${INNOVA_FM_CONF})" in text and text.endswith("Goto(t1-outbound,${EXTEN},1)")
 

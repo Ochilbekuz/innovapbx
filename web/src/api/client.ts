@@ -10,7 +10,7 @@ import type {
   NotifyTestPayload, NotifyTestResult, NumbersFreeParams, OutboundOrderPayload,
   OutboundRoute, OutboundSimulateParams, OutboundSimulateResult, OverrideTimeConditionPayload, Paged, Parking, Queue,
   QueueMember,
-  RestartAsteriskResult, RestoreRevisionResult, RevisionDetail, RevisionDiff, RevisionDiffAgainst, RingGroup,
+  RestartAsteriskResult, RestoreRevisionResult, RevisionDetail, RevisionDiff, RevisionDiffAgainst, RingGroup, RotateSecretResult,
   SelfSignedTlsPayload, SetupPayload, SipCredentials, SipSettings, SipTls, SystemHealth, Target, TimeCondition,
   TimeGroup, Trunk, TrunkTestResult, UpdateConferencePayload, UpdateExtensionPayload, UpdateFeatureCodePayload,
   UpdateHolidayPayload, UpdateInboundRoutePayload,
@@ -72,7 +72,9 @@ export interface ApiClient {
   listExtensions(params: ListExtensionsParams): Promise<Paged<Extension>>;
   createExtension(payload: CreateExtensionPayload): Promise<Created<Extension>>;
   updateExtension(id: string, payload: UpdateExtensionPayload): Promise<Mutated<Extension>>;
-  rotateExtensionSecret(id: string): Promise<{ sip: SipCredentials; apply: ApplyResult }>;
+  rotateExtensionSecret(id: string): Promise<RotateSecretResult>;
+  /** Admin o'z paroli bilan — siyosatga mos bo'lmasa 422 `weak_password` (field `password`). */
+  setExtensionSecret(id: string, password: string): Promise<RotateSecretResult>;
   deleteExtension(id: string): Promise<void>;
 
   listTrunks(): Promise<{ items: Trunk[] }>;

@@ -89,6 +89,55 @@ describe('fake client — ichki raqamlar', () => {
     await op.login(SEED_OPERATOR.login, SEED_OPERATOR_PASSWORD);
     await expect(op.createExtension({ name: 'Ruxsatsiz' })).rejects.toMatchObject({ status: 403, code: 'forbidden' });
   });
+
+  it('parol berilmasa — siyosatga mos tasodifiy parol generatsiya qilinadi', async () => {
+    const res = await client.createExtension({ name: 'Avtomatik parol' });
+    expect(res.sip.password.length).toBeGreaterThanOrEqual(8);
+    expect(res.sip.domain).toBeTruthy();
+    expect(res.sip.port).toBe(5060);
+  });
+
+  it('o\'z parolini kiritib yaratish — xuddi shu parol qaytadi, login=raqam', async () => {
+    const res = await client.createExtension({ number: '150', name: 'Qo\'lda parol', password: 'Secret123' });
+    expect(res.sip.username).toBe('150');
+    expect(res.sip.password).toBe('Secret123');
+  });
+
+  it('weak_password — zaif parol bilan yaratib bo\'lmaydi (422, field=password)', async () => {
+    await expect(client.createExtension({ number: '151', name: 'Zaif', password: '1234567' }))
+      .rejects.toMatchObject({ status: 422, code: 'weak_password', field: 'password' });
+    await expect(client.createExtension({ number: '151', name: 'Zaif', password: 'onlyletters' }))
+      .rejects.toMatchObject({ status: 422, code: 'weak_password', field: 'password' });
+    await expect(client.createExtension({ number: '151', name: 'Zaif', password: 'abc151xyz' }))
+      .rejects.toMatchObject({ status: 422, code: 'weak_password', field: 'password' });
+  });
+
+  it('yaratishda outbound_allowed/outbound_callerid/dnd saqlanadi', async () => {
+    const res = await client.createExtension({
+      number: '152', name: 'Sozlangan', dnd: true, outbound_allowed: false, outbound_callerid: '998712345678',
+    });
+    expect(res.item.dnd).toBe(true);
+    expect(res.item.outbound_allowed).toBe(false);
+    expect(res.item.outbound_callerid).toBe('998712345678');
+  });
+
+  it('rotate-secret — yangi tasodifiy parol, login o\'zgarmaydi', async () => {
+    const before = await client.listExtensions({});
+    const ext = before.items.find((e) => e.id === 'e-101')!;
+    const res = await client.rotateExtensionSecret(ext.id);
+    expect(res.sip.username).toBe(ext.number);
+    expect(res.sip.password.length).toBeGreaterThanOrEqual(8);
+  });
+
+  it('setExtensionSecret — o\'z parolini o\'rnatish, weak_password rad etiladi', async () => {
+    const before = await client.listExtensions({});
+    const ext = before.items.find((e) => e.id === 'e-101')!;
+    await expect(client.setExtensionSecret(ext.id, 'bad')).rejects.toMatchObject({ status: 422, code: 'weak_password', field: 'password' });
+    const res = await client.setExtensionSecret(ext.id, 'MyNewPass9');
+    expect(res.sip.username).toBe(ext.number);
+    expect(res.sip.password).toBe('MyNewPass9');
+    expect(res.apply.status).toBe('realtime');
+  });
 });
 
 describe('fake client — kiruvchi marshrutlar', () => {

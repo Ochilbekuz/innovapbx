@@ -142,6 +142,9 @@ class Settings(BaseSettings):
     backup_scheduler_enabled: bool = True
     # Ishga tushishda qotib qolgan zaxira/tiklash/ko'chirish yozuvlarini `failed` qilish (`stale_jobs.py`).
     stale_job_recovery_enabled: bool = True
+    # m-sip-login-plain-number §5: ishga tushishda dialplan/navbat a'zosi/hint'ni qayta qo'llash
+    # (migratsiya endpoint nomlashni o'zgartirganda eski kompilyatsiya fayli eskirmasin).
+    startup_dialplan_regen_enabled: bool = True
     backup_scheduler_interval_s: float = 60.0
     # Masofaviy nishonlarni sinash/yuklash uchun umumiy vaqt chegarasi (S3/SFTP tarmog'i osilib qolmasin).
     backup_target_timeout_s: float = 60.0

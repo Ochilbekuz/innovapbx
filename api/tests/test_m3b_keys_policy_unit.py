@@ -90,7 +90,7 @@ def test_validate_external_id():
 
 def test_originate_fields():
     f = originate.originate_fields("t1", "101", "998901234567", request_id="req-1", external_id="e1")
-    assert f["Channel"] == "PJSIP/t1-101"
+    assert f["Channel"] == "PJSIP/101"
     assert f["Context"] == "t1-originate" and f["Exten"] == "998901234567" and f["Priority"] == "1"
     assert f["Async"] == "true" and f["ChannelId"] == "req-1"
     assert f["Variable"] == "INNOVA_ORIGIN=api,INNOVA_EXTID=e1,INNOVA_ORIG_EXT=101"

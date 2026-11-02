@@ -2,13 +2,16 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { formatDateTimeShort } from '@/lib/time';
-import { BellOff, Copy, Headset, KeyRound, Mail, Pencil, PhoneForwarded, Plus, QrCode, RotateCw, ShieldAlert, ShieldOff, Smartphone, Trash2, Voicemail } from 'lucide-react';
+import {
+  BellOff, ChevronDown, Copy, Eye, EyeOff, Headset, KeyRound, Mail, Pencil, PhoneForwarded, Plus, QrCode, RefreshCw,
+  RotateCw, ShieldAlert, ShieldOff, Smartphone, Trash2, Voicemail,
+} from 'lucide-react';
 import {
   useCreateExtension, useCreateVoicemailBox, useDeleteExtension, useDevices, useExtensions, useRotateExtensionSecret,
-  useUpdateExtension, useVoicemailBoxes,
+  useSetExtensionSecret, useUpdateExtension, useVoicemailBoxes,
 } from '@/api/queries';
 import { isApiError } from '@/api/errors';
-import type { Extension, SipCredentials, UpdateExtensionPayload } from '@/api/types';
+import type { CreateExtensionPayload, Extension, SipCredentials, UpdateExtensionPayload } from '@/api/types';
 import { usePermission } from '@/auth/permissions';
 import { applyToast } from '@/lib/applyToast';
 import { AppShellPage } from '@/shell/AppShellPage';
@@ -20,6 +23,13 @@ import { Badge, StatusPill } from '@/ui/Status';
 import { DataTable, type Column } from '@/ui/Table';
 import { Toggle } from '@/ui/Toggle';
 import { useToast } from '@/ui/Toast';
+import { cn } from '@/lib/cn';
+import { generateSipPassword, validateSipPassword, type SipPasswordIssue } from '@/domain/sipPassword';
+import {
+  DEFAULT_CALL_SETTINGS, type CallSettingsState, callSettingsFromExtension, createExtensionPayload, createExtensionValid,
+  editExtensionDirty, editExtensionValid, forwardNumberValid, pickupGroupValid,
+  updateExtensionPayload, useCallSettings,
+} from './extensionForms';
 import { FollowMeSection } from './FollowMeSection';
 import { QrConnectModal } from './QrConnectModal';
 import type { RecordingPolicy } from '@/api/types';
@@ -48,9 +58,6 @@ function RecordingSelect({ value, onChange, disabled }: { value: RecordingPolicy
 
 const NAME_MAX = 60;
 const PIN_RE = /^\d{4,8}$/;
-// M2a — qarang ../../../replica/m2a-contract.md §1
-const FORWARD_NUMBER_RE = /^\+?[0-9]{2,15}$/;
-const PICKUP_GROUP_RE = /^[a-z0-9_-]{1,32}$/;
 
 /** Ro'yxatdagi DND/yo'naltirish belgisi — qisqa, bosilmas ko'rinish (§1 "Ro'yxatda belgi"). */
 function CallsBadges({ ext }: { ext: Extension }) {
@@ -66,9 +73,17 @@ function CallsBadges({ ext }: { ext: Extension }) {
   );
 }
 
+/** Haqiqiy backend soʻrov kelgan server xostini qaytaradi; fake buni allaqachon toʻgʻri beradi — bu faqat himoya. */
+function sipDomainFallback(domain: string): string {
+  return domain || (typeof window !== 'undefined' ? window.location.hostname : '');
+}
+
 function SipFields({ sip }: { sip: SipCredentials }) {
   const { t } = useTranslation('extensions');
-  const rows: [string, string][] = [[t('sip.login'), sip.username], [t('sip.password'), sip.password], [t('sip.domain'), sip.domain], [t('sip.port'), String(sip.port)]];
+  const rows: [string, string][] = [
+    [t('sip.login'), sip.username], [t('sip.password'), sip.password],
+    [t('sip.domain'), sipDomainFallback(sip.domain)], [t('sip.port'), String(sip.port)],
+  ];
   return (
     <div className="flex flex-col gap-2">
       <p className="flex items-start gap-1.5 text-sm text-danger">
@@ -87,6 +102,163 @@ function SipFields({ sip }: { sip: SipCredentials }) {
           </div>
         </div>
       ))}
+    </div>
+  );
+}
+
+/**
+ * SIP parol maydoni — koʻrsatish/yashirish, qayta generatsiya va nusxalash tugmalari bilan.
+ * `Input`ning `trailing` slotida 1 tadan ortiq tugma sig'maydi (qarang `ui/Field.tsx`), shu sababli
+ * tashqi `relative` o'ram + mustaqil joylashtirilgan tugmalar guruhi qo'llanildi.
+ */
+function SipPasswordField({
+  password, onChange, onRegenerate, issue, serverError, label, hint, autoFocus,
+}: {
+  password: string;
+  onChange: (v: string) => void;
+  onRegenerate: () => void;
+  issue: SipPasswordIssue | null;
+  serverError?: string;
+  label: string;
+  hint: string;
+  autoFocus?: boolean;
+}) {
+  const { t } = useTranslation('extensions');
+  const [reveal, setReveal] = useState(false);
+  const error = serverError ?? (issue ? t(`password.issue.${issue}`) : undefined);
+
+  return (
+    <Field label={label} required hint={error ? undefined : hint} error={error}>
+      {(a) => (
+        <div className="relative flex items-center">
+          <Input
+            {...a} autoFocus={autoFocus} mono type={reveal ? 'text' : 'password'} className="pr-24"
+            value={password} onChange={(e) => onChange(e.target.value)}
+          />
+          <div className="absolute right-1 flex items-center gap-0.5">
+            <Button
+              size="sm" variant="ghost" iconOnly icon={reveal ? <EyeOff /> : <Eye />}
+              aria-label={reveal ? t('password.hideAriaLabel') : t('password.showAriaLabel')}
+              onClick={() => setReveal((v) => !v)}
+            />
+            <Button size="sm" variant="ghost" iconOnly icon={<RefreshCw />} aria-label={t('password.regenerateAriaLabel')} onClick={onRegenerate} />
+            <Button size="sm" variant="ghost" iconOnly icon={<Copy />} aria-label={t('password.copyAriaLabel')} onClick={() => void copyText(password)} />
+          </div>
+        </div>
+      )}
+    </Field>
+  );
+}
+
+/** DND/yoʻnaltirish/pickup/chiquvchi qoʻngʻiroq sozlamalari — Yaratish (ixtiyoriy boʻlim ichida) VA Tahrirlashda (doim koʻrinadi) bir xil. */
+/** Bitta maydon uchun xato xabari — backend xatosi ustunlik qiladi, aks holda mahalliy formatlash tekshiruvi. */
+function fieldError(
+  field: string, ok: boolean, invalidHint: string, errorField: string | undefined, errorMessage: string | undefined,
+): string | undefined {
+  if (errorField === field) return errorMessage;
+  return ok ? undefined : invalidHint;
+}
+
+function CallSettingsFields({
+  calls, setDnd, setForwardAlways, setForwardBusy, setPickupGroup, setOutboundAllowed, setOutboundCallerid, errorField, errorMessage,
+}: {
+  calls: CallSettingsState;
+  setDnd: (v: boolean) => void;
+  setForwardAlways: (v: string) => void;
+  setForwardBusy: (v: string) => void;
+  setPickupGroup: (v: string) => void;
+  setOutboundAllowed: (v: boolean) => void;
+  setOutboundCallerid: (v: string) => void;
+  errorField?: string;
+  errorMessage?: string;
+}) {
+  const { t } = useTranslation('extensions');
+  const forwardAlwaysOk = forwardNumberValid(calls.forwardAlways);
+  const forwardBusyOk = forwardNumberValid(calls.forwardBusy);
+  const pickupGroupOk = pickupGroupValid(calls.pickupGroup);
+  const outboundCalleridOk = forwardNumberValid(calls.outboundCallerid);
+
+  return (
+    <div className="flex flex-col gap-4">
+      <Toggle checked={calls.dnd} onCheckedChange={setDnd} label={t('calls.dndLabel')} description={t('calls.dndDesc')} />
+      <Field
+        label={t('calls.forwardAlwaysLabel')} hint={t('calls.forwardAlwaysHint')}
+        error={fieldError('forward_always', forwardAlwaysOk, t('calls.forwardAlwaysHint'), errorField, errorMessage)}
+      >
+        {(a) => <Input {...a} mono value={calls.forwardAlways} onChange={(e) => setForwardAlways(e.target.value)} />}
+      </Field>
+      <Field
+        label={t('calls.forwardBusyLabel')} hint={t('calls.forwardBusyHint')}
+        error={fieldError('forward_busy', forwardBusyOk, t('calls.forwardBusyHint'), errorField, errorMessage)}
+      >
+        {(a) => <Input {...a} mono value={calls.forwardBusy} onChange={(e) => setForwardBusy(e.target.value)} />}
+      </Field>
+      <Field
+        label={t('calls.pickupGroupLabel')} hint={t('calls.pickupGroupHint')}
+        error={fieldError('pickup_group', pickupGroupOk, t('calls.pickupGroupHint'), errorField, errorMessage)}
+      >
+        {(a) => <Input {...a} mono value={calls.pickupGroup} onChange={(e) => setPickupGroup(e.target.value)} />}
+      </Field>
+      <Toggle checked={calls.outboundAllowed} onCheckedChange={setOutboundAllowed} label={t('calls.outboundAllowedLabel')} description={t('calls.outboundAllowedDesc')} />
+      <Field
+        label={t('calls.outboundCalleridLabel')} hint={t('calls.outboundCalleridHint')}
+        error={fieldError('outbound_callerid', outboundCalleridOk, t('calls.outboundCalleridHint'), errorField, errorMessage)}
+      >
+        {(a) => <Input {...a} mono value={calls.outboundCallerid} onChange={(e) => setOutboundCallerid(e.target.value)} />}
+      </Field>
+      <p className="text-xs text-muted">{t('calls.realtimeNotice')}</p>
+    </div>
+  );
+}
+
+/** Mavjud ichki raqam uchun SIP parolini almashtirish — o'z parolini kiritish YOKI tasodifiy generatsiya. */
+function ChangePasswordSection({ ext, onChanged }: { ext: Extension; onChanged: (sip: SipCredentials) => void }) {
+  const { t } = useTranslation('extensions');
+  const toast = useToast();
+  const [open, setOpen] = useState(false);
+  const [password, setPassword] = useState('');
+  const setSecretM = useSetExtensionSecret();
+  const rotateM = useRotateExtensionSecret();
+  const issue = validateSipPassword(password, ext.number);
+
+  const applied = (sip: SipCredentials) => {
+    setOpen(false);
+    setPassword('');
+    toast({ kind: 'success', title: t('changePassword.changed') });
+    onChanged(sip);
+  };
+
+  return (
+    <div className="border-t border-line pt-4">
+      <p className="mb-2 flex items-center gap-1.5 text-sm font-medium text-fg"><KeyRound aria-hidden className="size-4 text-brand" /> {t('changePassword.title')}</p>
+      {!open ? (
+        <div className="flex flex-wrap items-center gap-2">
+          <Button size="sm" variant="secondary" onClick={() => setOpen(true)}>{t('changePassword.enterOwn')}</Button>
+          <Button
+            size="sm" variant="ghost" loading={rotateM.isPending}
+            onClick={() => rotateM.mutate(ext.id, { onSuccess: (res) => applied(res.sip) })}
+          >
+            {t('changePassword.generateNew')}
+          </Button>
+        </div>
+      ) : (
+        <div className="flex flex-col gap-3">
+          <SipPasswordField
+            password={password} onChange={setPassword} onRegenerate={() => setPassword(generateSipPassword(ext.number))}
+            issue={password ? issue : null} label={t('changePassword.newPasswordLabel')} hint={t('password.hint')} autoFocus
+          />
+          <div className="flex gap-2">
+            <Button size="sm" variant="ghost" onClick={() => { setOpen(false); setPassword(''); }}>{t('cancel')}</Button>
+            <Button
+              size="sm" variant="primary" loading={setSecretM.isPending} disabled={!password || !!issue}
+              data-testid="change-password-save"
+              onClick={() => setSecretM.mutate({ id: ext.id, password }, { onSuccess: (res) => applied(res.sip) })}
+            >
+              {t('changePassword.save')}
+            </Button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -199,6 +371,7 @@ export function ExtensionsPage() {
           stale={isApiError(updateM.error) && updateM.error.code === 'stale'}
           onReloadStale={() => { void refetch(); closeEdit(); }}
           onFollowMeSaved={(updatedAt) => setEditing((e) => e && { ...e, updated_at: updatedAt })}
+          onSecretChanged={(sip) => setSipReveal({ title: t('toast.newSipTitle', { number: editing.number }), sip })}
         />
       )}
 
@@ -252,7 +425,7 @@ function CreateExtensionModal({
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
-  onSubmit: (payload: { number?: string; name: string; webrtc?: boolean; recording?: RecordingPolicy }) => void;
+  onSubmit: (payload: CreateExtensionPayload) => void;
   pending: boolean;
   errorField?: string;
   errorMessage?: string;
@@ -260,13 +433,24 @@ function CreateExtensionModal({
   const { t } = useTranslation('extensions');
   const [number, setNumber] = useState('');
   const [name, setName] = useState('');
+  const [password, setPassword] = useState(() => generateSipPassword(''));
   const [webrtc, setWebrtc] = useState(false);
   const [recording, setRecording] = useState<RecordingPolicy>('never');
+  const [advancedOpen, setAdvancedOpen] = useState(false);
+  const calls = useCallSettings(DEFAULT_CALL_SETTINGS);
+
+  const passwordIssue = validateSipPassword(password, number.trim());
+  const valid = createExtensionValid({ number, name, password, webrtc, recording, calls: calls.state });
+
+  const reset = () => {
+    setNumber(''); setName(''); setPassword(generateSipPassword('')); setWebrtc(false); setRecording('never');
+    setAdvancedOpen(false); calls.setState(DEFAULT_CALL_SETTINGS);
+  };
 
   return (
     <Modal
       open={open}
-      onOpenChange={(v) => { onOpenChange(v); if (!v) { setNumber(''); setName(''); setWebrtc(false); setRecording('never'); } }}
+      onOpenChange={(v) => { onOpenChange(v); if (!v) reset(); }}
       title={t('createModal.title')}
       description={t('createModal.description')}
       footer={
@@ -274,8 +458,8 @@ function CreateExtensionModal({
           <Button variant="ghost" onClick={() => onOpenChange(false)}>{t('cancel')}</Button>
           <Button
             variant="primary" loading={pending} icon={<KeyRound />}
-            onClick={() => onSubmit({ number: number.trim() || undefined, name: name.trim(), webrtc: webrtc || undefined, recording })}
-            disabled={name.trim().length === 0}
+            onClick={() => onSubmit(createExtensionPayload({ number, name, password, webrtc, recording, calls: calls.state }))}
+            disabled={!valid}
           >
             {t('create')}
           </Button>
@@ -289,15 +473,60 @@ function CreateExtensionModal({
         <Field label={t('field.name')} required hint={t('field.nameHint', { max: NAME_MAX })}>
           {(a) => <Input {...a} autoFocus maxLength={NAME_MAX} value={name} onChange={(e) => setName(e.target.value)} />}
         </Field>
-        <Toggle checked={webrtc} onCheckedChange={setWebrtc} label={t('webrtc.label')} description={t('webrtc.desc')} />
-        {errorField === 'codecs' && <p className="text-sm text-danger">{errorMessage}</p>}
+
+        <Field label={t('sip.loginReadonlyLabel')} hint={t('sip.loginReadonlyHint')}>
+          {(a) => <Input {...a} mono readOnly value={number.trim() || t('sip.loginPending')} />}
+        </Field>
+
+        <SipPasswordField
+          password={password} onChange={setPassword} onRegenerate={() => setPassword(generateSipPassword(number.trim()))}
+          issue={passwordIssue} serverError={errorField === 'password' ? errorMessage : undefined}
+          label={t('password.label')} hint={t('password.hint')}
+        />
+
+        <button
+          type="button" onClick={() => setAdvancedOpen((v) => !v)}
+          className="flex items-center gap-1.5 self-start text-sm font-medium text-brand hover:underline"
+          aria-expanded={advancedOpen}
+        >
+          <ChevronDown aria-hidden className={cn('size-4 transition-transform duration-fast', advancedOpen && 'rotate-180')} />
+          {t('createModal.advancedToggle')}
+        </button>
+        {advancedOpen && (
+          <div className="flex flex-col gap-4 rounded-md border border-line bg-surface-2/40 p-3">
+            <Toggle checked={webrtc} onCheckedChange={setWebrtc} label={t('webrtc.label')} description={t('webrtc.desc')} />
+            {errorField === 'codecs' && <p className="text-sm text-danger">{errorMessage}</p>}
+            <RecordingSelect value={recording} onChange={setRecording} />
+            <CallSettingsFields
+              calls={calls.state} setDnd={calls.setDnd} setForwardAlways={calls.setForwardAlways} setForwardBusy={calls.setForwardBusy}
+              setPickupGroup={calls.setPickupGroup} setOutboundAllowed={calls.setOutboundAllowed} setOutboundCallerid={calls.setOutboundCallerid}
+              errorField={errorField} errorMessage={errorMessage}
+            />
+          </div>
+        )}
       </div>
     </Modal>
   );
 }
 
+/** Qo'ng'iroq maydonlari (forward/pickup/chiquvchi) oʻz ichida alohida xato banner koʻrsatadi — bu yerda qaytarilmasin. */
+const EDIT_FIELD_LEVEL_ERRORS = ['forward_always', 'forward_busy', 'pickup_group', 'outbound_callerid', 'codecs'];
+
+function showsGenericEditError(stale: boolean, errorField: string | undefined, errorMessage: string | undefined): boolean {
+  return !stale && !!errorMessage && !EDIT_FIELD_LEVEL_ERRORS.includes(errorField ?? '');
+}
+
+function confirmDiscardEdit(dirty: boolean, confirmMessage: string): boolean {
+  return !dirty || window.confirm(confirmMessage);
+}
+
+function CodecsFieldError({ errorField, errorMessage }: { errorField?: string; errorMessage?: string }) {
+  if (errorField !== 'codecs') return null;
+  return <p className="text-sm text-danger">{errorMessage}</p>;
+}
+
 function EditExtensionDrawer({
-  ext, onClose, onSubmit, pending, errorField, errorMessage, stale, onReloadStale, onFollowMeSaved,
+  ext, onClose, onSubmit, pending, errorField, errorMessage, stale, onReloadStale, onFollowMeSaved, onSecretChanged,
 }: {
   ext: Extension;
   onClose: () => void;
@@ -309,49 +538,30 @@ function EditExtensionDrawer({
   onReloadStale: () => void;
   /** Follow Me ham ichki raqam yozuvini yangilaydi — tahrir oynasi eski `updated_at` bilan `stale` olmasin. */
   onFollowMeSaved: (updatedAt: string) => void;
+  /** Parol almashtirilgach yangi SIP maʼlumotlarini koʻrsatish uchun. */
+  onSecretChanged: (sip: SipCredentials) => void;
 }) {
   const { t } = useTranslation('extensions');
   const [name, setName] = useState(ext.name);
   const [enabled, setEnabled] = useState(ext.enabled);
-  const [dnd, setDnd] = useState(ext.dnd);
-  const [forwardAlways, setForwardAlways] = useState(ext.forward_always ?? '');
-  const [forwardBusy, setForwardBusy] = useState(ext.forward_busy ?? '');
-  const [pickupGroup, setPickupGroup] = useState(ext.pickup_group ?? '');
   const [webrtc, setWebrtc] = useState(ext.webrtc);
   const [recording, setRecording] = useState<RecordingPolicy>(ext.recording);
+  const calls = useCallSettings(callSettingsFromExtension(ext));
 
-  const dirty = name !== ext.name || enabled !== ext.enabled || dnd !== ext.dnd || webrtc !== ext.webrtc || recording !== ext.recording
-    || forwardAlways !== (ext.forward_always ?? '') || forwardBusy !== (ext.forward_busy ?? '') || pickupGroup !== (ext.pickup_group ?? '');
+  const fields = { name, enabled, webrtc, recording, calls: calls.state };
+  const dirty = editExtensionDirty(fields, ext);
+  const valid = editExtensionValid(fields);
 
-  const forwardAlwaysValid = forwardAlways.trim() === '' || FORWARD_NUMBER_RE.test(forwardAlways.trim());
-  const forwardBusyValid = forwardBusy.trim() === '' || FORWARD_NUMBER_RE.test(forwardBusy.trim());
-  const pickupGroupValid = pickupGroup.trim() === '' || PICKUP_GROUP_RE.test(pickupGroup.trim());
-  const valid = name.trim().length > 0 && forwardAlwaysValid && forwardBusyValid && pickupGroupValid;
-
-  // Faqat haqiqatan o'zgargan maydonlar yuboriladi — §1: agar FAQAT dnd/forward/pickup o'zgarsa,
-  // backend realtime-only apply qaytaradi (name/enabled bo'lmasa). To'liq payload yuborish bu holatni yo'qqa chiqarardi.
   const submit = () => {
     if (!valid) return;
-    const payload: UpdateExtensionPayload = { updated_at: ext.updated_at };
-    if (name.trim() !== ext.name) payload.name = name.trim();
-    if (enabled !== ext.enabled) payload.enabled = enabled;
-    if (dnd !== ext.dnd) payload.dnd = dnd;
-    if (webrtc !== ext.webrtc) payload.webrtc = webrtc;
-    if (recording !== ext.recording) payload.recording = recording;
-    const nextForwardAlways = forwardAlways.trim() || null;
-    if (nextForwardAlways !== (ext.forward_always ?? null)) payload.forward_always = nextForwardAlways;
-    const nextForwardBusy = forwardBusy.trim() || null;
-    if (nextForwardBusy !== (ext.forward_busy ?? null)) payload.forward_busy = nextForwardBusy;
-    const nextPickupGroup = pickupGroup.trim() || null;
-    if (nextPickupGroup !== (ext.pickup_group ?? null)) payload.pickup_group = nextPickupGroup;
-    onSubmit(payload);
+    onSubmit(updateExtensionPayload(fields, ext));
   };
 
   return (
     <Drawer
       open
       onOpenChange={(v) => !v && onClose()}
-      onAttemptClose={() => !dirty || window.confirm(t('editDrawer.confirmDiscard'))}
+      onAttemptClose={() => confirmDiscardEdit(dirty, t('editDrawer.confirmDiscard'))}
       title={t('editDrawer.title', { number: ext.number })}
       description={ext.contact ?? t('editDrawer.noPhone')}
       footer={
@@ -370,7 +580,7 @@ function EditExtensionDrawer({
             <Button size="sm" variant="secondary" onClick={onReloadStale}>{t('editDrawer.reloadList')}</Button>
           </div>
         )}
-        {!stale && errorMessage && !['forward_always', 'forward_busy', 'pickup_group', 'codecs'].includes(errorField ?? '') && (
+        {showsGenericEditError(stale, errorField, errorMessage) && (
           <p className="text-sm text-danger">{errorMessage}</p>
         )}
         <Field label={t('field.name')} required hint={t('field.nameHint', { max: NAME_MAX })}>
@@ -379,32 +589,18 @@ function EditExtensionDrawer({
         <Toggle checked={enabled} onCheckedChange={setEnabled} label={t('field.enabled')} description={t('field.enabledDesc')} />
         <Toggle checked={webrtc} onCheckedChange={setWebrtc} label={t('webrtc.label')} description={t('webrtc.desc')} />
         <RecordingSelect value={recording} onChange={setRecording} />
-        {errorField === 'codecs' && <p className="text-sm text-danger">{errorMessage}</p>}
+        <CodecsFieldError errorField={errorField} errorMessage={errorMessage} />
 
         <div className="flex flex-col gap-4 border-t border-line pt-4">
           <p className="mb-1 flex items-center gap-1.5 text-sm font-medium text-fg"><BellOff aria-hidden className="size-4 text-brand" /> {t('calls.title')}</p>
-          <Toggle checked={dnd} onCheckedChange={setDnd} label={t('calls.dndLabel')} description={t('calls.dndDesc')} />
-          <Field
-            label={t('calls.forwardAlwaysLabel')} hint={t('calls.forwardAlwaysHint')}
-            error={errorField === 'forward_always' ? errorMessage : !forwardAlwaysValid ? t('calls.forwardAlwaysHint') : undefined}
-          >
-            {(a) => <Input {...a} mono value={forwardAlways} onChange={(e) => setForwardAlways(e.target.value)} />}
-          </Field>
-          <Field
-            label={t('calls.forwardBusyLabel')} hint={t('calls.forwardBusyHint')}
-            error={errorField === 'forward_busy' ? errorMessage : !forwardBusyValid ? t('calls.forwardBusyHint') : undefined}
-          >
-            {(a) => <Input {...a} mono value={forwardBusy} onChange={(e) => setForwardBusy(e.target.value)} />}
-          </Field>
-          <Field
-            label={t('calls.pickupGroupLabel')} hint={t('calls.pickupGroupHint')}
-            error={errorField === 'pickup_group' ? errorMessage : !pickupGroupValid ? t('calls.pickupGroupHint') : undefined}
-          >
-            {(a) => <Input {...a} mono value={pickupGroup} onChange={(e) => setPickupGroup(e.target.value)} />}
-          </Field>
-          <p className="text-xs text-muted">{t('calls.realtimeNotice')}</p>
+          <CallSettingsFields
+            calls={calls.state} setDnd={calls.setDnd} setForwardAlways={calls.setForwardAlways} setForwardBusy={calls.setForwardBusy}
+            setPickupGroup={calls.setPickupGroup} setOutboundAllowed={calls.setOutboundAllowed} setOutboundCallerid={calls.setOutboundCallerid}
+            errorField={errorField} errorMessage={errorMessage}
+          />
         </div>
 
+        <ChangePasswordSection ext={ext} onChanged={onSecretChanged} />
         <FollowMeSection target={ext.id} onSaved={onFollowMeSaved} className="border-t border-line pt-4" />
         <VoicemailSection ext={ext} />
         <DevicesSection ext={ext} />

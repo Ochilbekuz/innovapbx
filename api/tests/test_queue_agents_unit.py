@@ -91,7 +91,7 @@ async def test_unpause_member_clears_reason():
 
 # ------------------------------------------------------- interface nomlari
 def test_queue_interface_builds_pjsip_uri():
-    assert qa.queue_interface("t1", "201") == "PJSIP/t1-201"
+    assert qa.queue_interface("t1", "201") == "PJSIP/201"
 
 
 def test_queue_asterisk_name_builds_tenant_scoped_queue_name():
@@ -118,7 +118,7 @@ async def test_nudge_pause_state_sends_queue_pause_with_scoped_queue():
     ami = _FakeAmi()
     await qa.nudge_pause_state(ami, tenant_code="t1", number="201", queue_id="q1", paused=True, reason="tushlik")
     assert ami.actions == [("QueuePause", {
-        "Interface": "PJSIP/t1-201", "Paused": "true", "Queue": "t1-q-q1", "Reason": "tushlik",
+        "Interface": "PJSIP/201", "Paused": "true", "Queue": "t1-q-q1", "Reason": "tushlik",
     })]
 
 

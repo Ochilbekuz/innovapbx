@@ -157,3 +157,101 @@ describe('ExtensionsPage — Qoʻngʻiroqlar boʻlimi', () => {
     expect((await client.followMe('e-103')).follow_me.numbers).toEqual(['104', '105']);
   });
 });
+
+describe('ExtensionsPage — yangi ichki raqam yaratish (SIP parol)', () => {
+  beforeEach(async () => {
+    await loginAs(client, 'admin');
+  });
+  afterEach(() => useSession.getState().clear());
+
+  it("o'z parolini kiritib yaratish — SIP oynasida login=raqam, kiritilgan parol koʻrsatiladi", async () => {
+    const user = userEvent.setup();
+    renderPage(<ExtensionsPage />);
+
+    await user.click(await screen.findByRole('button', { name: 'Yangi ichki raqam' }));
+    const modal = await screen.findByRole('dialog', { name: 'Yangi ichki raqam' });
+    await user.type(within(modal).getByRole('textbox', { name: 'Nom' }), 'Test Foydalanuvchi');
+
+    const passwordInput = within(modal).getByLabelText(/SIP paroli/);
+    await user.clear(passwordInput);
+    await user.type(passwordInput, 'MySecret123');
+
+    await user.click(within(modal).getByRole('button', { name: 'Yaratish' }));
+
+    const sipDialog = await screen.findByRole('dialog', { name: /SIP maʼlumotlari/ });
+    const newNumber = (await client.listExtensions({})).items.find((e) => e.name === 'Test Foydalanuvchi')!.number;
+    expect(within(sipDialog).getByText(newNumber)).toBeTruthy();
+    expect(within(sipDialog).getByText('MySecret123')).toBeTruthy();
+  });
+
+  it('zaif parol — Yaratish tugmasi oʻchiq, maydon ostida xato koʻrinadi', async () => {
+    const user = userEvent.setup();
+    renderPage(<ExtensionsPage />);
+
+    await user.click(await screen.findByRole('button', { name: 'Yangi ichki raqam' }));
+    const modal = await screen.findByRole('dialog', { name: 'Yangi ichki raqam' });
+    await user.type(within(modal).getByRole('textbox', { name: 'Nom' }), 'Zaif Parol');
+
+    const passwordInput = within(modal).getByLabelText(/SIP paroli/);
+    await user.clear(passwordInput);
+    await user.type(passwordInput, '1234567');
+
+    expect(await within(modal).findByText('Parol kamida 8 belgidan iborat boʻlsin.')).toBeTruthy();
+    expect(within(modal).getByRole('button', { name: 'Yaratish' })).toBeDisabled();
+  });
+
+  it('qoʻshimcha sozlamalar — DND va «Har doim» yozib olish yaratishda saqlanadi', async () => {
+    const user = userEvent.setup();
+    renderPage(<ExtensionsPage />);
+
+    await user.click(await screen.findByRole('button', { name: 'Yangi ichki raqam' }));
+    const modal = await screen.findByRole('dialog', { name: 'Yangi ichki raqam' });
+    await user.type(within(modal).getByRole('textbox', { name: 'Nom' }), 'Qoʻshimcha Sozlama');
+
+    await user.click(within(modal).getByRole('button', { name: 'Qoʻshimcha sozlamalar' }));
+    await user.click(within(modal).getByRole('switch', { name: 'Bezovta qilmang (DND)' }));
+    await user.click(within(modal).getByRole('combobox', { name: 'Yozib olish' }));
+    await user.click(await screen.findByRole('option', { name: 'Har doim' }));
+
+    await user.click(within(modal).getByRole('button', { name: 'Yaratish' }));
+    await screen.findByRole('dialog', { name: /SIP maʼlumotlari/ });
+
+    const item = (await client.listExtensions({})).items.find((e) => e.name === 'Qoʻshimcha Sozlama');
+    expect(item?.dnd).toBe(true);
+    expect(item?.recording).toBe('always');
+  });
+});
+
+describe('ExtensionsPage — SIP parolini almashtirish', () => {
+  beforeEach(async () => {
+    await loginAs(client, 'admin');
+  });
+  afterEach(() => useSession.getState().clear());
+
+  it("oʻz parolini kiritib almashtirish — muvaffaqiyat, yangi SIP oynasi koʻrinadi", async () => {
+    const user = userEvent.setup();
+    renderPage(<ExtensionsPage />);
+
+    await user.click(await screen.findByRole('button', { name: '108ni tahrirlash' }));
+    const drawer = await screen.findByRole('dialog');
+    await user.click(within(drawer).getByRole('button', { name: 'Oʻz parolimni kiritaman' }));
+
+    const newPasswordInput = within(drawer).getByLabelText(/Yangi parol/);
+    await user.type(newPasswordInput, 'NewSecret123');
+    await user.click(within(drawer).getByTestId('change-password-save'));
+
+    const sipDialog = await screen.findByRole('dialog', { name: /yangi SIP maʼlumotlari/ });
+    expect(within(sipDialog).getByText('NewSecret123')).toBeTruthy();
+  });
+
+  it('yangi tasodifiy parol generatsiya qilish — muvaffaqiyat', async () => {
+    const user = userEvent.setup();
+    renderPage(<ExtensionsPage />);
+
+    await user.click(await screen.findByRole('button', { name: '106ni tahrirlash' }));
+    const drawer = await screen.findByRole('dialog');
+    await user.click(within(drawer).getByRole('button', { name: 'Yangi tasodifiy parol' }));
+
+    await screen.findByRole('dialog', { name: /yangi SIP maʼlumotlari/ });
+  });
+});

@@ -28,6 +28,7 @@ from app.services.crypto import decrypt_secret
 from app.services.dialplan_features import PARK_FIRST_SLOT, PARK_LAST_SLOT
 from app.services.live_status import endpoint_contact_hosts
 from app.services.prov_render import CommonCtx, DeviceCtx, KeySpec, masked, render
+from app.services.sip_identity import endpoint_id as _endpoint_id_for_number
 from app.services.prov_settings import ProvSettings
 
 CHECK_SYNC_OPTION = "innova-check-sync"  # asterisk/etc-asterisk/pjsip_notify.conf
@@ -92,7 +93,10 @@ async def sip_passwords(session: AsyncSession, ext_ids: list[str]) -> dict[str, 
 
 
 def endpoint_id(tenant_code: str, ext: Extension) -> str:
-    return f"{tenant_code}-{ext.number}"
+    """ESKI signatura ATAYLAB saqlanadi (barcha chaqiruvchilar o'zgarmasin) —
+    nomlash qarori endi YAGONA joyda, `sip_identity.endpoint_id()`da
+    (`tenant_code` endi ishlatilmaydi, prefiks O'CHIRILGAN — m-sip-login-plain-number)."""
+    return _endpoint_id_for_number(ext.number)
 
 
 def device_ctx(device: Device, ext: Extension, keys: list[DeviceKey], tp: TenantProv, password: str) -> DeviceCtx:

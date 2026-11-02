@@ -113,7 +113,7 @@ def test_device_ctx_and_hash() -> None:
                                                                                            value="102", label="a")]
     ctx = svc.device_ctx(_device(label="Lobby"), _ext(callerid_name="Qabul"), keys, _tp(admin="adm"), "pw")
     assert (ctx.mac, ctx.sip_user, ctx.display_name, ctx.password, ctx.label) == (
-        "805ec0a40001", "t1-101", "Qabul", "pw", "Lobby")
+        "805ec0a40001", "101", "Qabul", "pw", "Lobby")
     assert [k.idx for k in ctx.keys] == [1, 2] and ctx.admin_password == "adm"
     assert svc.device_ctx(_device(), _ext(), [], _tp(), "pw").display_name == "Ali"
     # so'rovdan olingan host hash'ga ta'sir qilmaydi (boshqa domen orqali kirilsa ham stale emas)
@@ -267,7 +267,7 @@ async def test_notify_extension_devices() -> None:
     assert await svc.notify_extension_devices(FakeSession(0), ami, _ext(), "t1") is False
     assert ami.actions == []
     assert await svc.notify_extension_devices(FakeSession(1), ami, _ext(), "t1") is True
-    assert ami.actions[0][1]["Endpoint"] == "t1-101"
+    assert ami.actions[0][1]["Endpoint"] == "101"
     assert await svc.notify_extension_devices(FakeSession(1), FakeAmi(raise_exc=OSError("down")), _ext(), "t1") is False
     assert await svc.notify_extension_devices(FakeSession(1), FakeAmi({"Response": "Error"}), _ext(), "t1") is False
 
