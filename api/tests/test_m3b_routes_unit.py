@@ -322,3 +322,25 @@ def test_link_is_valid(monkeypatch):
     assert public.link_is_valid("r1", exp, sig)
     assert not public.link_is_valid("r2", exp, sig)
     assert not public.link_is_valid("r1", exp - 120, recordings.link_signature("r1", exp - 120, "s" * 40))
+
+
+@pytest.mark.asyncio
+async def test_public_extensions_lists_numbers_without_secrets(monkeypatch):
+    # Regress: `_bulk_extension_out` imzosi o'zgarganda public API 500 berardi (m3b isboti ushladi).
+    ext = SimpleNamespace(number="101", name="Ali", enabled=True)
+
+    class _Res:
+        def scalars(self):
+            return SimpleNamespace(all=lambda: [ext])
+
+    class _Session:
+        async def execute(self, _stmt):
+            return _Res()
+
+    async def fake_bulk(ami, items):
+        assert ami == "AMI" and items == [ext]
+        return [SimpleNamespace(number="101", name="Ali", enabled=True, status="online")]
+
+    monkeypatch.setattr(public, "_bulk_extension_out", fake_bulk)
+    out = await public.public_extensions(session=_Session(), ami="AMI", key=SimpleNamespace(tenant_id="t"))
+    assert [i.model_dump() for i in out["items"]] == [{"number": "101", "name": "Ali", "enabled": True, "status": "online"}]

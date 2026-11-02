@@ -74,7 +74,7 @@ for c in 201 trunk; do
   for f in outbound_invite.py vm_caller.py; do docker cp "$SIPP_DIR/$f" "m6-proof-$c:/tmp/$f"; done
 done
 docker exec m6-proof-201 sh -c "echo answer > /tmp/mode"
-docker exec -d m6-proof-201 sh -c "cd /tmp && python3 m2a_phone.py serve t1-201 '$SECRET' 5070 12000 /tmp/mode 900 > /tmp/phone.log 2>&1"
+docker exec -d m6-proof-201 sh -c "cd /tmp && python3 m2a_phone.py serve 201 '$SECRET' 5070 12000 /tmp/mode 900 > /tmp/phone.log 2>&1"
 docker exec m6-proof-trunk sh -c "echo answer > /tmp/mode"
 docker exec -d m6-proof-trunk sh -c "cd /tmp && python3 m2a_phone.py serve trunk - 5060 12000 /tmp/mode 900 > /tmp/phone.log 2>&1"
 registered() { docker exec m6-proof-201 grep -q 'REGISTER_RESULT: OK' /tmp/phone.log 2>/dev/null; }

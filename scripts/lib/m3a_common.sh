@@ -29,7 +29,7 @@ ws_register() { # softphone_json parol n -> m3a_ws.py natijasi
 moh_lines() { docker logs "$AST" 2>&1 | grep -c "$1"; }
 # WS kontakt = Asterisk uni nginx (web konteyner) IP'si orqali ko'radi; `pjsip show contacts` URI
 # ustunini qisqartiradi (";transport=ws" ko'rinmaydi) — shu sabab manzil bo'yicha ajratamiz.
-ws_contact_line() { ast "pjsip show contacts" | grep -E "t1-$1/sip:[^ ]*@${NGINX_IP//./\\.}:"; }
+ws_contact_line() { ast "pjsip show contacts" | grep -E "$1/sip:[^ ]*@${NGINX_IP//./\\.}:"; }
 ws_contact() { ws_contact_line "$1" | grep -qE " (Avail|NonQual) "; }
 no_ws_contact() { [[ -z "$(ws_contact_line "$1")" ]]; }
 moh_gt() { (( $(moh_lines "$1") > $2 )); }

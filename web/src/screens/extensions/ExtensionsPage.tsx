@@ -37,15 +37,18 @@ import { copyText } from '@/lib/browser';
 
 const RECORDING_POLICIES: RecordingPolicy[] = ['always', 'never', 'on_demand'];
 
-/** Yozib olish siyosatini tanlash (always/never/on_demand) — M3b §1. `ext-recording-select` testid talab qilinadi. */
-function RecordingSelect({ value, onChange, disabled }: { value: RecordingPolicy; onChange: (v: RecordingPolicy) => void; disabled?: boolean }) {
+/** Yozib olish siyosatini tanlash (always/never/on_demand) — M3c §1: yoʻnalish boʻyicha MUSTAQIL
+ * (kiruvchi/chiquvchi). `ext-recording-in-select`/`ext-recording-out-select` testid talab qilinadi. */
+function RecordingSelect({ direction, value, onChange, disabled }: {
+  direction: 'in' | 'out'; value: RecordingPolicy; onChange: (v: RecordingPolicy) => void; disabled?: boolean;
+}) {
   const { t } = useTranslation('extensions');
   return (
-    <Field label={t('recording.label')} hint={t('recording.hint')}>
+    <Field label={t(`recording.${direction}.label`)} hint={t(`recording.${direction}.hint`)}>
       {(a) => (
         <Select
           {...a}
-          data-testid="ext-recording-select"
+          data-testid={`ext-recording-${direction}-select`}
           disabled={disabled}
           value={value}
           onValueChange={(v) => onChange(v as RecordingPolicy)}
@@ -435,15 +438,17 @@ function CreateExtensionModal({
   const [name, setName] = useState('');
   const [password, setPassword] = useState(() => generateSipPassword(''));
   const [webrtc, setWebrtc] = useState(false);
-  const [recording, setRecording] = useState<RecordingPolicy>('never');
+  const [recordingIn, setRecordingIn] = useState<RecordingPolicy>('never');
+  const [recordingOut, setRecordingOut] = useState<RecordingPolicy>('never');
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const calls = useCallSettings(DEFAULT_CALL_SETTINGS);
 
   const passwordIssue = validateSipPassword(password, number.trim());
-  const valid = createExtensionValid({ number, name, password, webrtc, recording, calls: calls.state });
+  const valid = createExtensionValid({ number, name, password, webrtc, recordingIn, recordingOut, calls: calls.state });
 
   const reset = () => {
-    setNumber(''); setName(''); setPassword(generateSipPassword('')); setWebrtc(false); setRecording('never');
+    setNumber(''); setName(''); setPassword(generateSipPassword('')); setWebrtc(false);
+    setRecordingIn('never'); setRecordingOut('never');
     setAdvancedOpen(false); calls.setState(DEFAULT_CALL_SETTINGS);
   };
 
@@ -458,7 +463,7 @@ function CreateExtensionModal({
           <Button variant="ghost" onClick={() => onOpenChange(false)}>{t('cancel')}</Button>
           <Button
             variant="primary" loading={pending} icon={<KeyRound />}
-            onClick={() => onSubmit(createExtensionPayload({ number, name, password, webrtc, recording, calls: calls.state }))}
+            onClick={() => onSubmit(createExtensionPayload({ number, name, password, webrtc, recordingIn, recordingOut, calls: calls.state }))}
             disabled={!valid}
           >
             {t('create')}
@@ -496,7 +501,8 @@ function CreateExtensionModal({
           <div className="flex flex-col gap-4 rounded-md border border-line bg-surface-2/40 p-3">
             <Toggle checked={webrtc} onCheckedChange={setWebrtc} label={t('webrtc.label')} description={t('webrtc.desc')} />
             {errorField === 'codecs' && <p className="text-sm text-danger">{errorMessage}</p>}
-            <RecordingSelect value={recording} onChange={setRecording} />
+            <RecordingSelect direction="in" value={recordingIn} onChange={setRecordingIn} />
+            <RecordingSelect direction="out" value={recordingOut} onChange={setRecordingOut} />
             <CallSettingsFields
               calls={calls.state} setDnd={calls.setDnd} setForwardAlways={calls.setForwardAlways} setForwardBusy={calls.setForwardBusy}
               setPickupGroup={calls.setPickupGroup} setOutboundAllowed={calls.setOutboundAllowed} setOutboundCallerid={calls.setOutboundCallerid}
@@ -545,10 +551,11 @@ function EditExtensionDrawer({
   const [name, setName] = useState(ext.name);
   const [enabled, setEnabled] = useState(ext.enabled);
   const [webrtc, setWebrtc] = useState(ext.webrtc);
-  const [recording, setRecording] = useState<RecordingPolicy>(ext.recording);
+  const [recordingIn, setRecordingIn] = useState<RecordingPolicy>(ext.recording_in);
+  const [recordingOut, setRecordingOut] = useState<RecordingPolicy>(ext.recording_out);
   const calls = useCallSettings(callSettingsFromExtension(ext));
 
-  const fields = { name, enabled, webrtc, recording, calls: calls.state };
+  const fields = { name, enabled, webrtc, recordingIn, recordingOut, calls: calls.state };
   const dirty = editExtensionDirty(fields, ext);
   const valid = editExtensionValid(fields);
 
@@ -588,7 +595,8 @@ function EditExtensionDrawer({
         </Field>
         <Toggle checked={enabled} onCheckedChange={setEnabled} label={t('field.enabled')} description={t('field.enabledDesc')} />
         <Toggle checked={webrtc} onCheckedChange={setWebrtc} label={t('webrtc.label')} description={t('webrtc.desc')} />
-        <RecordingSelect value={recording} onChange={setRecording} />
+        <RecordingSelect direction="in" value={recordingIn} onChange={setRecordingIn} />
+        <RecordingSelect direction="out" value={recordingOut} onChange={setRecordingOut} />
         <CodecsFieldError errorField={errorField} errorMessage={errorMessage} />
 
         <div className="flex flex-col gap-4 border-t border-line pt-4">

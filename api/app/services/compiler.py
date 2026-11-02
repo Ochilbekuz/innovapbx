@@ -658,7 +658,8 @@ def _outbound_context_lines(
     if enforce_extension_filter:
         blocked = _or_expr("INNOVA_SRC_EXT", blocked_numbers) if blocked_numbers else None
         lines += feat.outbound_source_lines(blocked)
-        lines.append(f" same => n,Set(__INNOVA_REC_SRC={code}-${{INNOVA_SRC_EXT}})")
+        # 0027: ichki raqam endpoint'i = raqamning o'zi (`sip_identity.endpoint_id`) — prefikssiz.
+        lines.append(" same => n,Set(__INNOVA_REC_SRC=${INNOVA_SRC_EXT})")
         lines.append(" same => n,Set(INNOVA_EXT_CID=)")
         lines += _ext_callerid_lookup_lines(extension_callerids)
         lines += _toll_intl_detect_lines()

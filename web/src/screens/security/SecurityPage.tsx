@@ -382,6 +382,7 @@ function SettingsForm({
   const [windowS, setWindowS] = useState(String(settings.sip_guard.window_s));
   const [banS, setBanS] = useState(String(settings.sip_guard.ban_s));
   const [trustedNets, setTrustedNets] = useState(settings.sip_guard.trusted_nets.join('\n'));
+  const [trustLan, setTrustLan] = useState(settings.sip_guard.trust_lan);
   const [tollEnabled, setTollEnabled] = useState(settings.toll_fraud.enabled);
   const [maxConcurrent, setMaxConcurrent] = useState(String(settings.toll_fraud.max_concurrent_outbound));
   const [extMaxPerHour, setExtMaxPerHour] = useState(String(settings.toll_fraud.ext_max_per_hour));
@@ -394,7 +395,7 @@ function SettingsForm({
     onSubmit({
       sip_guard: {
         enabled: sipEnabled, max_failures: Number(maxFailures), window_s: Number(windowS), ban_s: Number(banS),
-        trusted_nets: splitList(trustedNets),
+        trusted_nets: splitList(trustedNets), trust_lan: trustLan,
       },
       toll_fraud: {
         enabled: tollEnabled, max_concurrent_outbound: Number(maxConcurrent), ext_max_per_hour: Number(extMaxPerHour),
@@ -434,6 +435,10 @@ function SettingsForm({
           >
             {(a) => <Textarea {...a} className="num" disabled={!canManage} rows={3} value={trustedNets} onChange={(e) => setTrustedNets(e.target.value)} />}
           </Field>
+          <Toggle
+            checked={trustLan} disabled={!canManage} onCheckedChange={setTrustLan}
+            label={t('settings.sipGuard.trustLan')} description={t('settings.sipGuard.trustLanHint')}
+          />
         </div>
       </section>
 

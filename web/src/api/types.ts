@@ -57,7 +57,11 @@ export type Extension = {
   /** Faqat `webrtc=true` bo'lsa maʼnoli; aks holda boʻsh. Ruxsat etilgan toʻplam: opus, g722, ulaw, alaw. */
   codecs: string[];
   // M3b §1 — qarang ../../replica/m3b-contract.md §1 (qo'ngiroq yozib olish).
+  /** @deprecated — `recording_in` bilan bir xil (orqaga moslik). */
   recording: RecordingPolicy;
+  // M3c §1 — yo'nalish bo'yicha MUSTAQIL siyosat: shu raqamga KELGAN / shu raqamdan CHIQQAN qo'ng'iroq.
+  recording_in: RecordingPolicy;
+  recording_out: RecordingPolicy;
 };
 
 /** M3b §1 — `always`: har doim yoziladi; `never`: hech qachon; `on_demand`: `*1` bilan yoqiladi/oʻchiriladi. */
@@ -175,7 +179,10 @@ export type CreateExtensionPayload = {
   outbound_callerid?: string | null;
   webrtc?: boolean;
   codecs?: string[];
+  /** @deprecated — berilsa IKKALASINI (`recording_in`/`recording_out`) o'rnatadi; aniq maydonlar ustun turadi. */
   recording?: RecordingPolicy;
+  recording_in?: RecordingPolicy;
+  recording_out?: RecordingPolicy;
 };
 export type UpdateExtensionPayload = {
   name?: string;
@@ -190,8 +197,10 @@ export type UpdateExtensionPayload = {
   // M3a §2 — webrtc va codecs birgalikda tekshiriladi (422 `webrtc_codec`, field `codecs`).
   webrtc?: boolean;
   codecs?: string[];
-  // M3b §1 — qo'ngiroq yozib olish siyosati.
+  // M3b §1 / M3c §1 — qo'ngiroq yozib olish siyosati (eski maydon — ikkalasini birga o'rnatadi).
   recording?: RecordingPolicy;
+  recording_in?: RecordingPolicy;
+  recording_out?: RecordingPolicy;
   updated_at: string;
 };
 
@@ -758,7 +767,7 @@ export type ReportsDailyRow = { date: string; total: number; answered: number; m
 
 // §1 — xavfsizlik sozlamalari (S33 «Sozlamalar»)
 
-export type SipGuardConfig = { enabled: boolean; max_failures: number; window_s: number; ban_s: number; trusted_nets: string[] };
+export type SipGuardConfig = { enabled: boolean; max_failures: number; window_s: number; ban_s: number; trusted_nets: string[]; trust_lan: boolean };
 export type TollFraudConfig = { enabled: boolean; max_concurrent_outbound: number; ext_max_per_hour: number; ext_international_per_day: number };
 export type SecuritySettings = { sip_guard: SipGuardConfig; toll_fraud: TollFraudConfig; updated_at: string };
 export type UpdateSecuritySettingsPayload = { sip_guard?: Partial<SipGuardConfig>; toll_fraud?: Partial<TollFraudConfig>; updated_at: string };

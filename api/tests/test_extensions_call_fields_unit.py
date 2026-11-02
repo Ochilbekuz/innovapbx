@@ -35,7 +35,8 @@ def _ext(**kw):
     base = dict(id="e1", number="201", name="Ali", enabled=True, outbound_allowed=True,
                 outbound_callerid=None, dnd=False, forward_always=None, forward_busy="202",
                 pickup_group=None, toll_blocked_at=None, toll_block_reason=None, updated_at=OLD,
-                webrtc=False, codecs=["ulaw", "alaw", "g722", "opus"])
+                webrtc=False, codecs=["ulaw", "alaw", "g722", "opus"],
+                recording="never", recording_out="never")
     base.update(kw)
     return SimpleNamespace(**base)
 
@@ -156,6 +157,56 @@ def test_ext_out_has_call_fields():
     item = ex._ext_out(_ext(dnd=True, pickup_group="g1"))
     assert (item.dnd, item.forward_always, item.forward_busy, item.pickup_group) == (True, None, "202", "g1")
     assert item.status == "unknown"
+
+
+# ------------------------------------------------------------ M3c §1: recording_in/recording_out
+def test_ext_out_exposes_recording_in_and_out():
+    item = ex._ext_out(_ext(recording="always", recording_out="never"))
+    assert (item.recording, item.recording_in, item.recording_out) == ("always", "always", "never")
+
+
+@pytest.mark.asyncio
+async def test_legacy_recording_sets_both_sides(env):
+    out = await _patch({"recording": "always"})
+    assert (out.item.recording_in, out.item.recording_out) == ("always", "always")
+    assert env["audit"][0]["diff"] == {
+        "recording": {"from": "never", "to": "always"},
+        "recording_out": {"from": "never", "to": "always"},
+    }
+
+
+@pytest.mark.asyncio
+async def test_explicit_recording_in_out_override_legacy(env):
+    """Aniq `recording_in`/`recording_out` eski `recording`dan USTUN turadi."""
+    out = await _patch({"recording": "always", "recording_in": "never", "recording_out": "on_demand"})
+    assert (out.item.recording_in, out.item.recording_out) == ("never", "on_demand")
+
+
+@pytest.mark.asyncio
+async def test_recording_in_only_does_not_touch_out(env):
+    out = await _patch({"recording_in": "always"})
+    assert (out.item.recording_in, out.item.recording_out) == ("always", "never")
+
+
+@pytest.mark.asyncio
+async def test_recording_change_alone_is_realtime(env):
+    out = await _patch({"recording_out": "always"})
+    assert env["applied"] == 0
+    assert out.apply.model_dump() == {"status": "applied", "revision": None, "message": None}
+
+
+def test_recording_changes_merge_rule_unit():
+    """`_recording_changes` — BITTA joy, create/update ikkalasi ham foydalanadi."""
+    from app.schemas import UpdateExtensionPayload
+
+    only_legacy = UpdateExtensionPayload(updated_at=OLD, recording="always")
+    assert ex._recording_changes(only_legacy) == {"recording": "always", "recording_out": "always"}
+
+    override = UpdateExtensionPayload(updated_at=OLD, recording="always", recording_in="never")
+    assert ex._recording_changes(override) == {"recording": "never", "recording_out": "always"}
+
+    nothing = UpdateExtensionPayload(updated_at=OLD)
+    assert ex._recording_changes(nothing) == {}
 
 
 class _NumSession:

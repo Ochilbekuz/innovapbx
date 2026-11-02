@@ -159,19 +159,19 @@ else
   sed 's/712000000/712099001/' "$SIPP_DIR/uac_trunk_invite.xml" > /tmp/m0proof_uac.xml
   docker cp /tmp/m0proof_uac.xml innova-m0-proof-uac:/tmp/uac_trunk_invite.xml
 
-  OLD_OUT=$(docker exec innova-m0-proof-uas python3 /tmp/register_only.py asterisk 5060 5080 "t1-201" "$OLD_SECRET" 3600 5080 2>&1 || true)
+  OLD_OUT=$(docker exec innova-m0-proof-uas python3 /tmp/register_only.py asterisk 5060 5080 "201" "$OLD_SECRET" 3600 5080 2>&1 || true)
   if echo "$OLD_OUT" | grep -q "REGISTER OK"; then fail "eski parol bilan REGISTER o'tib ketdi (rotate kuchga kirmagan)"; else pass "eski parol bilan REGISTER -> rad etildi"; fi
-  REG_OUT=$(docker exec innova-m0-proof-uas python3 /tmp/register_only.py asterisk 5060 5080 "t1-201" "$EXT_SECRET" 3600 5080)
+  REG_OUT=$(docker exec innova-m0-proof-uas python3 /tmp/register_only.py asterisk 5060 5080 "201" "$EXT_SECRET" 3600 5080)
   RELOAD_AFTER=$(docker exec innova-m0-asterisk-1 asterisk -rx "core show uptime seconds" | awk '/Last reload/{print $3}')
   if [[ -n "$RELOAD_BEFORE" && -n "$RELOAD_AFTER" && "$RELOAD_AFTER" -ge "$RELOAD_BEFORE" ]]; then pass "rotate-secret Asterisk reload'siz kuchga kirdi (oxirgi reload: $RELOAD_BEFORE s -> $RELOAD_AFTER s oldin)"; else fail "Asterisk reload qilingan ko'rinadi ($RELOAD_BEFORE -> $RELOAD_AFTER)"; fi
-  if echo "$REG_OUT" | grep -q "REGISTER OK"; then pass "SIPp REGISTER t1-201 -> 200 OK"; else fail "SIPp REGISTER -> $REG_OUT"; fi
+  if echo "$REG_OUT" | grep -q "REGISTER OK"; then pass "SIPp REGISTER 201 -> 200 OK"; else fail "SIPp REGISTER -> $REG_OUT"; fi
 
   docker exec -d innova-m0-proof-uas python3 /tmp/options_responder.py "$UAS_IP" 5080 10
   sleep 0.5
-  docker exec innova-m0-asterisk-1 asterisk -rx "pjsip qualify t1-201" >/dev/null
+  docker exec innova-m0-asterisk-1 asterisk -rx "pjsip qualify 201" >/dev/null
   sleep 1
-  QSTATE=$(docker exec innova-m0-asterisk-1 asterisk -rx "pjsip show contacts" | grep "t1-201" || true)
-  if echo "$QSTATE" | grep -q "Avail "; then pass "AOR t1-201 qualify -> Avail"; else fail "AOR t1-201 qualify holati: $QSTATE"; fi
+  QSTATE=$(docker exec innova-m0-asterisk-1 asterisk -rx "pjsip show contacts" | grep "201" || true)
+  if echo "$QSTATE" | grep -q "Avail "; then pass "AOR 201 qualify -> Avail"; else fail "AOR 201 qualify holati: $QSTATE"; fi
 
   docker exec innova-m0-proof-uas bash -c "for p in /proc/[0-9]*; do pid=\$(basename \$p); readlink \$p/exe 2>/dev/null | grep -q python && kill -9 \$pid 2>/dev/null; done"
   docker exec -d innova-m0-proof-uas sipp -sf /tmp/uas_only.xml -i "$UAS_IP" -p 5080 -m 1 -timeout 600s

@@ -129,7 +129,7 @@ count_of() { plog "$1" | grep -c "^$2"; }
 invites_gt() { (( $(invites "$1") > $2 )); }
 count_gt() { (( $(count_of "$1" "$2") > $3 )); }
 mode 102 answer
-docker exec -d m3a-proof-102 sh -c "cd /tmp && python3 m2a_phone.py serve t1-102 '${SECRET[102]}' 5070 12000 /tmp/mode 900 > /tmp/phone.log 2>&1"
+docker exec -d m3a-proof-102 sh -c "cd /tmp && python3 m2a_phone.py serve 102 '${SECRET[102]}' 5070 12000 /tmp/mode 900 > /tmp/phone.log 2>&1"
 wait_until 15 sh -c "docker exec m3a-proof-102 grep -q 'REGISTER_RESULT: OK' /tmp/phone.log" \
   && pass "102 (python UAS) REGISTER -> 200" || fail "102 REGISTER -> $(plog 102)"
 CALL_N=0
@@ -161,8 +161,8 @@ check "$( [[ "$R" == "HTTP 401"* ]]; echo $?)" "1: /sip-ws buzilgan ticket -> 40
 SP_A=$(softphone_of "${TOKEN[A]}")
 R=$(ws_probe "$WS_BASE/sip-ws?t=$(sp_field "$SP_A" ticket)")
 check "$( [[ "$R" == "HTTP 101 sip" ]]; echo $?)" "1: /sip-ws to'g'ri ticket -> 101, Sec-WebSocket-Protocol: sip" "$R"
-check "$( [[ "$(jcode "$SP_A")" == "200" && "$(sp_field "$SP_A" sip auth_user)" == "t1-101" ]]; echo $?)" \
-  "1: /me/softphone (A) -> 200, auth_user t1-101" "$(jcode "$SP_A")"
+check "$( [[ "$(jcode "$SP_A")" == "200" && "$(sp_field "$SP_A" sip auth_user)" == "101" ]]; echo $?)" \
+  "1: /me/softphone (A) -> 200, auth_user 101" "$(jcode "$SP_A")"
 
 # ---------------------------------------------------------------- 2. brauzerda kirish
 echo "=== 2. Chromium: operator A (101), B (103), C (102) ==="
@@ -177,8 +177,8 @@ wait_until 25 bis A connection registered && wait_until 10 bis B connection regi
 check "$( bis A connection registered && bis B connection registered && bis A chip True && bis B chip True; echo $?)" \
   "2: A va B chip -> registered" "A=$(br 'state?who=A') B=$(br 'state?who=B')"
 wait_until 10 ws_contact 101 && wait_until 10 ws_contact 103
-check "$( ws_contact 101 && ws_contact 103; echo $?)" "2: pjsip show contacts -> t1-101 va t1-103 ws kontakt (Avail)" \
-  "nginx=$NGINX_IP $(ast 'pjsip show contacts' | grep -E 't1-10[13]/')"
+check "$( ws_contact 101 && ws_contact 103; echo $?)" "2: pjsip show contacts -> 101 va 103 ws kontakt (Avail)" \
+  "nginx=$NGINX_IP $(ast 'pjsip show contacts' | grep -E '10[13]/')"
 sleep 2
 R=$(softphone_of "${TOKEN[C]}")
 check "$( bis C connection unavailable && bis C chip False && [[ "$(jcode "$R")" == "409" ]]; echo $?)" \
@@ -224,7 +224,7 @@ wait_until 10 count_gt 102 'REQ BYE' "$B0"; wait_until 10 no_calls
 CDR=$(cdr_last 101 102)
 check "$( [[ "${CDR%%|*}" == "ANSWERED" ]]; echo $?)" "4: CDR 101 -> 102 ANSWERED (UAS BYE oldi)" "$CDR"
 
-bg_call 102 t1-102 "${SECRET[102]}" 101 4 c4
+bg_call 102 102 "${SECRET[102]}" 101 4 c4
 wait_until 15 bis A phase incoming
 check "$( [[ "$(bget A remoteNumber)" == "102" ]]; echo $?)" "4: 102 -> 101: A'da kiruvchi (102)" "$(br 'state?who=A')"
 br "click?who=A&id=answer" >/dev/null
@@ -352,8 +352,8 @@ wait_until 65 bis A chip False
 DT=$(( $(date +%s) - T0 ))
 check "$( bis A chip False && (( DT <= 60 )); echo $?)" "8: A chipi yo'qoldi (${DT} s <= 60 s)" "$(br 'state?who=A')"
 wait_until 10 no_ws_contact 101
-check "$(no_ws_contact 101; echo $?)" "8: t1-101 ws kontakti olib tashlandi (unregister)" \
-  "$(ast 'pjsip show contacts' | grep t1-101)"
+check "$(no_ws_contact 101; echo $?)" "8: 101 ws kontakti olib tashlandi (unregister)" \
+  "$(ast 'pjsip show contacts' | grep 101)"
 
 ERRS=$(br "errors?who=A")
 echo "    brauzer konsol xatolari (A): $ERRS"

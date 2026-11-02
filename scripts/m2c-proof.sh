@@ -140,7 +140,7 @@ check "$( [[ "$(jget "$(jbody "$ALERTS_SETUP_J")" chat_ids 0)" == "555" ]]; echo
 
 call_out() { # username secret dialed hold_ms -> stdout: outbound_invite.py natijasi
   LPORT=$((LPORT + 1))
-  docker exec m2c-proof-ext python3 /tmp/outbound_invite.py asterisk 5060 "$LPORT" "t1-$1" "$2" "$3" \
+  docker exec m2c-proof-ext python3 /tmp/outbound_invite.py asterisk 5060 "$LPORT" "$1" "$2" "$3" \
     --hold-ms "${4:-300}" --no-register 2>&1
 }
 LPORT=5300
@@ -287,7 +287,7 @@ if command -v docker >/dev/null; then
 
   uas_ready m2c-proof-trunk uas_log_and_answer.py "$TRUNK_IP" "$TRUNK_ID" 8
   docker exec -d m2c-proof-ext sh -c \
-    "python3 -u /tmp/outbound_invite.py asterisk 5060 5399 t1-203 '${SECRET[203]}' 0901234571 --hold-ms 3000 --no-register > /tmp/callA.log 2>&1"
+    "python3 -u /tmp/outbound_invite.py asterisk 5060 5399 203 '${SECRET[203]}' 0901234571 --hold-ms 3000 --no-register > /tmp/callA.log 2>&1"
   sleep 1.3
   CB=$(call_out 204 "${SECRET[204]}" 0901234572 300)
   if echo "$CB" | grep -q "FINAL: 200"; then fail "6: ikkinchi (parallel) chaqiruv KUTILMAGANDA 200 qaytardi: $CB"; else pass "6: ikkinchi (parallel) chaqiruv rad etildi (max_concurrent_outbound=1) ($CB)"; fi

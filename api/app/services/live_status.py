@@ -177,7 +177,8 @@ _CHANNEL_TABLE_COLUMNS = (
     "Channel", "Context", "Extension", "Prio", "State", "Application", "Data",
     "CallerID", "Duration", "Accountcode", "PeerAccount", "BridgeID",
 )
-_CHANNEL_SEQ_RE = re.compile(r"-(\d+)$")
+# Asterisk hisoblagichi 8 xonali HEX (`-0000000f`); `\d+` `e`/`f` li nomlarni 0 deb o'qirdi.
+_CHANNEL_SEQ_RE = re.compile(r"-([0-9a-fA-F]{8})$")
 
 
 _CHANNEL_TABLE_TRAILER_RE = re.compile(
@@ -233,7 +234,7 @@ def channel_creation_seq(channel: str) -> int:
     monoton o'suvchi hisoblagich, shu sabab bitta ko'prikdagi ikki oyoqdan
     QAYSI BIRI OLDIN yaratilganini (ya'ni "manba") shundan bilib olamiz."""
     match = _CHANNEL_SEQ_RE.search(channel.split(";")[0])
-    return int(match.group(1)) if match else 0
+    return int(match.group(1), 16) if match else 0
 
 
 def _group_rows_by_bridge(rows: list[dict[str, str]]) -> list[list[dict[str, str]]]:

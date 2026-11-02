@@ -25,6 +25,10 @@ class SipGuardConfig:
     window_s: int = 60
     ban_s: int = 3600          # 0 = muddatsiz
     trusted_nets: tuple[str, ...] = ()
+    # LAN (RFC1918/ULA/link-local) qurilmalari avtomatik bloklanmaydi (FreePBX'dagi «Local» zona kabi):
+    # telefonga noto'g'ri login yozilsa ofis IP'si 1 soat 403 olib, to'g'ri parol ham «xato» bo'lib qolardi.
+    # Urinishlar baribir statistikada sanaladi; qo'lda bloklash mumkin.
+    trust_lan: bool = True
 
 
 @dataclass(frozen=True)
@@ -113,6 +117,11 @@ def check_chat_ids(chat_ids: list[str]) -> str | None:
         return "Ko'pi bilan 10 ta chat"
     bad = next((c for c in chat_ids if not _CHAT_ID.match(str(c))), None)
     return f"Noto'g'ri chat ID: {bad}" if bad is not None else None
+
+
+def is_lan(ip: str) -> bool:
+    addr = ipaddress.ip_address(ip)
+    return addr.is_private or addr.is_link_local
 
 
 def is_trusted(ip: str, trusted_nets: tuple[str, ...] | list[str]) -> bool:

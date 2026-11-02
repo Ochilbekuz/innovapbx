@@ -419,10 +419,38 @@ async def test_handle_event_ws_failure_is_recorded_but_never_counted_or_banned()
 
 @pytest.mark.asyncio
 async def test_handle_event_udp_failure_from_same_ip_still_counts():
-    cfg = SipGuardConfig(max_failures=5)
+    cfg = SipGuardConfig(max_failures=5, trust_lan=False)
     session = _Session(exec_queue=[[], []])
     state = mod.SipGuardState()
     await mod._handle_event(session, TENANT, state, SecurityLogEvent("ChallengeResponseFailed", "172.21.0.9", "udp"),
                             cfg, now=0.0)
     assert len(state.recent_failures["172.21.0.9"]) == 1
     assert session.added[0].failures == 1
+
+
+@pytest.mark.asyncio
+async def test_handle_event_lan_ip_counted_but_never_banned_when_trust_lan():
+    # Telefonga noto'g'ri login yozilsa ofis IP'si bloklanib, to'g'ri parol ham 403 olardi.
+    cfg = SipGuardConfig(max_failures=3, window_s=60, ban_s=3600)
+    assert cfg.trust_lan is True
+    session = _Session()
+    state = mod.SipGuardState()
+    ev = SecurityLogEvent("ChallengeResponseFailed", "192.168.1.50")
+    for t in (0.0, 1.0, 2.0, 3.0):
+        await mod._handle_event(session, TENANT, state, ev, cfg, now=t)
+    assert not [o for o in session.added if type(o).__name__ == "IpBan"]
+    assert "192.168.1.50" not in state.recent_failures
+
+
+@pytest.mark.asyncio
+async def test_handle_event_lan_ip_banned_when_trust_lan_off(monkeypatch):
+    monkeypatch.setattr(mod, "raise_alert", lambda *a, **kw: _ok())
+    monkeypatch.setattr(mod, "tenant_language", lambda *a, **kw: _lang())
+    cfg = SipGuardConfig(max_failures=3, window_s=60, ban_s=3600, trust_lan=False)
+    session = _Session()
+    state = mod.SipGuardState()
+    ev = SecurityLogEvent("ChallengeResponseFailed", "10.0.0.7")
+    for t in (0.0, 1.0, 2.0):
+        await mod._handle_event(session, TENANT, state, ev, cfg, now=t)
+    bans = [o for o in session.added if type(o).__name__ == "IpBan"]
+    assert len(bans) == 1 and bans[0].ip == "10.0.0.7"

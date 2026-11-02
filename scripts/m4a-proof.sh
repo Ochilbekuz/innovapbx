@@ -171,7 +171,7 @@ kv = {}
 for line in sys.stdin.read().splitlines():
     if "=" in line and not line.startswith("#"):
         k, v = line.split("=", 1); kv[k.strip()] = v.strip()
-want = {"account.1.enable": "1", "account.1.auth_name": "t1-101", "account.1.user_name": "t1-101",
+want = {"account.1.enable": "1", "account.1.auth_name": "101", "account.1.user_name": "101",
         "account.1.password": sys.argv[1], "account.1.sip_server.1.address": "asterisk",
         "account.1.sip_server.1.port": "5060", "account.1.label": "Qabulxona",
         "linekey.1.type": "16", "linekey.1.value": "102", "linekey.2.type": "13",
@@ -182,8 +182,8 @@ check "$( [[ "$C" == "200" && "$YCHK" == "OK" ]]; echo $?)" \
   "2: ${FILE[y]} -> 200, account.1.* to'g'ri, linekey.1.type=16 value=102" "$C $YCHK"
 
 start_phone y 5060 4   # check-sync'dan keyin 4 s o'tib qayta yuklaydi (stale_config ko'rinsin)
-wait_until 15 log_has_n y "REGISTER 200 t1-101" 1
-check "$( log_has_n y "REGISTER 200 t1-101" 1; echo $?)" "2: Yealink config'dagi login/parol bilan REGISTER -> 200" \
+wait_until 15 log_has_n y "REGISTER 200 101" 1
+check "$( log_has_n y "REGISTER 200 101" 1; echo $?)" "2: Yealink config'dagi login/parol bilan REGISTER -> 200" \
   "$(docker exec m4a-proof-y cat /tmp/phone.log /tmp/phone.err 2>&1 | tail -5)"
 wait_until 10 status_is "$DEV_Y" registered
 check "$( status_is "$DEV_Y" registered; echo $?)" "2: /devices status registered" "$(dev "$DEV_Y")"
@@ -200,13 +200,13 @@ GCHK=$(python3 -c '
 import sys, xml.etree.ElementTree as ET
 root = ET.fromstring(sys.stdin.read())
 p = {el.tag: el.text for el in root.find("config")}
-ok = (root.tag == "gs_provision" and root.findtext("mac") == "000b82a40002" and p.get("P35") == "t1-102"
+ok = (root.tag == "gs_provision" and root.findtext("mac") == "000b82a40002" and p.get("P35") == "102"
       and p.get("P34") == sys.argv[1] and p.get("P47") == "asterisk:5060" and p.get("P271") == "1")
 print("OK" if ok else p)' "${SECRET[102]}" <<<"$GCFG" 2>&1)
 check "$( [[ "$C" == "200" && "$GCHK" == "OK" ]]; echo $?)" "3: ${FILE[g]} -> 200, XML valid, P35/P34/P47 to'g'ri" "$C $GCHK"
 start_phone g 5060
-wait_until 15 log_has_n g "REGISTER 200 t1-102" 1
-check "$( log_has_n g "REGISTER 200 t1-102" 1; echo $?)" "3: Grandstream XML'dagi login/parol bilan REGISTER -> 200" \
+wait_until 15 log_has_n g "REGISTER 200 102" 1
+check "$( log_has_n g "REGISTER 200 102" 1; echo $?)" "3: Grandstream XML'dagi login/parol bilan REGISTER -> 200" \
   "$(docker exec m4a-proof-g cat /tmp/phone.log /tmp/phone.err 2>&1 | tail -5)"
 wait_until 10 status_is "$DEV_G" registered
 check "$( status_is "$DEV_G" registered; echo $?)" "3: Grandstream status registered" "$(dev "$DEV_G")"
@@ -216,7 +216,7 @@ DEV_F=$(jget "$(jbody "$AJ")" item id)
 C=$(prov f "${FILE[f]}")
 docker exec m4a-proof-f sh -c 'cp /tmp/out /tmp/f.cfg'
 FCREDS=$(phone f creds fanvil /tmp/f.cfg)
-check "$( [[ "$(jcode "$AJ")" == "201" && "$C" == "200" && "$FCREDS" == "t1-105	${SECRET[105]}	asterisk	5060" ]]; echo $?)" \
+check "$( [[ "$(jcode "$AJ")" == "201" && "$C" == "200" && "$FCREDS" == "105	${SECRET[105]}	asterisk	5060" ]]; echo $?)" \
   "3: Fanvil -> 105, ${FILE[f]} 200, SIP1 Register User/Pswd/Addr/Port to'g'ri" "$C $FCREDS"
 check "$( status_is "$DEV_F" provisioned; echo $?)" "3: Fanvil (oldi, ro'yxatdan o'tmagan) -> provisioned" "$(dev "$DEV_F")"
 
@@ -232,13 +232,13 @@ check "$( [[ -n "$NEW_SECRET" && "$NEW_SECRET" != "$OLD_SECRET" && "$ST" == "sta
 wait_until 10 log_has_n y "NOTIFY Event: check-sync" 1
 check "$( log_has_n y "NOTIFY Event: check-sync" 1; echo $?)" "4: apparat NOTIFY Event: check-sync oldi" \
   "$(docker exec m4a-proof-y cat /tmp/phone.log 2>&1 | tail -5)"
-wait_until 20 log_has_n y "REGISTER 200 t1-101" 2
-check "$( [[ "$(log_count y 'FETCH 200')" -ge 2 ]] && log_has_n y "REGISTER 200 t1-101" 2; echo $?)" \
+wait_until 20 log_has_n y "REGISTER 200 101" 2
+check "$( [[ "$(log_count y 'FETCH 200')" -ge 2 ]] && log_has_n y "REGISTER 200 101" 2; echo $?)" \
   "4: apparat config'ni qayta oldi va YANGI parol bilan REGISTER -> 200" "$(docker exec m4a-proof-y cat /tmp/phone.log | tail -4)"
 ST=$(dev_field "$DEV_Y" status); PROV_AT_2=$(dev_field "$DEV_Y" provisioned_at)
 check "$( [[ "$ST" != "stale_config" && "$PROV_AT_2" > "$PROV_AT_1" ]]; echo $?)" \
   "4: qayta yuklashdan keyin stale_config emas ($ST), provisioned_at yangilandi" "$ST $PROV_AT_1 -> $PROV_AT_2"
-OLD_R=$(phone y register t1-101 "$OLD_SECRET" asterisk 5060 5099)
+OLD_R=$(phone y register 101 "$OLD_SECRET" asterisk 5060 5099)
 check "$( [[ "$OLD_R" == "REGISTER 401" ]]; echo $?)" "4: eski parol bilan REGISTER -> 401" "$OLD_R"
 RS=$(api POST "/devices/$DEV_F/resync")
 check "$( err_is "$RS" 409 not_registered; echo $?)" "4: POST /resync ro'yxatda bo'lmagan apparatga (Fanvil) -> 409" "$RS"

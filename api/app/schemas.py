@@ -121,8 +121,11 @@ class ExtensionOut(BaseModel):
     # M3a §2 — `true`: raqamning YAGONA qurilmasi brauzer softfoni (endpoint `webrtc=yes`, realtime).
     webrtc: bool = False
     codecs: list[str] = Field(default_factory=list)
-    # M3b §1 — yozuv siyosati (realtime: `asterisk_ext_state.recording`, apply shart emas).
+    # M3b/M3c §1 — yozuv siyosati (realtime, apply shart emas). `recording` — eski nom,
+    # `recording_in` bilan BIR XIL qiymat (orqaga moslik); `recording_out` — chiquvchi.
     recording: RecordingPolicy = "always"
+    recording_in: RecordingPolicy = "always"
+    recording_out: RecordingPolicy = "always"
     updated_at: datetime
 
 
@@ -142,7 +145,12 @@ class CreateExtensionPayload(BaseModel):
     # M3a §2: tekshiruv/standart — `app/services/ext_media.py` (422 `webrtc_codec`/`bad_codec`).
     webrtc: bool = False
     codecs: list[str] | None = None
+    # M3c §1: `recording` — eski nom, ikkalasini ham o'rnatadi (orqaga moslik: FreePBX
+    # import, public/fake API); aniq `recording_in`/`recording_out` berilsa ular ustun
+    # (yagona birlashtirish qoidasi — `app/api/v1/extensions.py::_recording_changes`).
     recording: RecordingPolicy | None = None
+    recording_in: RecordingPolicy | None = None
+    recording_out: RecordingPolicy | None = None
     # Yaratishda darhol sozlash — `UpdateExtensionPayload` bilan BIR XIL maydonlar va
     # tekshiruv (`apply_call_field_patch`, dryer): berilmagan = standart qiymat.
     enabled: bool | None = None
@@ -167,7 +175,10 @@ class UpdateExtensionPayload(BaseModel):
     pickup_group: str | None = None
     webrtc: bool | None = None
     codecs: list[str] | None = None
+    # M3c §1 — qarang `CreateExtensionPayload`dagi izoh (bitta birlashtirish qoidasi).
     recording: RecordingPolicy | None = None
+    recording_in: RecordingPolicy | None = None
+    recording_out: RecordingPolicy | None = None
     updated_at: datetime
 
 

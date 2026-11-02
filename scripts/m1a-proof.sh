@@ -40,8 +40,8 @@ fail() { echo "FAIL: $1"; FAIL=$((FAIL + 1)); }
 assert_leg_answered() {
   local did="$1" ext="$2" n
   n=$(docker exec innova-m0-postgres-1 psql -U innova -d innova -tAc \
-    "select count(*) from cdr where userfield='$did' and dstchannel like 'PJSIP/t1-$ext-%' and disposition='ANSWERED'")
-  [[ "${n:-0}" -ge 1 ]] && pass "CDR: $did -> t1-$ext leg ANSWERED" || fail "CDR: $did -> t1-$ext ANSWERED leg yo'q"
+    "select count(*) from cdr where userfield='$did' and dstchannel like 'PJSIP/$ext-%' and disposition='ANSWERED'")
+  [[ "${n:-0}" -ge 1 ]] && pass "CDR: $did -> $ext leg ANSWERED" || fail "CDR: $did -> $ext ANSWERED leg yo'q"
 }
 
 cleanup_sipp() {
@@ -221,10 +221,10 @@ fi
 QUEUE1_NAME="t1-q-$QUEUE1_ID"
 sleep 1
 QSHOW=$(docker exec innova-m0-asterisk-1 asterisk -rx "queue show $QUEUE1_NAME" 2>&1)
-if echo "$QSHOW" | grep -q "t1-103"; then
-  pass "queue show $QUEUE1_NAME -> t1-103 a'zo ko'rinadi (reload'siz)"
+if echo "$QSHOW" | grep -q "103"; then
+  pass "queue show $QUEUE1_NAME -> 103 a'zo ko'rinadi (reload'siz)"
 else
-  fail "queue show $QUEUE1_NAME -> t1-103 topilmadi"
+  fail "queue show $QUEUE1_NAME -> 103 topilmadi"
   echo "$QSHOW"
 fi
 
@@ -273,18 +273,18 @@ else
     return $ok
   }
 
-  if register_and_qualify innova-m1a-proof-uas101 "$UAS101_IP" t1-101 "$EXT101_SECRET"; then
-    pass "SIPp REGISTER t1-101 -> 200 OK"
+  if register_and_qualify innova-m1a-proof-uas101 "$UAS101_IP" 101 "$EXT101_SECRET"; then
+    pass "SIPp REGISTER 101 -> 200 OK"
   else
-    fail "SIPp REGISTER t1-101 muvaffaqiyatsiz"
+    fail "SIPp REGISTER 101 muvaffaqiyatsiz"
   fi
-  if register_and_qualify innova-m1a-proof-uas102 "$UAS102_IP" t1-102 "$EXT102_SECRET"; then
-    pass "SIPp REGISTER t1-102 -> 200 OK"
+  if register_and_qualify innova-m1a-proof-uas102 "$UAS102_IP" 102 "$EXT102_SECRET"; then
+    pass "SIPp REGISTER 102 -> 200 OK"
   else
-    fail "SIPp REGISTER t1-102 muvaffaqiyatsiz"
+    fail "SIPp REGISTER 102 muvaffaqiyatsiz"
   fi
 
-  # ASL SABAB (koordinator ko'rsatgan `Endpoint t1-101/102 is now Unreachable`
+  # ASL SABAB (koordinator ko'rsatgan `Endpoint 101/102 is now Unreachable`
   # logi orqali topildi, --fresh muhitda reload ko'p endpoint'ni bir vaqtda
   # qayta yuklagani uchun): pjsip.conf [global] max_initial_qualify_time=5 —
   # reload/ro'yxatdan o'tishdan keyin Asterisk har bir endpoint uchun yana BIR

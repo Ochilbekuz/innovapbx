@@ -73,9 +73,11 @@ export const uz = {
     outboundAllowedLabel: 'Tashqi qoʻngʻiroqlarga ruxsat', outboundAllowedDesc: 'Oʻchirilsa — bu ichki raqamdan faqat ichki qoʻngʻiroqlar mumkin',
     outboundCalleridLabel: 'Chiquvchi CallerID', outboundCalleridHint: 'Tashqi qoʻngʻiroqda koʻrsatiladigan raqam — boʻsh qoldirsangiz, standart ishlatiladi',
   },
+  // M3c §1 — kiruvchi va chiquvchi qoʻngʻiroq uchun MUSTAQIL yozib olish siyosati.
   recording: {
-    label: 'Yozib olish', hint: '«Talab boʻyicha» — telefondan *1 bilan yoqiladi/oʻchiriladi.',
     always: 'Har doim', never: 'Hech qachon', on_demand: 'Talab boʻyicha (*1)',
+    in: { label: 'Kiruvchi yozib olish', hint: '«Talab boʻyicha» — telefondan *1 bilan yoqiladi/oʻchiriladi.' },
+    out: { label: 'Chiquvchi yozib olish', hint: '«Talab boʻyicha» — telefondan *1 bilan yoqiladi/oʻchiriladi.' },
   },
   devices: {
     title: 'Apparatlar',
@@ -167,8 +169,9 @@ export const ru = {
     outboundCalleridLabel: 'Исходящий CallerID', outboundCalleridHint: 'Номер, показываемый при исходящем звонке — оставьте пустым для значения по умолчанию',
   },
   recording: {
-    label: 'Запись', hint: '«По требованию» — включается/отключается с телефона кодом *1.',
     always: 'Всегда', never: 'Никогда', on_demand: 'По требованию (*1)',
+    in: { label: 'Запись входящих', hint: '«По требованию» — включается/отключается с телефона кодом *1.' },
+    out: { label: 'Запись исходящих', hint: '«По требованию» — включается/отключается с телефона кодом *1.' },
   },
   devices: {
     title: 'Аппараты',
@@ -260,8 +263,9 @@ export const en = {
     outboundCalleridLabel: 'Outbound CallerID', outboundCalleridHint: 'Number shown on outbound calls — leave blank to use the default',
   },
   recording: {
-    label: 'Recording', hint: '"On demand" is toggled from the phone with *1.',
     always: 'Always', never: 'Never', on_demand: 'On demand (*1)',
+    in: { label: 'Incoming recording', hint: '"On demand" is toggled from the phone with *1.' },
+    out: { label: 'Outgoing recording', hint: '"On demand" is toggled from the phone with *1.' },
   },
   devices: {
     title: 'Devices',

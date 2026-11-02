@@ -12,7 +12,7 @@ function makeExt(patch: Partial<Extension> = {}): Extension {
     dnd: false, forward_always: null, forward_busy: null, pickup_group: null,
     outbound_allowed: true, outbound_callerid: null,
     updated_at: '2026-01-01T00:00:00Z', toll_blocked_at: null, toll_block_reason: null, webrtc: false, codecs: [],
-    recording: 'never',
+    recording: 'never', recording_in: 'never', recording_out: 'never',
     ...patch,
   };
 }
@@ -46,7 +46,10 @@ describe('callSettingsFromExtension / callSettingsValid', () => {
 
 describe('createExtensionValid / createExtensionPayload', () => {
   function fields(patch: Partial<CreateExtensionFields> = {}): CreateExtensionFields {
-    return { number: '', name: 'Yangi', password: 'Secret123', webrtc: false, recording: 'never', calls: DEFAULT_CALL_SETTINGS, ...patch };
+    return {
+      number: '', name: 'Yangi', password: 'Secret123', webrtc: false,
+      recordingIn: 'never', recordingOut: 'never', calls: DEFAULT_CALL_SETTINGS, ...patch,
+    };
   }
 
   it('bo\'sh nom — yaroqsiz', () => {
@@ -65,7 +68,7 @@ describe('createExtensionValid / createExtensionPayload', () => {
   it('payload — bo\'sh maydonlar undefined/true bilan to\'g\'ri quriladi', () => {
     const payload = createExtensionPayload(fields({ number: '150', calls: { ...DEFAULT_CALL_SETTINGS, dnd: true, outboundCallerid: '998712345678' } }));
     expect(payload).toEqual({
-      number: '150', name: 'Yangi', password: 'Secret123', webrtc: false, recording: 'never',
+      number: '150', name: 'Yangi', password: 'Secret123', webrtc: false, recording_in: 'never', recording_out: 'never',
       dnd: true, forward_always: undefined, forward_busy: undefined, pickup_group: undefined,
       outbound_allowed: true, outbound_callerid: '998712345678',
     });
@@ -85,6 +88,12 @@ describe('editExtensionFieldsFromExtension / editExtensionDirty / editExtensionV
     const ext = makeExt();
     const f = fields(ext, { calls: { ...DEFAULT_CALL_SETTINGS, dnd: true } });
     expect(editExtensionDirty(f, ext)).toBe(true);
+  });
+  it('faqat chiquvchi yozib olish o\'zgarsa — dirty (kiruvchiga tegmaydi)', () => {
+    const ext = makeExt();
+    const f = fields(ext, { recordingOut: 'always' });
+    expect(editExtensionDirty(f, ext)).toBe(true);
+    expect(f.recordingIn).toBe(editExtensionFieldsFromExtension(ext).recordingIn);
   });
   it('bo\'sh nom — yaroqsiz', () => {
     const ext = makeExt();
@@ -109,5 +118,11 @@ describe('updateExtensionPayload', () => {
     const ext = makeExt();
     const f: EditExtensionFields = { ...editExtensionFieldsFromExtension(ext), name: 'Yangi nom', enabled: false };
     expect(updateExtensionPayload(f, ext)).toEqual({ updated_at: ext.updated_at, name: 'Yangi nom', enabled: false });
+  });
+
+  it('M3c §1: kiruvchi/chiquvchi yozib olish — mustaqil, faqat o\'zgargani yuboriladi', () => {
+    const ext = makeExt({ recording: 'never', recording_in: 'never', recording_out: 'always' });
+    const f: EditExtensionFields = { ...editExtensionFieldsFromExtension(ext), recordingIn: 'on_demand' };
+    expect(updateExtensionPayload(f, ext)).toEqual({ updated_at: ext.updated_at, recording_in: 'on_demand' });
   });
 });

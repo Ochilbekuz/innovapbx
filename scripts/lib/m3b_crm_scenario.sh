@@ -39,7 +39,7 @@ next_lid() { # sql eski_linkedid -> yangi linkedid (CDR kechikib yozilsa ham esk
   done
   echo "$out"
 }
-lid_to() { echo "select linkedid from cdr where dstchannel ~ '^PJSIP/t1-($1)-' order by calldate desc limit 1"; }
+lid_to() { echo "select linkedid from cdr where dstchannel ~ '^PJSIP/($1)-' order by calldate desc limit 1"; }
 crm_dlv() { # provayder linkedid -> "holatlar|max(attempts)|soni"
   sql "select coalesce(string_agg(distinct d.status, ','), '')||'|'||coalesce(max(d.attempts), 0)||'|'||count(*)
          from integration_deliveries d join integration_subscriptions s on s.id = d.subscription_id
@@ -134,7 +134,7 @@ FIN_Q=$(crm_q 'next((form(r)["STATUS_CODE"] + "|" + form(r)["DURATION"] + "|" + 
 REG_Q=$(crm_q 'next((form(r)["TYPE"] + "|" + form(r).get("LINE_NUMBER", "") + "|" + form(r)["SHOW"] for r in bx(a[0]) if meth(r) == "register"), "")' "$LQ2")
 wait_until 15 wh_has /a "$LQ2" call.ended
 WH_Q=$(wh_ended_field /a "$LQ2" "str(c['billsec']) + '|' + ((c['recordings'] or [{}])[0].get('url') or '')")
-CDR_BS=$(sql "select max(billsec) from cdr where linkedid='$LQ2' and disposition='ANSWERED' and dstchannel like 'PJSIP/t1-103-%'")
+CDR_BS=$(sql "select max(billsec) from cdr where linkedid='$LQ2' and disposition='ANSWERED' and dstchannel like 'PJSIP/103-%'")
 DUR_Q=$(cut -d'|' -f2 <<<"$FIN_Q")
 check "$( [[ "$(cut -d'|' -f1 <<<"$FIN_Q")" == "200" && "$DUR_Q" == "${WH_Q%%|*}" && $(( DUR_Q - CDR_BS )) -le 1 \
   && $(( CDR_BS - DUR_Q )) -le 1 && "$(cut -d'|' -f3- <<<"$FIN_Q")" == "${WH_Q#*|}" && "${WH_Q#*|}" == http* ]]; echo $?)" \
@@ -192,10 +192,10 @@ check "$( [[ "$(jcode "$A_PUT")" == "200" && "$(jget "$(jbody "$A_PUT")" config 
 
 # ---------------------------------------------------------------- chiquvchi: Bitrix TYPE 1 + amoCRM ma'lum kontakt
 crm_cfg "{\"known\":[\"$OUT_NUM\"]}"
-PREV=$(sql "select linkedid from cdr where channel like 'PJSIP/t1-101-%' and dstchannel like '%trunk%' order by calldate desc limit 1")
-call_bg 101 "t1-101" "${SECRET[101]}" "$OUT_NUM" 4 crmo
+PREV=$(sql "select linkedid from cdr where channel like 'PJSIP/101-%' and dstchannel like '%trunk%' order by calldate desc limit 1")
+call_bg 101 "101" "${SECRET[101]}" "$OUT_NUM" 4 crmo
 wait_until 25 call_done 101 crmo; wait_until 10 no_calls
-LO2=$(next_lid "select linkedid from cdr where channel like 'PJSIP/t1-101-%' and dstchannel like '%trunk%' order by calldate desc limit 1" "$PREV")
+LO2=$(next_lid "select linkedid from cdr where channel like 'PJSIP/101-%' and dstchannel like '%trunk%' order by calldate desc limit 1" "$PREV")
 wait_until 40 bx_done "$LO2"
 REG_O=$(crm_q 'next((form(r)["TYPE"] + "|" + form(r)["PHONE_NUMBER"] + "|" + form(r)["USER_ID"] for r in bx(a[0]) if meth(r) == "register"), "")' "$LO2")
 check "$( [[ "$REG_O" == "1|$OUT_NUM|7" ]]; echo $?)" "5: chiquvchi 101 -> trunk: register TYPE 1, PHONE_NUMBER, USER 7" \
@@ -214,7 +214,7 @@ check "$( [[ "$AUTH_O" == "Bearer $AMO_TOKEN" ]]; echo $?)" "6: amoCRM so'rovi A
 # ---------------------------------------------------------------- ichki qo'ng'iroq -> CRM'ga 0 so'rov
 PREV=$(sql "$(lid_to 101)")
 N0=$(crm_q 'len(rs)')
-call_bg 104 "t1-104" "${SECRET[104]}" 101 3 crmi
+call_bg 104 "104" "${SECRET[104]}" 101 3 crmi
 wait_until 20 call_done 104 crmi; wait_until 10 no_calls
 LI2=$(next_lid "$(lid_to 101)" "$PREV")
 wait_until 20 ended_emitted "$LI2"; sleep 4

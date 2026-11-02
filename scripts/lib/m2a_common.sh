@@ -96,7 +96,7 @@ for k in sys.argv[1:]:
     cur = cur[int(k)] if k.lstrip('-').isdigit() else cur.get(k)
 print('' if cur is None else cur)" "${@:2}" <<<"$1"; }
 
-# Ikki ext kanali (PJSIP/t1-A-…, PJSIP/t1-B-…) bitta bridge'da (core show channels concise, 13-ustun).
+# Ikki ext kanali (PJSIP/A-…, PJSIP/B-…) bitta bridge'da (core show channels concise, 13-ustun).
 bridged() {
   ast "core show channels concise" | python3 -c '
 import sys
@@ -106,7 +106,7 @@ for line in sys.stdin:
     f = line.strip().split("!")
     if len(f) > 12 and f[12]:
         bridges.setdefault(f[12], []).append(f[0])
-ok = any(any(c.startswith(f"PJSIP/t1-{a}-") for c in v) and any(c.startswith(f"PJSIP/t1-{b}-") for c in v)
+ok = any(any(c.startswith(f"PJSIP/{a}-") for c in v) and any(c.startswith(f"PJSIP/{b}-") for c in v)
          for v in bridges.values())
 sys.exit(0 if ok else 1)' "$1" "$2"
 }

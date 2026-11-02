@@ -27,10 +27,10 @@ wh_ended_field() { # yo'l call_id python_ifoda(c = ended call) -> qiymat
 
 # ---------------------------------------------------------------- qo'ng'iroq / yozuv
 linkedid_to_ext() { # ext -> eng so'nggi CDR (dstchannel = shu ext) linkedid
-  wait_for_sql "select linkedid from cdr where dstchannel like 'PJSIP/t1-$1-%' order by calldate desc limit 1" 10
+  wait_for_sql "select linkedid from cdr where dstchannel like 'PJSIP/$1-%' order by calldate desc limit 1" 10
 }
 linkedid_from_ext_to_trunk() { # ext -> eng so'nggi chiquvchi (ext -> trunk) linkedid
-  wait_for_sql "select linkedid from cdr where channel like 'PJSIP/t1-$1-%' and dstchannel like '%trunk%' order by calldate desc limit 1" 10
+  wait_for_sql "select linkedid from cdr where channel like 'PJSIP/$1-%' and dstchannel like '%trunk%' order by calldate desc limit 1" 10
 }
 ended_emitted() { [[ "$(sql "select count(*) from integration_events where dedupe_key='ended:$1'")" == "1" ]]; }
 rec_count() { sql "select count(*) from call_recordings where linkedid='$1' and deleted_at is null"; }

@@ -210,7 +210,7 @@ describe('ExtensionsPage — yangi ichki raqam yaratish (SIP parol)', () => {
 
     await user.click(within(modal).getByRole('button', { name: 'Qoʻshimcha sozlamalar' }));
     await user.click(within(modal).getByRole('switch', { name: 'Bezovta qilmang (DND)' }));
-    await user.click(within(modal).getByRole('combobox', { name: 'Yozib olish' }));
+    await user.click(within(modal).getByRole('combobox', { name: 'Kiruvchi yozib olish' }));
     await user.click(await screen.findByRole('option', { name: 'Har doim' }));
 
     await user.click(within(modal).getByRole('button', { name: 'Yaratish' }));
@@ -218,7 +218,8 @@ describe('ExtensionsPage — yangi ichki raqam yaratish (SIP parol)', () => {
 
     const item = (await client.listExtensions({})).items.find((e) => e.name === 'Qoʻshimcha Sozlama');
     expect(item?.dnd).toBe(true);
-    expect(item?.recording).toBe('always');
+    expect(item?.recording_in).toBe('always');
+    expect(item?.recording_out).toBe('never');
   });
 });
 

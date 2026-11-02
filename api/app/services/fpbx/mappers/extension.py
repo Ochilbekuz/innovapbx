@@ -42,12 +42,13 @@ def _outbound_callerid(raw: str | None) -> str | None:
     return (match.group(1) if match else raw).strip() or None
 
 
-def _recording_mode(ampuser: dict[str, str]) -> str:
-    values = [ampuser.get(f"recording/{direction}/{side}", "")
-              for direction in ("in", "out") for side in ("internal", "external")]
+def _recording_mode_for(ampuser: dict[str, str], direction: str) -> str:
+    """AMPUSER'da yo'nalish BO'YICHA 2 kalit (`internal`/`external`) bor — boshqa
+    yo'nalishning kalitlariga tegilmaydi (M3c §1: `in`/`out` mustaqil siyosat)."""
+    values = [ampuser.get(f"recording/{direction}/{side}", "") for side in ("internal", "external")]
     if any(v in ("force", "yes") for v in values):
         return "always"
-    if values and all(v in ("never", "no") for v in values):
+    if all(v in ("never", "no") for v in values):
         return "never"
     return "on_demand"
 
@@ -184,7 +185,8 @@ def map_extension(ctx: Ctx) -> list[Entry]:
                 "max_contacts": _max_contacts(sip.get("max_contacts")),
                 "outbound_callerid": _outbound_callerid(row.get("outboundcid")),
                 "ringtimer": ringtimer,
-                "recording": _recording_mode(ampuser),
+                "recording": _recording_mode_for(ampuser, "in"),
+                "recording_out": _recording_mode_for(ampuser, "out"),
                 "dnd": (dnd.get(number) or "").upper() == "YES",
                 "forward_always": forward_always,
                 "forward_busy": forward_busy,

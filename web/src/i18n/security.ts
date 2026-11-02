@@ -74,6 +74,8 @@ export const uz = {
       banSHint: '0 — muddatsiz bloklaydi (qoʻlda chiqarilmaguncha).',
       trustedNets: 'Ishonchli tarmoqlar (CIDR)',
       trustedNetsHint: 'Har birini alohida qatorga yozing. 127.0.0.0/8 har doim ishonchli.',
+      trustLan: 'Lokal tarmoqdagi qurilmalarni avtomatik bloklamaslik',
+      trustLanHint: 'Ofis telefoni notoʻgʻri login bilan bir necha marta urinsa ham uning IP manzili bloklanmaydi (192.168.x.x, 10.x.x.x, 172.16–31.x.x). Urinishlar statistikada koʻrinadi.',
     },
     tollFraud: {
       title: 'Toll-fraud chegaralari',
@@ -181,6 +183,8 @@ export const ru = {
       banSHint: '0 — блокирует бессрочно (до ручной разблокировки).',
       trustedNets: 'Доверенные сети (CIDR)',
       trustedNetsHint: 'Каждую — на отдельной строке. 127.0.0.0/8 всегда доверенная.',
+      trustLan: 'Не блокировать устройства локальной сети автоматически',
+      trustLanHint: 'Если офисный телефон несколько раз ошибётся с логином, его IP не будет заблокирован (192.168.x.x, 10.x.x.x, 172.16–31.x.x). Попытки видны в статистике.',
     },
     tollFraud: {
       title: 'Лимиты toll-fraud',
@@ -288,6 +292,8 @@ export const en = {
       banSHint: '0 — bans indefinitely (until manually unblocked).',
       trustedNets: 'Trusted networks (CIDR)',
       trustedNetsHint: 'One per line. 127.0.0.0/8 is always trusted.',
+      trustLan: 'Never auto-block local network devices',
+      trustLanHint: 'If an office phone retries with a wrong login, its IP is not banned (192.168.x.x, 10.x.x.x, 172.16–31.x.x). Attempts still show in statistics.',
     },
     tollFraud: {
       title: 'Toll-fraud limits',

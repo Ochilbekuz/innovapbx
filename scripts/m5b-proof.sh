@@ -81,7 +81,7 @@ for c in 201 202 203 204 trunk; do
   for f in outbound_invite.py vm_caller.py m2a_phone.py; do docker cp "$SIPP_DIR/$f" "m5b-proof-$c:/tmp/$f"; done
 done
 for n in 201 202 203 204; do
-  docker exec -d "m5b-proof-$n" sh -c "cd /tmp && echo ring > /tmp/mode && python3 m2a_phone.py serve t1-$n '${SECRET[$n]}' 5070 12000 /tmp/mode 900 > /tmp/phone.log 2>&1"
+  docker exec -d "m5b-proof-$n" sh -c "cd /tmp && echo ring > /tmp/mode && python3 m2a_phone.py serve $n '${SECRET[$n]}' 5070 12000 /tmp/mode 900 > /tmp/phone.log 2>&1"
 done
 docker exec m5b-proof-trunk sh -c "echo busy > /tmp/mode"
 docker exec -d m5b-proof-trunk sh -c "cd /tmp && python3 m2a_phone.py serve trunk - 5060 12000 /tmp/mode 900 > /tmp/phone.log 2>&1"
@@ -95,7 +95,7 @@ cancels() { plog "$1" | grep -c '^REQ CANCEL'; }
 CALL_N=0
 place_call() { # ext dialed talk_s -> $OUT
   CALL_N=$((CALL_N + 1))
-  OUT=$(docker exec "m5b-proof-$1" sh -c "cd /tmp && python3 m2a_phone.py call t1-$1 '${SECRET[$1]}' $((5100 + CALL_N)) $((13000 + CALL_N * 2)) '$2' $3" 2>&1)
+  OUT=$(docker exec "m5b-proof-$1" sh -c "cd /tmp && python3 m2a_phone.py call $1 '${SECRET[$1]}' $((5100 + CALL_N)) $((13000 + CALL_N * 2)) '$2' $3" 2>&1)
 }
 trunk_call() { # caller_num did talk_s -> $OUT (trunk IP'sidan, autentifikatsiyasiz)
   CALL_N=$((CALL_N + 1))
@@ -106,7 +106,7 @@ FM="/extensions/${EXT_ID[201]}/follow-me"
 fm_put() { # json (updated_at'siz) -> $PUT_OUT
   PUT_OUT=$(api PUT "$FM" "$1")
 }
-fm_state() { sql "select fm_enabled::text||'|'||fm_strategy||'|'||coalesce(fm_numbers,'') from asterisk_ext_state where endpoint='t1-201'"; }
+fm_state() { sql "select fm_enabled::text||'|'||fm_strategy||'|'||coalesce(fm_numbers,'') from asterisk_ext_state where endpoint='201'"; }
 ext_stamp() { jget "$(jbody "$(api GET "/extensions/$1/follow-me")")" updated_at; }  # ext_id -> updated_at
 revisions() { sql "select count(*) from config_revisions"; }
 
@@ -222,8 +222,8 @@ check "$( [[ "$(sql "select count(*) from qr_provision_tokens where token_hash=d
   "7: bazada faqat SHA-256 xesh; audit (issued) bor, unda token yo'q"
 XML=$(curl -s "$URL"); CODE=$(http_code "$URL")
 check "$( [[ "$CODE" == "200" ]] && grep -q "<entry name=\"passwd\" overwrite=\"true\">${SECRET[201]}</entry>" <<<"$XML" \
-  && grep -q '<entry name="username" overwrite="true">t1-201</entry>' <<<"$XML"; echo $?)" \
-  "7: GET havola -> Linphone XML (t1-201 + parol); 60 s ichida qayta -> 200" "$CODE / ${XML:0:120}"
+  && grep -q '<entry name="username" overwrite="true">201</entry>' <<<"$XML"; echo $?)" \
+  "7: GET havola -> Linphone XML (201 + parol); 60 s ichida qayta -> 200" "$CODE / ${XML:0:120}"
 check "$( [[ "$(sql "select count(*) from provision_requests where path='/prov/qr/***/linphone.xml' and status_code=200")" -ge 1 && "$(sql "select count(*) from audit_log where user_id is null and diff->>'qr_provisioning'='used'")" == "1" && "$(sql "select count(*) from provision_requests where path like '%$TOKEN%'")" == "0" ]]; echo $?)" \
   "7: provision_requests: /prov/qr/***/linphone.xml (token yashirin); audit used — 1 marta"
 sql "update qr_provision_tokens set first_used_at = now() - interval '61 seconds' where token_hash=decode('$TOKEN_HASH','hex')" >/dev/null

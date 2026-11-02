@@ -89,7 +89,7 @@ for c in 201 202 203 trunk; do
   for f in outbound_invite.py vm_caller.py m2a_phone.py; do docker cp "$SIPP_DIR/$f" "m2a-proof-$c:/tmp/$f"; done
 done
 for n in 201 202 203; do
-  docker exec -d "m2a-proof-$n" sh -c "cd /tmp && python3 m2a_phone.py serve t1-$n '${SECRET[$n]}' 5070 12000 /tmp/mode 520 > /tmp/phone.log 2>&1"
+  docker exec -d "m2a-proof-$n" sh -c "cd /tmp && python3 m2a_phone.py serve $n '${SECRET[$n]}' 5070 12000 /tmp/mode 520 > /tmp/phone.log 2>&1"
 done
 docker exec m2a-proof-trunk sh -c "echo busy > /tmp/mode"
 docker exec -d m2a-proof-trunk sh -c "cd /tmp && python3 m2a_phone.py serve trunk - 5060 12000 /tmp/mode 520 > /tmp/phone.log 2>&1"
@@ -104,11 +104,11 @@ count_of() { plog "$1" | grep -c "^$2"; }
 CALL_N=0
 place_call() { # ext dialed talk_s [dtmf] -> $OUT (sinxron)
   CALL_N=$((CALL_N + 1))
-  OUT=$(docker exec "m2a-proof-$1" sh -c "cd /tmp && python3 m2a_phone.py call t1-$1 '${SECRET[$1]}' $((5100 + CALL_N)) $((13000 + CALL_N * 2)) '$2' $3 '${4:-}'" 2>&1)
+  OUT=$(docker exec "m2a-proof-$1" sh -c "cd /tmp && python3 m2a_phone.py call $1 '${SECRET[$1]}' $((5100 + CALL_N)) $((13000 + CALL_N * 2)) '$2' $3 '${4:-}'" 2>&1)
 }
 place_call_bg() { # nom ext dialed talk_s [dtmf] -> /tmp/<nom>.log (fon)
   CALL_N=$((CALL_N + 1))
-  docker exec -d "m2a-proof-$2" sh -c "cd /tmp && python3 m2a_phone.py call t1-$2 '${SECRET[$2]}' $((5100 + CALL_N)) $((13000 + CALL_N * 2)) '$3' $4 '${5:-}' > /tmp/$1.log 2>&1"
+  docker exec -d "m2a-proof-$2" sh -c "cd /tmp && python3 m2a_phone.py call $2 '${SECRET[$2]}' $((5100 + CALL_N)) $((13000 + CALL_N * 2)) '$3' $4 '${5:-}' > /tmp/$1.log 2>&1"
 }
 call_log() { docker exec "m2a-proof-$1" cat "/tmp/$2.log" 2>/dev/null; }
 call_done() { call_log "$1" "$2" | grep -Eq 'BYE_SENT|REMOTE_BYE|INVITE_FINAL: SIP/2.0 [3-6]'; }
@@ -130,7 +130,7 @@ echo "--- 1. DND ---"
 ext_patch 201 '"dnd":true'
 check "$( [[ "$(jcode "$PATCH_OUT")" == "200" && "$(jget "$(jbody "$PATCH_OUT")" apply status)" == "applied" && -z "$(jget "$(jbody "$PATCH_OUT")" apply revision)" && "$(jget "$(jbody "$PATCH_OUT")" item dnd)" == "True" ]]; echo $?)" \
   "1: PATCH dnd=true -> apply=applied, revision=null (realtime)" "$PATCH_OUT"
-check "$( [[ "$(sql "select dnd from asterisk_ext_state where endpoint='t1-201'")" == "t" ]]; echo $?)" "1: asterisk_ext_state t1-201 dnd=t"
+check "$( [[ "$(sql "select dnd from asterisk_ext_state where endpoint='201'")" == "t" ]]; echo $?)" "1: asterisk_ext_state 201 dnd=t"
 B201=$(invites 201)
 place_call 202 201 1
 check "$( [[ "$(final_of "$OUT")" == "486" && "$(invites 201)" == "$B201" ]]; echo $?)" "1: DND -> 202 -> 201: 486 Busy, 201 jiringlamadi" "$OUT"
@@ -187,8 +187,8 @@ fi
 # ---------------------------------------------------------------- 5
 echo "--- 5. pickup ---"
 ext_patch 201 '"pickup_group":"sales"'; ext_patch 203 '"pickup_group":"sales"'
-check "$( [[ "$(sql "select named_call_group||'/'||named_pickup_group from ps_endpoints where id='t1-203'")" == "t1-sales/t1-sales" ]]; echo $?)" \
-  "5: ps_endpoints t1-203 named_call/pickup_group = t1-sales"
+check "$( [[ "$(sql "select named_call_group||'/'||named_pickup_group from ps_endpoints where id='203'")" == "t1-sales/t1-sales" ]]; echo $?)" \
+  "5: ps_endpoints 203 named_call/pickup_group = t1-sales"
 mode 201 ring
 pickup_case() { # nom terilgan_kod
   local b201 bc

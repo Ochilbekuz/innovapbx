@@ -286,13 +286,13 @@ check "$( [[ "$(sql "select count(*) from announcements where audio_file_id='$AU
 
 # ================================================================== 5
 echo "=== 5. Asterisk: REGISTER (FreePBX paroli) + DID -> IVR ==="
-ep_101() { ast "pjsip show endpoint t1-101" | grep -q "Endpoint:  *t1-101"; }  # apply'dan so'ng realtime — bir oz kutish
-check "$(wait_until 10 ep_101; echo $?)" "5: pjsip endpoint t1-101 bor"
+ep_101() { ast "pjsip show endpoint 101" | grep -q "Endpoint:  *101"; }  # apply'dan so'ng realtime — bir oz kutish
+check "$(wait_until 10 ep_101; echo $?)" "5: pjsip endpoint 101 bor"
 docker run -d --name m5a-proof-ph --network "$NET" "$PY_IMAGE" sleep infinity >/dev/null
 docker cp "$SIPP_DIR/register_only.py" m5a-proof-ph:/tmp/register_only.py
-REG=$(docker exec m5a-proof-ph python3 /tmp/register_only.py asterisk 5060 5090 t1-101 'SinovSecret101!' 2>&1)
+REG=$(docker exec m5a-proof-ph python3 /tmp/register_only.py asterisk 5060 5090 101 'SinovSecret101!' 2>&1)
 check "$( grep -q "REGISTER OK" <<<"$REG"; echo $?)" "5: 101 FreePBX dagi parol bilan REGISTER -> 200" "$REG"
-REGB=$(docker exec m5a-proof-ph python3 /tmp/register_only.py asterisk 5060 5091 t1-101 'NotoGriParol1!' 2>&1)
+REGB=$(docker exec m5a-proof-ph python3 /tmp/register_only.py asterisk 5060 5091 101 'NotoGriParol1!' 2>&1)
 check "$( ! grep -q "REGISTER OK" <<<"$REGB"; echo $?)" "5: noto'g'ri parol bilan REGISTER rad etiladi" "$REGB"
 
 docker run -d --name m5a-proof-uac --network "$NET" --ip "$UAC_IP" "$PY_IMAGE" sleep infinity >/dev/null

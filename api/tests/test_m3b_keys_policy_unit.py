@@ -100,37 +100,47 @@ def test_originate_fields():
 
 
 # ------------------------------------------------------------ yozuv siyosati
+# M3c §1: ikki ALOHIDA siyosat — `a_out` (A'ning CHIQUVCHI), `b_in` (B'ning
+# KIRUVCHI), `src_out` (yo'naltirish manbasining chiquvchi siyosati).
 P = recording_policy
 
 
 def test_inbound_policy_is_answering_extension():
-    assert P.decide(a=None, b="always", src=None, a_is_ext=False, b_is_ext=True, external_only=False).record
-    d = P.decide(a=None, b="never", src=None, a_is_ext=False, b_is_ext=True, external_only=True)
+    assert P.decide(a_out=None, b_in="always", src_out=None, a_is_ext=False, b_is_ext=True, external_only=False).record
+    d = P.decide(a_out=None, b_in="never", src_out=None, a_is_ext=False, b_is_ext=True, external_only=True)
     assert not d.record
-    d = P.decide(a=None, b="on_demand", src=None, a_is_ext=False, b_is_ext=True, external_only=False)
+    d = P.decide(a_out=None, b_in="on_demand", src_out=None, a_is_ext=False, b_is_ext=True, external_only=False)
     assert (d.record, d.on_demand_b, d.on_demand_a) == (False, True, False)
 
 
 def test_outbound_policy_is_source_extension():
-    assert P.decide(a="always", b=None, src=None, a_is_ext=True, b_is_ext=False, external_only=True).record
-    assert not P.decide(a="never", b=None, src=None, a_is_ext=True, b_is_ext=False, external_only=False).record
-    # Yo'naltirish: manba (forward qilgan) raqam siyosati.
-    assert P.decide(a=None, b=None, src="always", a_is_ext=False, b_is_ext=False, external_only=False).record
-    assert not P.decide(a="always", b=None, src="never", a_is_ext=True, b_is_ext=False, external_only=False).record
-    d = P.decide(a="on_demand", b=None, src=None, a_is_ext=True, b_is_ext=False, external_only=False)
+    assert P.decide(a_out="always", b_in=None, src_out=None, a_is_ext=True, b_is_ext=False, external_only=True).record
+    assert not P.decide(a_out="never", b_in=None, src_out=None, a_is_ext=True, b_is_ext=False, external_only=False).record
+    # Yo'naltirish: manba (forward qilgan) raqamning CHIQUVCHI siyosati.
+    assert P.decide(a_out=None, b_in=None, src_out="always", a_is_ext=False, b_is_ext=False, external_only=False).record
+    assert not P.decide(a_out="always", b_in=None, src_out="never", a_is_ext=True, b_is_ext=False, external_only=False).record
+    d = P.decide(a_out="on_demand", b_in=None, src_out=None, a_is_ext=True, b_is_ext=False, external_only=False)
     assert (d.record, d.on_demand_a) == (False, True)
 
 
 def test_internal_policy():
-    kw = {"src": None, "a_is_ext": True, "b_is_ext": True}
-    assert P.decide(a="always", b="on_demand", external_only=False, **kw).record
-    assert P.decide(a="on_demand", b="always", external_only=False, **kw).record
-    assert not P.decide(a="always", b="never", external_only=False, **kw).record
-    assert not P.decide(a="never", b="always", external_only=False, **kw).record
-    assert not P.decide(a="on_demand", b="on_demand", external_only=False, **kw).record
-    d = P.decide(a="always", b="always", external_only=True, **kw)
+    kw = {"src_out": None, "a_is_ext": True, "b_is_ext": True}
+    assert P.decide(a_out="always", b_in="on_demand", external_only=False, **kw).record
+    assert P.decide(a_out="on_demand", b_in="always", external_only=False, **kw).record
+    assert not P.decide(a_out="always", b_in="never", external_only=False, **kw).record
+    assert not P.decide(a_out="never", b_in="always", external_only=False, **kw).record
+    assert not P.decide(a_out="on_demand", b_in="on_demand", external_only=False, **kw).record
+    d = P.decide(a_out="always", b_in="always", external_only=True, **kw)
     assert (d.record, d.on_demand_b) == (False, False)
-    assert P.decide(a="on_demand", b="on_demand", external_only=False, **kw).on_demand_b
+    assert P.decide(a_out="on_demand", b_in="on_demand", external_only=False, **kw).on_demand_b
+
+
+def test_internal_policy_sides_are_independent_directions():
+    """A'ning KIRUVCHI (recording_in) va B'ning CHIQUVCHI (recording_out) qiymati
+    `decide`ga berilmaydi — faqat A.recording_out va B.recording_in ishlatiladi."""
+    kw = {"src_out": None, "a_is_ext": True, "b_is_ext": True, "external_only": False}
+    # A chiquvchisi "never" bo'lsa, B kiruvchisi "always" bo'lsa ham umumiy "never" ustun.
+    assert not P.decide(a_out="never", b_in="always", **kw).record
 
 
 # ------------------------------------------------------------ imzoli havola

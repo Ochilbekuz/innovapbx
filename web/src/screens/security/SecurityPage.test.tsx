@@ -112,6 +112,19 @@ describe('SecurityPage', () => {
     expect(await screen.findByText(/boshqa joyda oʻzgartirilgan/)).toBeTruthy();
   });
 
+  it('Sozlamalar — LAN qurilmalarini bloklamaslik (sukut yoqiq) oʻchirilib saqlanadi', async () => {
+    const user = userEvent.setup();
+    renderPage(<SecurityPage />);
+
+    await user.click(await screen.findByRole('tab', { name: 'Sozlamalar' }));
+    const toggle = await screen.findByRole('switch', { name: 'Lokal tarmoqdagi qurilmalarni avtomatik bloklamaslik' });
+    expect(toggle.getAttribute('aria-checked')).toBe('true');
+    await user.click(toggle);
+    await user.click(screen.getByRole('button', { name: 'Saqlash' }));
+
+    await waitFor(async () => expect((await client.securitySettings()).sip_guard.trust_lan).toBe(false));
+  });
+
   it('Hodisalar — tur boʻyicha filtr ishlaydi', async () => {
     const user = userEvent.setup();
     renderPage(<SecurityPage />);

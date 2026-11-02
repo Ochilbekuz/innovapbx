@@ -257,5 +257,5 @@ def test_outbound_sets_inherited_recording_source_only_with_extension_filter():
     text = compile_dialplan(_snapshot())
     outbound = _outbound_ctx(text)
     rg = text.split("[t1-outbound-rg]")[1]
-    src = " same => n,Set(__INNOVA_REC_SRC=t1-${INNOVA_SRC_EXT})"
+    src = " same => n,Set(__INNOVA_REC_SRC=${INNOVA_SRC_EXT})"  # endpoint = raqam (0027)
     assert src in outbound and src not in rg

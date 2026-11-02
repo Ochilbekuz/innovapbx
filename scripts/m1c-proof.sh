@@ -121,7 +121,7 @@ EXT202_JSON=$(api POST /extensions '{"number":"202","name":"M1cCaller202"}')
 EXT202_SECRET=$(jget "$(jbody "$EXT202_JSON")" sip password)
 [[ -n "$EXT201_ID" && -n "$EXT202_SECRET" ]] && pass "POST /extensions -> 201, 202" || fail "extensions -> $EXT201_JSON / $EXT202_JSON"
 
-check "$( [[ "$(sql "select coalesce(mailboxes,'') from ps_endpoints where id='t1-201'")" == "" ]]; echo $?)" \
+check "$( [[ "$(sql "select coalesce(mailboxes,'') from ps_endpoints where id='201'")" == "" ]]; echo $?)" \
   "qutisiz ext 201: ps_endpoints.mailboxes bo'sh"
 
 # Bildirishnoma sozlamalari (xabar qoldirilishidan OLDIN — 2-ssenariy shu xabarni kutadi).
@@ -140,7 +140,7 @@ BOX_BODY=$(jbody "$BOX_JSON")
 BOX_ID=$(jget "$BOX_BODY" item id)
 check "$( [[ "$(jcode "$BOX_JSON")" == "201" && "$(jget "$BOX_BODY" apply status)" == "applied" && "$(jget "$BOX_BODY" item has_pin)" == "True" ]]; echo $?)" \
   "POST /voicemail-boxes 201 -> 201 Created, apply=applied, has_pin" "$BOX_JSON"
-check "$( [[ "$(sql "select mailboxes from ps_endpoints where id='t1-201'")" == "201@t1" && -z "$(sql "select coalesce(mailboxes,'') from ps_endpoints where id='t1-202'")" ]]; echo $?)" \
+check "$( [[ "$(sql "select mailboxes from ps_endpoints where id='201'")" == "201@t1" && -z "$(sql "select coalesce(mailboxes,'') from ps_endpoints where id='202'")" ]]; echo $?)" \
   "ps_endpoints.mailboxes: 201 -> 201@t1, 202 (qutisiz) -> bo'sh"
 check "$(ast "voicemail show users for t1" | grep -q "201"; echo $?)" \
   "Asterisk: voicemail show users for t1 -> 201" "$(ast "voicemail show users for t1")"
@@ -198,12 +198,12 @@ pass "proof konteynerlari (201, 202, mailpit, soxta Telegram) ishga tushdi"
 
 # ---------------------------------------------------------------- 1
 echo "--- 1. ovozli pochta: 202 -> 201 (javob yo'q) -> xabar ---"
-docker exec -d m1c-proof-ext201 sh -c "python3 /tmp/ring.py t1-201 '$EXT201_SECRET' 5080 60 > /tmp/ring.log 2>&1"
+docker exec -d m1c-proof-ext201 sh -c "python3 /tmp/ring.py 201 '$EXT201_SECRET' 5080 60 > /tmp/ring.log 2>&1"
 wait_until 10 sh -c "docker exec m1c-proof-ext201 cat /tmp/ring.log 2>/dev/null | grep -q 'REGISTER_RESULT: OK'" \
   && pass "201 REGISTER -> 200 OK (jiringlaydi, javob bermaydi)" \
   || fail "201 REGISTER -> $(docker exec m1c-proof-ext201 cat /tmp/ring.log)"
 # 20 s: ~10 s «unavailable» e'loni + vm-intro + beep, qolgani yozuv.
-S1_OUT=$(docker exec m1c-proof-ext202 python3 /tmp/call.py t1-202 "$EXT202_SECRET" 5081 201 20 2>&1)
+S1_OUT=$(docker exec m1c-proof-ext202 python3 /tmp/call.py 202 "$EXT202_SECRET" 5081 201 20 2>&1)
 check "$(grep -q "INVITE_FINAL: SIP/2.0 200" <<<"$S1_OUT"; echo $?)" "1: 202 -> 201 -> 200 OK (VoiceMail javob berdi)" "$S1_OUT"
 RTP_SENT=$(sed -n 's/^RTP_SENT: //p' <<<"$S1_OUT")
 check "$( (( ${RTP_SENT:-0} >= 150 )); echo $?)" "1: RTP PCMU ${RTP_SENT:-0} paket (>= 3 s) yuborildi"
@@ -309,11 +309,11 @@ check "$(grep -q "REQ INVITE" <<<"$RING_LOG"; echo $?)" \
 # ---------------------------------------------------------------- 3
 echo "--- 3. *97 / *98: PIN ---"
 last_cdr() { sql "select lastapp from cdr where src='$1' and lastapp<>'' order by calldate desc limit 1"; }
-S3_BAD=$(docker exec m1c-proof-ext201 python3 /tmp/call.py t1-201 "$EXT201_SECRET" 5082 '*97' 7 "1111#" 1.5 2>&1)
+S3_BAD=$(docker exec m1c-proof-ext201 python3 /tmp/call.py 201 "$EXT201_SECRET" 5082 '*97' 7 "1111#" 1.5 2>&1)
 sleep 1
 check "$(grep -q "INVITE_FINAL: SIP/2.0 200" <<<"$S3_BAD" && [[ "$(last_cdr 201)" != "VoiceMailMain" ]]; echo $?)" \
   "3: *97 xato PIN -> rad (VoiceMailMain'ga kirmadi, CDR lastapp=$(last_cdr 201))" "$S3_BAD"
-docker exec m1c-proof-ext201 sh -c "python3 /tmp/call.py t1-201 '$EXT201_SECRET' 5083 '*97' 12 '$VM_PIN#' 1.5 > /tmp/s3ok.log 2>&1" &
+docker exec m1c-proof-ext201 sh -c "python3 /tmp/call.py 201 '$EXT201_SECRET' 5083 '*97' 12 '$VM_PIN#' 1.5 > /tmp/s3ok.log 2>&1" &
 S3_PID=$!
 wait_until 10 sh -c "docker exec $AST asterisk -rx 'core show channels concise' | grep -q 'VoiceMailMain!201@t1,s'" \
   && pass "3: *97 to'g'ri PIN -> core show channels: VoiceMailMain(201@t1,s)" \
@@ -321,7 +321,7 @@ wait_until 10 sh -c "docker exec $AST asterisk -rx 'core show channels concise' 
 wait "$S3_PID"
 sleep 1
 check "$( [[ "$(last_cdr 201)" == "VoiceMailMain" ]]; echo $?)" "3: *97 CDR lastapp=VoiceMailMain" "$(last_cdr 201)"
-S98=$(docker exec m1c-proof-ext202 python3 /tmp/call.py t1-202 "$EXT202_SECRET" 5084 '*98' 10 "201#$VM_PIN#" 1.0 2>&1)
+S98=$(docker exec m1c-proof-ext202 python3 /tmp/call.py 202 "$EXT202_SECRET" 5084 '*98' 10 "201#$VM_PIN#" 1.0 2>&1)
 sleep 1
 check "$(grep -q "INVITE_FINAL: SIP/2.0 200" <<<"$S98" && [[ "$(last_cdr 202)" == "VoiceMailMain" ]]; echo $?)" \
   "3: *98 (quti 201 + PIN) -> CDR lastapp=VoiceMailMain" "$S98 / $(last_cdr 202)"
@@ -356,11 +356,11 @@ c.close()
 PYEOF
 for i in 0 1 2; do
   n=$((211 + i))
-  docker exec -d m1c-proof-ext201 sh -c "python3 /tmp/mh_ring.py t1-$n '${MH_SECRETS[$i]}' $((5090 + i)) $((12010 + i * 2)) 40 > /tmp/mh$n.log 2>&1"
+  docker exec -d m1c-proof-ext201 sh -c "python3 /tmp/mh_ring.py $n '${MH_SECRETS[$i]}' $((5090 + i)) $((12010 + i * 2)) 40 > /tmp/mh$n.log 2>&1"
 done
 mh_registered() { for n in 211 212 213; do docker exec m1c-proof-ext201 grep -q 'REGISTER_RESULT: OK' /tmp/mh$n.log 2>/dev/null || return 1; done; }
 wait_until 15 mh_registered && pass "5: 211, 212, 213 REGISTER -> 200 OK" || fail "5: memoryhunt a'zolari ro'yxatdan o'tmadi"
-MH_CALL=$(docker exec m1c-proof-ext202 python3 /tmp/call.py t1-202 "$EXT202_SECRET" 5085 611 1 2>&1)
+MH_CALL=$(docker exec m1c-proof-ext202 python3 /tmp/call.py 202 "$EXT202_SECRET" 5085 611 1 2>&1)
 invites_of() { docker exec m1c-proof-ext201 grep -c '^REQ INVITE' "/tmp/mh$1.log" 2>/dev/null; }
 MH_COUNTS="$(invites_of 211)/$(invites_of 212)/$(invites_of 213)"
 check "$( [[ "$MH_COUNTS" == "3/2/1" ]]; echo $?)" "5: INVITE soni 211/212/213 = 3/2/1 (yig'ilib boruvchi)" "$MH_COUNTS; $MH_CALL"

@@ -36,16 +36,18 @@ export function seedExtensions(): Extension[] {
   const now = '2026-10-27T05:00:00Z';
   const base = {
     dnd: false, forward_always: null, forward_busy: null, pickup_group: null, outbound_allowed: true, outbound_callerid: null,
-    toll_blocked_at: null, toll_block_reason: null, webrtc: false, codecs: [] as string[], recording: 'never' as const,
+    toll_blocked_at: null, toll_block_reason: null, webrtc: false, codecs: [] as string[],
+    // M3c §1 — demo: 101 kiruvchi "always", chiquvchi "on_demand" (ikkisi mustaqil ekanini ko'rsatadi).
+    recording: 'never' as const, recording_in: 'never' as const, recording_out: 'never' as const,
   };
   // M3a §4 — demo uchun 101 va 102 brauzer softfoni (webrtc); operator (102) ham shu bilan sinaladi.
   const webrtcCodecs = ['opus', 'ulaw', 'alaw'];
   return [
     // M3b §1 — 101 "always" (yozib olish demo'si), 104 "on_demand" (*1), qolganlari "never".
-    { id: 'e-101', number: '101', name: 'Dilnoza Karimova', enabled: true, status: 'online', contact: 'sip:101@10.0.0.12:5060', user_agent: 'Zoiper 5', updated_at: now, ...base, pickup_group: 'sales', webrtc: true, codecs: webrtcCodecs, recording: 'always' },
+    { id: 'e-101', number: '101', name: 'Dilnoza Karimova', enabled: true, status: 'online', contact: 'sip:101@10.0.0.12:5060', user_agent: 'Zoiper 5', updated_at: now, ...base, pickup_group: 'sales', webrtc: true, codecs: webrtcCodecs, recording: 'always', recording_in: 'always', recording_out: 'on_demand' },
     { id: 'e-102', number: '102', name: 'Sherzod Yusupov', enabled: true, status: 'offline', contact: null, user_agent: null, updated_at: now, ...base, webrtc: true, codecs: webrtcCodecs },
     { id: 'e-103', number: '103', name: 'Aziz Rahimov', enabled: true, status: 'unknown', contact: null, user_agent: null, updated_at: now, ...base },
-    { id: 'e-104', number: '104', name: 'Malika Tosheva', enabled: true, status: 'online', contact: 'sip:104@10.0.0.18:5060', user_agent: 'MicroSIP', updated_at: now, ...base, forward_busy: '103', pickup_group: 'sales', recording: 'on_demand' },
+    { id: 'e-104', number: '104', name: 'Malika Tosheva', enabled: true, status: 'online', contact: 'sip:104@10.0.0.18:5060', user_agent: 'MicroSIP', updated_at: now, ...base, forward_busy: '103', pickup_group: 'sales', recording: 'on_demand', recording_in: 'on_demand', recording_out: 'never' },
     // M2c §3 — toll-fraud demo: soatiga limitdan oshgani uchun bloklangan (Hodisalar/Toll-fraud bo'limlari bo'sh ko'rinmasin).
     { id: 'e-105', number: '105', name: 'Jahongir Mirzayev', enabled: true, status: 'offline', contact: null, user_agent: null, updated_at: now, ...base, toll_blocked_at: callAt(3), toll_block_reason: 'per_hour' },
     { id: 'e-106', number: '106', name: 'Zarina Nazarova', enabled: true, status: 'online', contact: 'sip:106@10.0.0.21:5061', user_agent: 'Grandstream GXP2170', updated_at: now, ...base, dnd: true },
@@ -393,7 +395,7 @@ export function seedParking(): Parking {
 
 export function seedSecuritySettings(): SecuritySettings {
   return {
-    sip_guard: { enabled: true, max_failures: 5, window_s: 60, ban_s: 3600, trusted_nets: ['10.0.0.0/8'] },
+    sip_guard: { enabled: true, max_failures: 5, window_s: 60, ban_s: 3600, trusted_nets: ['10.0.0.0/8'], trust_lan: true },
     toll_fraud: { enabled: true, max_concurrent_outbound: 0, ext_max_per_hour: 60, ext_international_per_day: 20 },
     updated_at: '2026-10-27T05:00:00Z',
   };

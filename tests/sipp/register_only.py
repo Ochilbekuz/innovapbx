@@ -5,7 +5,7 @@ def md5(s): return hashlib.md5(s.encode()).hexdigest()
 HOST = sys.argv[1] if len(sys.argv) > 1 else "innova-smoke-ast"
 PORT = int(sys.argv[2]) if len(sys.argv) > 2 else 5060
 LOCAL_PORT = int(sys.argv[3]) if len(sys.argv) > 3 else 5080
-USERNAME = sys.argv[4] if len(sys.argv) > 4 else "t1-101"
+USERNAME = sys.argv[4] if len(sys.argv) > 4 else "101"
 PASSWORD = sys.argv[5] if len(sys.argv) > 5 else "TestSecret12345"
 EXPIRES = sys.argv[6] if len(sys.argv) > 6 else "3600"
 # CONTACT_PORT: Contact sarlavhasida e'lon qilinadigan port (masalan, allaqachon

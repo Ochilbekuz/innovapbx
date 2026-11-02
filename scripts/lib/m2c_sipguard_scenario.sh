@@ -39,6 +39,18 @@ m=[i['id'] for i in d['items'] if i['ip']=='$1']
 print(m[0] if m else '')"
 }
 
+echo "--- ssenariy 2a: trust_lan (sukut yoqiq) -> LAN IP 5 xatoda ham bloklanmaydi ---"
+for i in 1 2 3 4 5 6; do
+  bad_register m2c-proof-sgattack "sgatk-lan-$i" >/dev/null
+done
+sleep 10
+check "$( ! sg_is_banned "$SG_ATTACK_IP"; echo $?)" \
+  "2a: trust_lan=true -> LAN $SG_ATTACK_IP 6 xatodan keyin ham bloklanmadi" "$(sg_bans_json)"
+SG_U=$(jget "$(jbody "$(api GET /security/settings)")" updated_at)
+SG_LAN_J=$(api PATCH /security/settings "{\"sip_guard\":{\"trust_lan\":false},\"updated_at\":\"$SG_U\"}")
+check "$( [[ "$(jget "$(jbody "$SG_LAN_J")" item sip_guard trust_lan)" == "False" || "$(jget "$(jbody "$SG_LAN_J")" item sip_guard trust_lan)" == "false" ]]; echo $?)" \
+  "2a: PATCH sip_guard.trust_lan=false (docker tarmog'i ham LAN — keyingi ssenariylar uchun)" "$SG_LAN_J"
+
 echo "--- ssenariy 2: SIP brute-force -> avtomatik ban (<=15s), 403, Telegram, stats ---"
 for i in 1 2 3 4 5; do
   R=$(bad_register m2c-proof-sgattack "t1-sgatk-$i")

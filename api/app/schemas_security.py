@@ -16,6 +16,7 @@ class SipGuardOut(BaseModel):
     window_s: int
     ban_s: int
     trusted_nets: list[str]
+    trust_lan: bool = True
 
 
 class TollFraudOut(BaseModel):
@@ -37,6 +38,7 @@ class UpdateSipGuardItem(BaseModel):
     window_s: int | None = None
     ban_s: int | None = None
     trusted_nets: list[str] | None = None
+    trust_lan: bool | None = None
 
 
 class UpdateTollFraudItem(BaseModel):

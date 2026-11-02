@@ -56,8 +56,11 @@ export function useCallSettings(initial: CallSettingsState) {
 
 // ── Yangi ichki raqam yaratish ────────────────────────────────────────────────────────────────
 
+// M3c §1 — kiruvchi/chiquvchi yozib olish siyosati MUSTAQIL (shu raqamga kelgan / shu raqamdan
+// chiqqan qo'ng'iroq); backend `recording_in`/`recording_out`ga mos.
 export type CreateExtensionFields = {
-  number: string; name: string; password: string; webrtc: boolean; recording: RecordingPolicy; calls: CallSettingsState;
+  number: string; name: string; password: string; webrtc: boolean;
+  recordingIn: RecordingPolicy; recordingOut: RecordingPolicy; calls: CallSettingsState;
 };
 
 export function createExtensionValid(f: CreateExtensionFields): boolean {
@@ -70,7 +73,8 @@ export function createExtensionPayload(f: CreateExtensionFields): CreateExtensio
     name: f.name.trim(),
     password: f.password,
     webrtc: f.webrtc,
-    recording: f.recording,
+    recording_in: f.recordingIn,
+    recording_out: f.recordingOut,
     dnd: f.calls.dnd,
     forward_always: f.calls.forwardAlways.trim() || undefined,
     forward_busy: f.calls.forwardBusy.trim() || undefined,
@@ -82,10 +86,16 @@ export function createExtensionPayload(f: CreateExtensionFields): CreateExtensio
 
 // ── Mavjud ichki raqamni tahrirlash ──────────────────────────────────────────────────────────
 
-export type EditExtensionFields = { name: string; enabled: boolean; webrtc: boolean; recording: RecordingPolicy; calls: CallSettingsState };
+export type EditExtensionFields = {
+  name: string; enabled: boolean; webrtc: boolean;
+  recordingIn: RecordingPolicy; recordingOut: RecordingPolicy; calls: CallSettingsState;
+};
 
 export function editExtensionFieldsFromExtension(ext: Extension): EditExtensionFields {
-  return { name: ext.name, enabled: ext.enabled, webrtc: ext.webrtc, recording: ext.recording, calls: callSettingsFromExtension(ext) };
+  return {
+    name: ext.name, enabled: ext.enabled, webrtc: ext.webrtc,
+    recordingIn: ext.recording_in, recordingOut: ext.recording_out, calls: callSettingsFromExtension(ext),
+  };
 }
 
 export function editExtensionValid(f: EditExtensionFields): boolean {
@@ -94,7 +104,8 @@ export function editExtensionValid(f: EditExtensionFields): boolean {
 
 export function editExtensionDirty(f: EditExtensionFields, ext: Extension): boolean {
   const base = editExtensionFieldsFromExtension(ext);
-  return f.name !== base.name || f.enabled !== base.enabled || f.webrtc !== base.webrtc || f.recording !== base.recording
+  return f.name !== base.name || f.enabled !== base.enabled || f.webrtc !== base.webrtc
+    || f.recordingIn !== base.recordingIn || f.recordingOut !== base.recordingOut
     || (Object.keys(f.calls) as (keyof CallSettingsState)[]).some((k) => f.calls[k] !== base.calls[k]);
 }
 
@@ -116,7 +127,8 @@ export function updateExtensionPayload(f: EditExtensionFields, ext: Extension): 
   setIfChanged(payload, 'name', f.name.trim(), ext.name);
   setIfChanged(payload, 'enabled', f.enabled, ext.enabled);
   setIfChanged(payload, 'webrtc', f.webrtc, ext.webrtc);
-  setIfChanged(payload, 'recording', f.recording, ext.recording);
+  setIfChanged(payload, 'recording_in', f.recordingIn, ext.recording_in);
+  setIfChanged(payload, 'recording_out', f.recordingOut, ext.recording_out);
   setIfChanged(payload, 'dnd', f.calls.dnd, ext.dnd);
   setIfChanged(payload, 'forward_always', trimmedOrNull(f.calls.forwardAlways), ext.forward_always ?? null);
   setIfChanged(payload, 'forward_busy', trimmedOrNull(f.calls.forwardBusy), ext.forward_busy ?? null);

@@ -53,6 +53,18 @@ def test_prep_sets_inherited_a_and_on_demand_feature():
     assert "Set(__INNOVA_REC_A=${CHANNEL(endpoint)})" in body
     assert "Set(DYNAMIC_FEATURES=innova-rec)" in body
     assert '"${CHANNEL(channeltype)}"!="PJSIP"' in body
+    # M3c §1: A o'z chiquvchi qo'ng'irog'ini boshlayapti — `recording_out` (emas `recording`).
+    assert "REALTIME_FIELD(ext_state,endpoint,${INNOVA_REC_A},recording_out)" in body
+
+
+def test_rec_policy_uses_recording_out_for_a_and_recording_for_b():
+    body = "\n".join(_context("\n".join(rec.recording_context_lines()), "innova-rec"))
+    # B (javob bergan, CHANNEL(endpoint)) — KIRUVCHI (`recording`, nomi o'zgarmaydi).
+    assert "REALTIME_FIELD(ext_state,endpoint,${CHANNEL(endpoint)},recording)" in body
+    assert "REALTIME_FIELD(ext_state,endpoint,${CHANNEL(endpoint)},recording_out)" not in body
+    # A / manba (SRC yoki A) — CHIQUVCHI (`recording_out`).
+    assert "REALTIME_FIELD(ext_state,endpoint,${INNOVA_REC_A},recording_out)" in body
+    assert "REALTIME_FIELD(ext_state,endpoint,${INNOVA_REC_P},recording_out)" in body
 
 
 def test_rec_start_file_path_and_cdr():

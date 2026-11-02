@@ -38,7 +38,8 @@ router = APIRouter(prefix="/security", tags=["security"])
 
 def _sip_guard_out(cfg: SipGuardConfig) -> SipGuardOut:
     return SipGuardOut(enabled=cfg.enabled, max_failures=cfg.max_failures, window_s=cfg.window_s,
-                        ban_s=cfg.ban_s, trusted_nets=list(cfg.trusted_nets))
+                        ban_s=cfg.ban_s, trusted_nets=list(cfg.trusted_nets),
+                       trust_lan=cfg.trust_lan)
 
 
 def _toll_fraud_out(cfg: TollFraudConfig) -> TollFraudOut:
@@ -103,7 +104,7 @@ async def update_security_settings(
     diff: dict = {}
     recompile = False
     if payload.sip_guard is not None:
-        changes = _sub_changes(payload.sip_guard, _SIP_GUARD_INT_FIELDS + ("enabled", "trusted_nets"))
+        changes = _sub_changes(payload.sip_guard, _SIP_GUARD_INT_FIELDS + ("enabled", "trusted_nets", "trust_lan"))
         _validate_sip_guard_changes(changes)
         if changes:
             row.sip_guard = {**row.sip_guard, **changes}

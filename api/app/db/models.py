@@ -156,7 +156,10 @@ class Extension(Base):
     max_contacts: Mapped[int] = mapped_column(Integer, default=3)
     codecs: Mapped[list[str]] = mapped_column(ARRAY(Text), default=lambda: ["ulaw", "alaw", "g722", "opus"])
     webrtc: Mapped[bool] = mapped_column(default=False)
+    # M3c §1 — `recording` (nomi o'zgarmaydi, FreePBX import/public/fake API) KIRUVCHI
+    # siyosat; `recording_out` — CHIQUVCHI (0028, boshlang'ich qiymat = `recording`).
     recording: Mapped[str] = mapped_column(Text, default="always")
+    recording_out: Mapped[str] = mapped_column(Text, default="always")
     ring_seconds: Mapped[int] = mapped_column(Integer, default=25)
     dnd: Mapped[bool] = mapped_column(default=False)
     forward_always: Mapped[str | None] = mapped_column(Text, nullable=True)

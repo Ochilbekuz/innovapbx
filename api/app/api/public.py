@@ -194,7 +194,7 @@ async def public_extensions(session: AsyncSession = Depends(get_session), ami=De
                             key: KeyContext = Depends(require_scope("extensions:read"))) -> dict:
     items = (await session.execute(select(Extension).where(Extension.tenant_id == key.tenant_id)
                                    .order_by(Extension.number))).scalars().all()
-    out = await _bulk_extension_out(session, ami, list(items))
+    out = await _bulk_extension_out(ami, list(items))
     return {"items": [PublicExtensionOut(number=e.number, name=e.name, enabled=e.enabled, status=e.status)
                       for e in out]}
 

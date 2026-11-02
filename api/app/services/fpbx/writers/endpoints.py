@@ -48,6 +48,7 @@ async def write_extension(ctx: WriteCtx, entry: Entry) -> str:
         number=number, name=name, sip_password_enc=await encrypt_secret(ctx.session, _sip_secret(ctx, entry)),
         max_contacts=clamp(p.get("max_contacts"), 1, 10, 3), outbound_callerid=p.get("outbound_callerid"),
         ring_seconds=clamp(p.get("ringtimer"), 5, 120, 25), recording=pick(p.get("recording"), _RECORDING, "on_demand"),
+        recording_out=pick(p.get("recording_out"), _RECORDING, "on_demand"),
         dnd=bool(p.get("dnd")), forward_always=_forward(ctx, entry, p.get("forward_always")),
         forward_busy=_forward(ctx, entry, p.get("forward_busy")),
         no_answer_target_id=await resolve_target(ctx, p.get("no_answer_target_id"), source_ref=entry.source_ref),

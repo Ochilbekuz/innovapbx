@@ -114,7 +114,7 @@ for c in 101 102 103 caller; do
   for f in outbound_invite.py vm_caller.py m2a_phone.py; do docker cp "$SIPP_DIR/$f" "m2b-proof-$c:/tmp/$f"; done
 done
 for n in 101 102 103; do
-  docker exec -d "m2b-proof-$n" sh -c "cd /tmp && python3 m2a_phone.py serve t1-$n '${SECRET[$n]}' 5070 12000 /tmp/mode 520 > /tmp/phone.log 2>&1"
+  docker exec -d "m2b-proof-$n" sh -c "cd /tmp && python3 m2a_phone.py serve $n '${SECRET[$n]}' 5070 12000 /tmp/mode 520 > /tmp/phone.log 2>&1"
 done
 registered() { for n in 101 102 103; do docker exec "m2b-proof-$n" grep -q 'REGISTER_RESULT: OK' /tmp/phone.log 2>/dev/null || return 1; done; }
 wait_until 15 registered && pass "101, 102, 103 REGISTER -> 200 OK" || fail "REGISTER -> $(docker exec m2b-proof-101 cat /tmp/phone.log)"
@@ -126,7 +126,7 @@ wait_until 15 registered && pass "101, 102, 103 REGISTER -> 200 OK" || fail "REG
 # `Queue()` ringall qilsa ushbu a'zoni JIRINGLATMAYDI (o'lchandi: real vaqtda
 # ~4.7s gacha "NonQual", "Avail" ~5.3sda) — 101ning BIRINCHI isbot chaqiruvi
 # aynan shu poyga tufayli FAIL berardi. Tuzatish: "Avail" holatini kutish.
-qualified() { for n in 101 102 103; do ast "pjsip show contacts" | grep "t1-$n/" | grep -q "Avail " || return 1; done; }
+qualified() { for n in 101 102 103; do ast "pjsip show contacts" | grep "$n/" | grep -q "Avail " || return 1; done; }
 wait_until 10 qualified && pass "101, 102, 103 PJSIP qualify -> Avail" || fail "qualify -> $(ast 'pjsip show contacts')"
 
 mode() { docker exec "m2b-proof-$1" sh -c "echo '$2' > /tmp/mode"; }
@@ -136,11 +136,11 @@ count_of() { plog "$1" | grep -c "^$2"; }
 CALL_N=0
 place_call() { # container ext secret dialed talk_s -> $OUT (sinxron, feature-kod chaqiruvlari uchun)
   CALL_N=$((CALL_N + 1))
-  OUT=$(docker exec "m2b-proof-$1" sh -c "cd /tmp && python3 m2a_phone.py call 't1-$2' '$3' $((6070 + CALL_N)) $((14000 + CALL_N * 2)) '$4' $5" 2>&1)
+  OUT=$(docker exec "m2b-proof-$1" sh -c "cd /tmp && python3 m2a_phone.py call '$2' '$3' $((6070 + CALL_N)) $((14000 + CALL_N * 2)) '$4' $5" 2>&1)
 }
 place_call_bg() { # nom container ext secret dialed talk_s -> /tmp/<nom>.log (fon, navbatga kiruvchi chaqiruvlar)
   CALL_N=$((CALL_N + 1))
-  docker exec -d "m2b-proof-$2" sh -c "cd /tmp && python3 m2a_phone.py call 't1-$3' '$4' $((6070 + CALL_N)) $((14000 + CALL_N * 2)) '$5' $6 > /tmp/$1.log 2>&1"
+  docker exec -d "m2b-proof-$2" sh -c "cd /tmp && python3 m2a_phone.py call '$3' '$4' $((6070 + CALL_N)) $((14000 + CALL_N * 2)) '$5' $6 > /tmp/$1.log 2>&1"
 }
 call_log() { docker exec "m2b-proof-$1" cat "/tmp/$2.log" 2>/dev/null; }
 call_done() { call_log "$1" "$2" | grep -Eq 'BYE_SENT|REMOTE_BYE|INVITE_FINAL: SIP/2.0 [3-6]'; }

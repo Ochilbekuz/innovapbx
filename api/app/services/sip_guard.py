@@ -26,7 +26,7 @@ from app.core.config import settings
 from app.db.models import IpBan, SecurityEvent, SipAttackStat, SystemSettings
 from app.services.acl_apply import active_banned_ips, apply_acl_ips, hash_ips
 from app.services.alerts import alert_text, raise_alert, tenant_language
-from app.services.security_config import SipGuardConfig, is_trusted, parse_sip_guard
+from app.services.security_config import SipGuardConfig, is_lan, is_trusted, parse_sip_guard
 from app.services.security_log_tail import SecurityLogEvent, TailState, parse_security_line, read_new_lines
 from app.services.tenant_scope import only_tenant_id
 
@@ -135,7 +135,7 @@ async def _handle_event(session: AsyncSession, tenant_id: str, state: SipGuardSt
         await _bump_stat(session, tenant_id, ev.ip, failure=False, blocked=True)
         return
     await _bump_stat(session, tenant_id, ev.ip, failure=True, blocked=False)
-    if not cfg.enabled:
+    if not cfg.enabled or (cfg.trust_lan and is_lan(ev.ip)):
         return
     times = state.recent_failures[ev.ip]
     times.append(now)

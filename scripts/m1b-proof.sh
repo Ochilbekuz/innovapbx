@@ -366,7 +366,7 @@ else
     echo "$out"
   }
 
-  REG_OUT=$(docker exec -i m1b-proof-ext python3 - t1-101 "$EXT101_SECRET" 5090 <<'PYEOF'
+  REG_OUT=$(docker exec -i m1b-proof-ext python3 - 101 "$EXT101_SECRET" 5090 <<'PYEOF'
 import sys
 sys.path.insert(0, "/tmp")
 from outbound_invite import OutboundCaller
@@ -377,9 +377,9 @@ c.close()
 PYEOF
 )
   if echo "$REG_OUT" | grep -q "REGISTER_RESULT: OK"; then
-    pass "REGISTER t1-101 -> 200 OK"
+    pass "REGISTER 101 -> 200 OK"
   else
-    fail "REGISTER t1-101 muvaffaqiyatsiz: $REG_OUT"
+    fail "REGISTER 101 muvaffaqiyatsiz: $REG_OUT"
   fi
   sleep 1
 
@@ -389,7 +389,7 @@ PYEOF
   sleep 0.5
   qualify_trunk "$TRUNKA_ID"; qualify_trunk "$TRUNKB_ID"
   sleep 0.5
-  S1_OUT=$(docker exec m1b-proof-ext python3 /tmp/outbound_invite.py asterisk 5060 5091 t1-101 "$EXT101_SECRET" 0901234567 --hold-ms 1500 --no-register 2>&1)
+  S1_OUT=$(docker exec m1b-proof-ext python3 /tmp/outbound_invite.py asterisk 5060 5091 101 "$EXT101_SECRET" 0901234567 --hold-ms 1500 --no-register 2>&1)
   echo "$S1_OUT" | grep -q "FINAL: 200" && pass "ssenariy1: INVITE 0901234567 -> 200 OK (trunk B javob berdi)" || { fail "ssenariy1: kutilmagan natija"; echo "$S1_OUT"; }
   TRUNKB_LOG=$(wait_for_uas_log m1b-proof-trunkb "REQUEST_LINE" 3)
   if echo "$TRUNKB_LOG" | grep -q "998901234567"; then
@@ -422,7 +422,7 @@ PYEOF
   sleep 0.5
   qualify_trunk "$TRUNKA_ID"; qualify_trunk "$TRUNKB_ID"
   sleep 0.3
-  S2_OUT=$(docker exec m1b-proof-ext python3 /tmp/outbound_invite.py asterisk 5060 5092 t1-101 "$EXT101_SECRET" 0044201234567 --hold-ms 500 --no-register 2>&1)
+  S2_OUT=$(docker exec m1b-proof-ext python3 /tmp/outbound_invite.py asterisk 5060 5092 101 "$EXT101_SECRET" 0044201234567 --hold-ms 500 --no-register 2>&1)
   echo "$S2_OUT" | grep -qE "FINAL: (4|5)[0-9][0-9]" && pass "ssenariy2: INVITE 0044201234567 -> rad etildi (${S2_OUT##*FINAL: })" || { fail "ssenariy2: kutilmagan natija"; echo "$S2_OUT"; }
   # MUHIM (bu segmentda jonli isbotda topilgan poyga -- test-skript xatosi,
   # mahsulot EMAS): `uas_reject.py`/`uas_log_and_answer.py` ichidagi
@@ -465,7 +465,7 @@ PYEOF
   sleep 0.5
   qualify_trunk "$TRUNKB_ID"
   wait_for_aor_avail "$TRUNKB_ID" 3
-  S3W_OUT=$(docker exec m1b-proof-ext python3 /tmp/outbound_invite.py asterisk 5060 5093 t1-101 "$EXT101_SECRET" 7001234567 --dtmf "9999#" --hold-ms 1000 --no-register 2>&1)
+  S3W_OUT=$(docker exec m1b-proof-ext python3 /tmp/outbound_invite.py asterisk 5060 5093 101 "$EXT101_SECRET" 7001234567 --dtmf "9999#" --hold-ms 1000 --no-register 2>&1)
   TRUNKB_LOG3W=$(wait_for_uas_log m1b-proof-trunkb "TIMEOUT\|REQUEST_LINE" 5)
   if echo "$TRUNKB_LOG3W" | grep -q "TIMEOUT"; then
     pass "ssenariy3: xato PIN (9999) bilan trunk B'ga INVITE bormadi (rad etildi)"
@@ -494,7 +494,7 @@ PYEOF
     sleep 0.5
     qualify_trunk "$TRUNKB_ID"
     wait_for_aor_avail "$TRUNKB_ID" 3
-    S3C_OUT=$(docker exec m1b-proof-ext python3 /tmp/outbound_invite.py asterisk 5060 "$((5093 + attempt))" t1-101 "$EXT101_SECRET" 7001234567 --dtmf "1357#" --hold-ms 2000 --no-register 2>&1)
+    S3C_OUT=$(docker exec m1b-proof-ext python3 /tmp/outbound_invite.py asterisk 5060 "$((5093 + attempt))" 101 "$EXT101_SECRET" 7001234567 --dtmf "1357#" --hold-ms 2000 --no-register 2>&1)
     TRUNKB_LOG3C=$(wait_for_uas_log m1b-proof-trunkb "REQUEST_LINE" 5)
     echo "$TRUNKB_LOG3C" | grep -q "REQUEST_LINE" && break
     echo "ssenariy3: urinish $attempt muvaffaqiyatsiz (NonQual/CHANUNAVAIL ehtimoli) -- qayta urinamiz"

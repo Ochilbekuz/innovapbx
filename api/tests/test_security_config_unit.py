@@ -129,3 +129,17 @@ def test_is_trusted_custom_net():
 
 def test_is_trusted_ignores_bad_net_in_list():
     assert is_trusted("8.8.8.8", ("not-a-net", "10.0.0.0/8")) is False
+
+
+@pytest.mark.parametrize("ip,lan", [("192.168.1.5", True), ("10.1.2.3", True), ("172.16.0.1", True),
+                                    ("172.32.0.1", False), ("fe80::1", True), ("fd00::5", True),
+                                    ("8.8.8.8", False), ("2001:4860::8888", False)])
+def test_is_lan(ip, lan):
+    from app.services.security_config import is_lan
+    assert is_lan(ip) is lan
+
+
+def test_parse_sip_guard_trust_lan_default_and_override():
+    from app.services.security_config import parse_sip_guard
+    assert parse_sip_guard({}).trust_lan is True
+    assert parse_sip_guard({"trust_lan": False}).trust_lan is False

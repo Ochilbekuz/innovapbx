@@ -125,7 +125,7 @@ for c in 101 102 103 104 trunk; do
   docker exec "m3b-proof-$c" sh -c "echo answer > /tmp/mode"
 done
 for n in 101 102 103 104; do
-  docker exec -d "m3b-proof-$n" sh -c "cd /tmp && python3 m2a_phone.py serve t1-$n '${SECRET[$n]}' 5070 12000 /tmp/mode 900 > /tmp/phone.log 2>&1"
+  docker exec -d "m3b-proof-$n" sh -c "cd /tmp && python3 m2a_phone.py serve $n '${SECRET[$n]}' 5070 12000 /tmp/mode 900 > /tmp/phone.log 2>&1"
 done
 docker exec -d m3b-proof-trunk sh -c "cd /tmp && python3 m2a_phone.py serve trunk - 5060 12000 /tmp/mode 900 > /tmp/phone.log 2>&1"
 registered() { for n in 101 102 103 104; do docker exec "m3b-proof-$n" grep -q 'REGISTER_RESULT: OK' /tmp/phone.log 2>/dev/null || return 1; done; }
@@ -248,7 +248,7 @@ QRING=$(wh_query /a "$LQ" "next(((r['body']['call'].get('queue') or {}).get('nam
 check "$( [[ "$QRING" == "M3bQueue|$DID_Q" ]]; echo $?)" "2: navbat call.ringing (jonli, AMI VarSet): queue.name + did" "$QRING"
 
 I0=$(invites trunk)
-call_bg 101 "t1-101" "${SECRET[101]}" "$OUT_NUM" 5 co
+call_bg 101 "101" "${SECRET[101]}" "$OUT_NUM" 5 co
 wait_until 25 call_done 101 co; wait_until 10 no_calls
 LO=$(linkedid_from_ext_to_trunk 101)
 wait_until 20 ended_emitted "$LO"; wait_until 20 wh_has /a "$LO" call.ended
@@ -292,7 +292,7 @@ SIGALL=$(wh_query /a '*' 'all(r["sig_ok"] for r in rs) and len(rs) > 0')
 check "$( [[ "$SIGALL" == "True" ]]; echo $?)" "2: barcha so'rovlarda X-Innova-Signature to'g'ri" "$SIGALL"
 
 I0=$(invites 101)
-call_bg 104 "t1-104" "${SECRET[104]}" 101 3 ci
+call_bg 104 "104" "${SECRET[104]}" 101 3 ci
 wait_until 20 call_done 104 ci; wait_until 10 no_calls
 LI=$(linkedid_to_ext 101)
 wait_until 20 ended_emitted "$LI"; sleep 3

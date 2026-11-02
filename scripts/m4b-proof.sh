@@ -284,11 +284,11 @@ s3_down; sftp_down
 
 # ================================================================== 4
 echo "=== 4. shu serverga tiklash ==="
-docker exec -d m4b-proof-101 sh -c "cd /tmp && python3 m2a_phone.py serve t1-101 '${SECRET[101]}' 5070 12000 /tmp/mode 1800 > /tmp/phone.log 2>&1"
+docker exec -d m4b-proof-101 sh -c "cd /tmp && python3 m2a_phone.py serve 101 '${SECRET[101]}' 5070 12000 /tmp/mode 1800 > /tmp/phone.log 2>&1"
 docker exec m4b-proof-101 sh -c "echo answer > /tmp/mode"
 wait_until 15 docker exec m4b-proof-101 grep -q 'REGISTER_RESULT: OK' /tmp/phone.log
 
-docker exec m4b-proof-ph sh -c "cd /tmp && python3 m2a_phone.py call t1-102 '${SECRET[102]}' 5071 13000 101 4 >/tmp/call1.log 2>&1"
+docker exec m4b-proof-ph sh -c "cd /tmp && python3 m2a_phone.py call 102 '${SECRET[102]}' 5071 13000 101 4 >/tmp/call1.log 2>&1"
 LID=$(linkedid_to_ext 101)
 # yozuv fayli BYE'dan keyin asinxron yoziladi (MixMonitor + hup-event qayta ishlash) -- darhol
 # tekshirish g'oyib yozuvga olib keladi, shu sabab bir necha soniya kutamiz (m3b-proof.sh'dagi
@@ -313,7 +313,7 @@ BASE_EXT=$(canon /extensions); BASE_IVR=$(canon /ivrs); BASE_TRUNK=$(canon /trun
 # (409 kutilgan joyda 202 qaytgan) so'rovi orqali KUTILMAGAN ikkinchi tiklash ishini
 # ishga tushirib yuboradi (haqiqiy tiklashdan OLDIN) -- shu soxta qo'shimcha ish
 # keyingi "102->101 javob topadi" tekshiruvida ham tasodifiy nosozlikka olib keladi.
-docker exec -d m4b-proof-ph sh -c "cd /tmp && python3 m2a_phone.py call t1-102 '${SECRET[102]}' 5072 13002 101 15 >/tmp/call2.log 2>&1"
+docker exec -d m4b-proof-ph sh -c "cd /tmp && python3 m2a_phone.py call 102 '${SECRET[102]}' 5072 13002 101 15 >/tmp/call2.log 2>&1"
 sleep 2
 R=$(api POST "/backups/$BK4/restore" '{"confirm":"TIKLASH"}')
 check "$( err_is "$R" 409 active_calls; echo $?)" "4: faol qo'ng'iroq bo'lsa (force yo'q) -> 409 active_calls" "$R"
@@ -354,25 +354,25 @@ check "$( [[ "$NEW_EXT" == "$BASE_EXT" && "$NEW_IVR" == "$BASE_IVR" && "$NEW_TRU
 docker rm -f m4b-proof-101 >/dev/null 2>&1 || true
 docker run -d --name m4b-proof-101 --network "$NET" "$PY_IMAGE" sleep infinity >/dev/null
 docker cp "$SIPP_DIR/register_only.py" m4b-proof-101:/tmp/register_only.py
-REG=$(docker exec m4b-proof-101 python3 /tmp/register_only.py asterisk 5060 5090 "t1-101" "${SECRET[101]}")
+REG=$(docker exec m4b-proof-101 python3 /tmp/register_only.py asterisk 5060 5090 "101" "${SECRET[101]}")
 check "$( [[ "$REG" == REGISTER\ OK:* ]]; echo $?)" "4: 101 eski (zaxiradagi) parol bilan REGISTER -> 200" "$REG"
 
 for f in m2a_phone.py vm_caller.py outbound_invite.py; do docker cp "$SIPP_DIR/$f" "m4b-proof-101:/tmp/$f"; done
-docker exec -d m4b-proof-101 sh -c "cd /tmp && python3 m2a_phone.py serve t1-101 '${SECRET[101]}' 5070 12000 /tmp/mode 300 > /tmp/phone.log 2>&1"
+docker exec -d m4b-proof-101 sh -c "cd /tmp && python3 m2a_phone.py serve 101 '${SECRET[101]}' 5070 12000 /tmp/mode 300 > /tmp/phone.log 2>&1"
 docker exec m4b-proof-101 sh -c "echo answer > /tmp/mode"
 wait_until 15 docker exec m4b-proof-101 grep -q 'REGISTER_RESULT: OK' /tmp/phone.log
 check "$( docker exec m4b-proof-101 grep -q 'REGISTER_RESULT: OK' /tmp/phone.log; echo $?)" \
   "4: tiklashdan keyin 101 telefon qayta ro'yxatdan o'tdi" "$(docker exec m4b-proof-101 tail -3 /tmp/phone.log)"
-docker exec m4b-proof-ph sh -c "cd /tmp && python3 m2a_phone.py call t1-102 '${SECRET[102]}' 5073 13004 101 3 >/tmp/call3.log 2>&1"
+docker exec m4b-proof-ph sh -c "cd /tmp && python3 m2a_phone.py call 102 '${SECRET[102]}' 5073 13004 101 3 >/tmp/call3.log 2>&1"
 check "$( grep -Eq 'BYE_SENT|REMOTE_BYE|INVITE_FINAL: SIP/2.0 2' <(docker exec m4b-proof-ph cat /tmp/call3.log); echo $?)" \
   "4: tiklashdan keyin 102->101 qo'ng'iroq javob topadi" "$(docker exec m4b-proof-ph cat /tmp/call3.log | tail -3)"
 if ! grep -Eq 'BYE_SENT|REMOTE_BYE|INVITE_FINAL: SIP/2.0 2' <(docker exec m4b-proof-ph cat /tmp/call3.log); then
   echo "--- DIAG call3 ---"
   docker exec m4b-proof-ph cat /tmp/call3.log | head -20
-  ast "pjsip show endpoint t1-102" | grep -E "Endpoint:|context|identify" | head -5
+  ast "pjsip show endpoint 102" | grep -E "Endpoint:|context|identify" | head -5
   ast "dialplan show t1-from-internal" | head -4
   sql "select id,status,dialplan_sha256,left(coalesce(error,''),160) from config_revisions order by id desc limit 4"
-  docker logs --since 3m "$AST" 2>&1 | grep -E "t1-102|404|No matching|Failed to authenticate|anonymous" | tail -15
+  docker logs --since 3m "$AST" 2>&1 | grep -E "102|404|No matching|Failed to authenticate|anonymous" | tail -15
   echo "--- /DIAG ---"
 fi
 
@@ -435,7 +435,7 @@ check "$( [[ "$TRUNK_SECRET_OBSERVED" == "$TRUNK_PASS" ]]; echo $?)" \
 
 docker run -d --name m4b-proof-dr --network "$NET" "$PY_IMAGE" sleep infinity >/dev/null
 docker cp "$SIPP_DIR/register_only.py" m4b-proof-dr:/tmp/register_only.py
-REG=$(docker exec m4b-proof-dr python3 /tmp/register_only.py asterisk 5060 5090 "t1-101" "${SECRET[101]}")
+REG=$(docker exec m4b-proof-dr python3 /tmp/register_only.py asterisk 5060 5090 "101" "${SECRET[101]}")
 check "$( [[ "$REG" == REGISTER\ OK:* ]]; echo $?)" "5: DR'dan keyin 101 eski parol bilan REGISTER -> 200" "$REG"
 
 check "$( [[ -z "$(login_as admin "$TEMP_DR_PASSWORD")" ]]; echo $?)" "5: vaqtinchalik DR admin endi ishlamaydi"

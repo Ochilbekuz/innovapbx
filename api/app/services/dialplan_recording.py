@@ -1,19 +1,21 @@
-"""M3b §1 — qo'ng'iroq yozuvi dialplan'i (SOF funksiyalar).
+"""M3b §1/M3c §1 — qo'ng'iroq yozuvi dialplan'i (SOF funksiyalar).
 
 BITTA yordamchi (`recorded_dial_lines` / navbat uchun `recorded_queue_lines`) BARCHA dial nuqtalarida:
 to'g'ridan ichki raqam va forward (`<code>-ext-call`), qo'ng'iroq guruhi, navbat (javob bergan a'zo),
 chiquvchi trunk; transfer ham shu nuqtalardan qayta o'tadi (`TRANSFER_CONTEXT=<code>-from-internal`).
 
   * `innova-rec-prep` — Dial/Queue'dan OLDIN chaqiruvchi (A) kanalida: `__INNOVA_REC_A=<endpoint>`
-    (B'ga meros), A `on_demand` bo'lsa A'ga `*1` (`DYNAMIC_FEATURES=innova-rec`).
+    (B'ga meros), A'ning `recording_out` `on_demand` bo'lsa A'ga `*1` (`DYNAMIC_FEATURES=innova-rec`).
   * `innova-rec` — javob bergan B kanalida (`Dial(U())`, `Queue(...,gosub)`), bridge'dan OLDIN:
-    `app/services/recording_policy.decide` qoidasining Asterisk'dagi aynan nusxasi.
+    `app/services/recording_policy.decide` qoidasining Asterisk'dagi aynan nusxasi (A'ning
+    `recording_out`, B'ning `recording_in`).
   * `innova-rec-start` — `MixMonitor` (fayl `innova/YYYY/MM/DD/<linkedid>-<uniqueid>.wav`, UTC; `a` —
     `*1` bilan qayta yoqilsa o'sha faylga qo'shiladi), `CDR(recordingfile)` nisbiy yo'l.
   * `innova-rec-toggle` — `*1` (features.conf `applicationmap`, `self`): yoqish/o'chirish.
 
-Siyosat realtime'dan (`ext_state` → `asterisk_ext_state` view: `recording`, `rec_external_only`) —
-raqam siyosati o'zgarsa dialplan qayta kompilyatsiya shart emas.
+Siyosat realtime'dan (`ext_state` → `asterisk_ext_state` view: `recording` — KIRUVCHI,
+`recording_out` — CHIQUVCHI, `rec_external_only`) — raqam siyosati o'zgarsa dialplan
+qayta kompilyatsiya shart emas.
 """
 from __future__ import annotations
 
@@ -56,21 +58,25 @@ def _prep_context() -> list[str]:
         f"[{PREP}]",
         'exten => s,1,GotoIf($["${CHANNEL(channeltype)}"!="PJSIP"]?done)',
         " same => n,Set(__INNOVA_REC_A=${CHANNEL(endpoint)})",
-        f' same => n,ExecIf($["{_field("${INNOVA_REC_A}", "recording")}"="on_demand"]?Set(DYNAMIC_FEATURES={FEATURE_NAME}))',
+        # M3c §1: A o'z chiquvchi qo'ng'irog'ini boshlayapti — `recording_out` tekshiriladi.
+        f' same => n,ExecIf($["{_field("${INNOVA_REC_A}", "recording_out")}"="on_demand"]?Set(DYNAMIC_FEATURES={FEATURE_NAME}))',
         " same => n(done),Return()",
     ]
 
 
 def _policy_context() -> list[str]:
-    """B — trunk: manba (forward/transfer qilgan) ichki raqam yoki A siyosati.
-    B — ichki, A — ichki emas: B siyosati. Ikkalasi ichki: external_only → yo'q; never ustun; always → yozish."""
+    """B — trunk: manba (forward/transfer qilgan) ichki raqamning CHIQUVCHISI yoki A'ning
+    CHIQUVCHISI. B — ichki, A — ichki emas: B'ning KIRUVCHISI. Ikkalasi ichki: A'ning
+    CHIQUVCHISI va B'ning KIRUVCHISI — external_only → yo'q; never ustun; always → yozish."""
     on_demand_b = f' same => n,ExecIf($["${{INNOVA_REC_RB}}"="on_demand"]?Set(DYNAMIC_FEATURES={FEATURE_NAME}))'
     return [
         f"[{SUBROUTINE}]",
         'exten => s,1,GotoIf($["${CHANNEL(channeltype)}"!="PJSIP"]?done)',
+        # RB — B'ning KIRUVCHI siyosati (`recording`, nomi o'zgarmaydi).
         f" same => n,Set(INNOVA_REC_RB={_field('${CHANNEL(endpoint)}', 'recording')})",
         " same => n,Set(INNOVA_REC_RA=)",
-        f' same => n,ExecIf($["${{INNOVA_REC_A}}"!=""]?Set(INNOVA_REC_RA={_field("${INNOVA_REC_A}", "recording")}))',
+        # RA — A'ning CHIQUVCHI siyosati (`recording_out`).
+        f' same => n,ExecIf($["${{INNOVA_REC_A}}"!=""]?Set(INNOVA_REC_RA={_field("${INNOVA_REC_A}", "recording_out")}))',
         ' same => n,GotoIf($["${INNOVA_REC_RB}"=""]?trunk)',
         ' same => n,GotoIf($["${INNOVA_REC_RA}"=""]?extb)',
         f' same => n,GotoIf($["{_field("${CHANNEL(endpoint)}", "rec_external_only")}"="t"]?done)',
@@ -88,7 +94,8 @@ def _policy_context() -> list[str]:
         " same => n,Return()",
         " same => n(trunkrec),Set(INNOVA_REC_P=${IF($[\"${INNOVA_REC_SRC}\"!=\"\"]?${INNOVA_REC_SRC}:${INNOVA_REC_A})})",
         ' same => n,GotoIf($["${INNOVA_REC_P}"=""]?done)',
-        f' same => n,GotoIf($["{_field("${INNOVA_REC_P}", "recording")}"="always"]?start:done)',
+        # Manba (SRC) yoki A — har ikkisi ham CHIQUVCHI tomon (`recording_out`).
+        f' same => n,GotoIf($["{_field("${INNOVA_REC_P}", "recording_out")}"="always"]?start:done)',
         f" same => n(start),Gosub({START},s,1)",
         " same => n(done),Return()",
     ]

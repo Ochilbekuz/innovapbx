@@ -62,6 +62,7 @@ import type {
   OutboundExtensionRef, OutboundOrderPayload, OutboundPattern, OutboundRoute, OutboundSimulateParams,
   OutboundSimulateResult, OutboundTrunkRef, OverrideTimeConditionPayload,
   Paged, Parking, PatchMeExtensionPayload, Queue, QueueMember, QueueMemberAction, QueueMemberActionPayload,
+  RecordingPolicy,
   ReportRangeParams, ReportsAgentRow, ReportsDailyRow, ReportsHourlyRow, ReportsQueueRow, ReportsSummary,
   RestartAsteriskResult, RestoreRevisionResult, RevisionDetail, RevisionDiff,
   RevisionDiffAgainst, Role,
@@ -631,6 +632,21 @@ export function createFakeClient(): ApiClient {
     if (nextForwardAlways === ownNumber) err(422, 'bad_number', 'Oʻz raqamiga yoʻnaltirib boʻlmaydi.', { field: 'forward_always' });
     if (nextForwardBusy === ownNumber) err(422, 'bad_number', 'Oʻz raqamiga yoʻnaltirib boʻlmaydi.', { field: 'forward_busy' });
     return { forwardAlways: nextForwardAlways, forwardBusy: nextForwardBusy, pickupGroup, outboundCallerid };
+  }
+
+  /** M3c §1 — BITTA birlashtirish qoidasi (create VA update shu funksiyani chaqiradi, backend
+   * `app/api/v1/extensions.py::_recording_changes` bilan bir xil): eski `recording` berilsa
+   * IKKALASINI ham o'rnatadi (orqaga moslik); aniq `recording_in`/`recording_out` berilsa ular ustun turadi. */
+  function resolveRecordingChanges(payload: {
+    recording?: RecordingPolicy; recording_in?: RecordingPolicy; recording_out?: RecordingPolicy;
+  }): { recording?: RecordingPolicy; recording_out?: RecordingPolicy } {
+    const legacy = payload.recording;
+    const recIn = payload.recording_in ?? legacy;
+    const recOut = payload.recording_out ?? legacy;
+    const changes: { recording?: RecordingPolicy; recording_out?: RecordingPolicy } = {};
+    if (recIn !== undefined) changes.recording = recIn;
+    if (recOut !== undefined) changes.recording_out = recOut;
+    return changes;
   }
 
   /** `anonymous`/`restricted`/boʻsh — yashirin CallerID uchun bitta maxsus qiymatga keltiriladi (§5). */
@@ -1274,9 +1290,11 @@ export function createFakeClient(): ApiClient {
       const webrtc = payload.webrtc ?? false;
       const codecs = resolveWebrtcCodecs(webrtc, payload.codecs, []);
       const call = resolveCallFields(payload, number);
+      const recording = resolveRecordingChanges(payload);
       const password = payload.password ?? generateSipPassword(number);
       if (payload.password !== undefined) checkSipPassword(payload.password, number);
       const now = new Date().toISOString();
+      const recordingIn = recording.recording ?? 'never';
       const item: Extension = {
         id: randomId('e'), number, name: payload.name.trim(), enabled: payload.enabled ?? true, status: 'unknown', contact: null, user_agent: null,
         dnd: payload.dnd ?? false,
@@ -1284,7 +1302,7 @@ export function createFakeClient(): ApiClient {
         outbound_allowed: payload.outbound_allowed ?? true, outbound_callerid: call.outboundCallerid ?? null,
         updated_at: now,
         toll_blocked_at: null, toll_block_reason: null, webrtc, codecs,
-        recording: payload.recording ?? 'never',
+        recording: recordingIn, recording_in: recordingIn, recording_out: recording.recording_out ?? 'never',
       };
       extensions = [...extensions, item];
       const sip: SipCredentials = { username: number, password, domain: sipDomain(), port: 5060 };
@@ -1298,9 +1316,11 @@ export function createFakeClient(): ApiClient {
       if (!cur) err(404, 'not_found', 'Ichki raqam topilmadi.');
       if (payload.updated_at !== cur.updated_at) err(409, 'stale', 'Bu yozuv boshqa joyda oʻzgartirilgan. Sahifani yangilang.', { details: { current: cur } });
       const call = resolveCallFields(payload, cur.number);
+      const recording = resolveRecordingChanges(payload);
       const webrtc = payload.webrtc ?? cur.webrtc;
       const codecs = resolveWebrtcCodecs(webrtc, payload.codecs, cur.codecs);
       const now = new Date().toISOString();
+      const recordingIn = recording.recording ?? cur.recording_in;
       const item: Extension = {
         ...cur,
         name: payload.name ?? cur.name,
@@ -1312,7 +1332,7 @@ export function createFakeClient(): ApiClient {
         outbound_allowed: payload.outbound_allowed ?? cur.outbound_allowed,
         outbound_callerid: payload.outbound_callerid !== undefined ? (call.outboundCallerid as string | null) : cur.outbound_callerid,
         webrtc, codecs,
-        recording: payload.recording ?? cur.recording,
+        recording: recordingIn, recording_in: recordingIn, recording_out: recording.recording_out ?? cur.recording_out,
         updated_at: now,
       };
       extensions = extensions.map((e) => (e.id === id ? item : e));
@@ -1320,7 +1340,8 @@ export function createFakeClient(): ApiClient {
       const callFieldsOnly = payload.name === undefined && payload.enabled === undefined
         && (payload.dnd !== undefined || payload.forward_always !== undefined || payload.forward_busy !== undefined || payload.pickup_group !== undefined
           || payload.outbound_allowed !== undefined || payload.outbound_callerid !== undefined
-          || payload.webrtc !== undefined || payload.codecs !== undefined || payload.recording !== undefined);
+          || payload.webrtc !== undefined || payload.codecs !== undefined
+          || payload.recording !== undefined || payload.recording_in !== undefined || payload.recording_out !== undefined);
       const applyResult: ApplyResult = callFieldsOnly ? { status: 'applied', revision: null, message: null } : apply(`Ichki raqam ${item.number} tahrirlandi`, payload.name);
       return { item, apply: applyResult };
     },

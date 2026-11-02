@@ -83,6 +83,13 @@ def test_channel_creation_seq_orders_by_trailing_counter():
     assert channel_creation_seq("no-suffix-here") == 0
 
 
+def test_channel_creation_seq_reads_hex_counter():
+    # Regress (m2b /live): `PJSIP/101-0000000f` 0 deb o'qilib, navbat oyoqlari aralashib ketardi.
+    assert channel_creation_seq("PJSIP/101-0000000f") == 15
+    assert channel_creation_seq("PJSIP/104-0000000e") < channel_creation_seq("PJSIP/101-0000000f")
+    assert channel_creation_seq("PJSIP/101-0000001a") == 26
+
+
 def test_group_rows_by_bridge_groups_shared_bridge_id():
     rows = _parse_channel_table(_SAMPLE_OUTPUT)
     groups = _group_rows_by_bridge(rows)

@@ -47,8 +47,10 @@ _NUMBER_RANGE = range(100, 1000)
 # M2a §1: realtime maydonlar (Asterisk `asterisk_ext_state`/`ps_endpoints` view'laridan o'qiydi) —
 # faqat ular o'zgarsa apply/reload kerak emas.
 # M3a §2: `webrtc`/`codecs` ham — `ps_endpoints` view'i (sorcery realtime, keshsiz) darhol ko'radi.
-# M3b §1: `recording` — dialplan `innova-rec` realtime o'qiydi.
-_REALTIME_FIELDS = frozenset({"dnd", "forward_always", "forward_busy", "pickup_group", "webrtc", "codecs", "recording"})
+# M3b/M3c §1: `recording`/`recording_out` — dialplan `innova-rec` realtime o'qiydi.
+_REALTIME_FIELDS = frozenset({
+    "dnd", "forward_always", "forward_busy", "pickup_group", "webrtc", "codecs", "recording", "recording_out",
+})
 _KEEP_IF_NONE = ("name", "enabled", "outbound_allowed", "outbound_callerid", "dnd", "recording")
 _CLEARABLE = ("forward_always", "forward_busy", "pickup_group")  # aniq null/"" = tozalash
 # Tuzatish (a): dialplan `_X.` patterni "+" bilan mos kelmaydi — kirishda
@@ -89,7 +91,10 @@ def _ext_out(ext: Extension, state: dict | None = None) -> ExtensionOut:
         dnd=ext.dnd, forward_always=ext.forward_always, forward_busy=ext.forward_busy,
         pickup_group=ext.pickup_group, toll_blocked_at=ext.toll_blocked_at,
         toll_block_reason=ext.toll_block_reason, webrtc=ext.webrtc, codecs=list(ext.codecs or []),
-        recording=getattr(ext, "recording", None) or "always", updated_at=ext.updated_at,
+        recording=getattr(ext, "recording", None) or "always",
+        recording_in=getattr(ext, "recording", None) or "always",
+        recording_out=getattr(ext, "recording_out", None) or "always",
+        updated_at=ext.updated_at,
     )
 
 
@@ -175,13 +180,32 @@ async def create_extension(
 _NORMALIZED = ("forward_always", "forward_busy")  # tuzatish (a): bitta normalizatsiya — number_normalize.py
 
 
+def _recording_changes(payload) -> dict:
+    """M3c §1 — BITTA birlashtirish qoidasi (create VA update shu funksiyani chaqiradi):
+    eski `recording` berilsa IKKALASINI ham o'rnatadi (orqaga moslik — FreePBX import,
+    public/fake API); aniq `recording_in`/`recording_out` berilsa ular ustun turadi."""
+    legacy = getattr(payload, "recording", None)
+    rec_in = getattr(payload, "recording_in", None) or legacy
+    rec_out = getattr(payload, "recording_out", None) or legacy
+    changes: dict = {}
+    if rec_in is not None:
+        changes["recording"] = rec_in
+    if rec_out is not None:
+        changes["recording_out"] = rec_out
+    return changes
+
+
 def _requested_changes(
     payload, *, keep_if_none: tuple[str, ...] = _KEEP_IF_NONE, clearable: tuple[str, ...] = _CLEARABLE,
 ) -> dict:
     """Berilgan maydonlar: `keep_if_none` — null = o'zgarmaydi; `clearable` — kalit bor bo'lsa, null/"" = tozalash.
     Maydon to'plami parametr qilingan — operator `/me/extension` (§4) FAQAT `dnd`/`forward_always`/
-    `forward_busy` to'plamini beradi, admin esa to'liq to'plamni (sukut)."""
-    changes = {f: getattr(payload, f, None) for f in keep_if_none if getattr(payload, f, None) is not None}
+    `forward_busy` to'plamini beradi, admin esa to'liq to'plamni (sukut). `recording` — alohida
+    (ikki ustunga yoziladi, `_recording_changes`); `keep_if_none`da bo'lmasa operator uni o'zgartira olmaydi."""
+    plain_fields = tuple(f for f in keep_if_none if f != "recording")
+    changes = {f: getattr(payload, f, None) for f in plain_fields if getattr(payload, f, None) is not None}
+    if "recording" in keep_if_none:
+        changes.update(_recording_changes(payload))
     changes.update({f: getattr(payload, f) or None for f in clearable if f in payload.model_fields_set})
     for field in _NORMALIZED:
         if changes.get(field) is not None:
