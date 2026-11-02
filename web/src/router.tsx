@@ -38,6 +38,7 @@ import { DevicesPage } from '@/screens/devices/DevicesPage';
 import { BackupPage } from '@/screens/backup/BackupPage';
 import { MigrationPage } from '@/screens/migration/MigrationPage';
 import { StatusPage } from '@/screens/status/StatusPage';
+import { NetworkPage } from '@/screens/network/NetworkPage';
 
 /** M0/M1a/M2b'da to'liq qurilgan ekranlar — qolganlari `ScreenStub` orqali "tez orada". */
 const FULL_PAGES: Record<string, ComponentType> = {
@@ -70,6 +71,7 @@ const FULL_PAGES: Record<string, ComponentType> = {
   backup: BackupPage,
   migration: MigrationPage,
   status: StatusPage,
+  network: NetworkPage,
 };
 
 /** `/` va noma'lum yo'llar uchun ruxsatga mos boshlang'ich sahifa (M7 §4 — qarang `homeFor`). */

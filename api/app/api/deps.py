@@ -15,6 +15,7 @@ from app.core.security import decode_token
 from app.db.models import User
 from app.db.session import SessionLocal
 from app.services.ami import AmiClient
+from app.services.netd_client import NetdClient
 
 _API_PREFIX = "/api/v1"
 
@@ -77,3 +78,13 @@ def get_ami() -> AmiClient:
             settings.ami_host, settings.ami_port, settings.ami_username, settings.ami_password,
         )
     return _ami_singleton
+
+
+_netd_singleton: NetdClient | None = None
+
+
+def get_netd_client() -> NetdClient:
+    global _netd_singleton
+    if _netd_singleton is None:
+        _netd_singleton = NetdClient(settings.netd_socket_path, timeout=settings.netd_timeout_s)
+    return _netd_singleton

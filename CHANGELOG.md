@@ -1,5 +1,19 @@
 # O'zgarishlar tarixi
 
+## 1.0.8 — 2026-11-03
+- **Yangi: «Tarmoq» sahifasi** (Sozlamalar → Tarmoq), Issabel'ning Network bo'limi andozasida, lekin xavfsizroq:
+  - **Umumiy** — host nomi, DNS serverlar va qidiruv domenlari, joriy standart shlyuz;
+  - **Interfeyslar** — har bir fizik/bond/vlan interfeys uchun DHCP↔Statik, IP/prefiks, shlyuz, MTU;
+  - **Statik marshrutlar** — qo'shish/tahrirlash/o'chirish, jonli marshrut jadvalini ko'rish.
+  - **Xavfsizlik: tasdiqlanmasa — avtomatik qaytariladi.** Har bir qo'llash 60–600 soniyalik taymer bilan
+    (sukut 180 s): shu vaqt ichida yangi sozlamadan «Tasdiqlash» bosilmasa, eski holat avtomatik tiklanadi —
+    noto'g'ri IP/shlyuz yozib serverni tarmoqdan uzib qo'yish imkonsiz. Xizmat qayta ishga tushsa ham
+    tasdiqlanmagan o'zgarish darhol qaytariladi.
+  - Faqat **Debian (ifupdown)** o'rnatmada (ISO) to'liq tahrirlanadi; netplan/NetworkManager boshqargan
+    serverda (masalan rivojlanish muhiti) sahifa **faqat ko'rish** rejimida — sabab banner tarzida ko'rsatiladi.
+- **Yangi: asosiy menyu yig'iladigan.** Har bir guruh sarlavhasi endi tugma — bosib yig'ish/yoyish mumkin;
+  holat eslab qolinadi, faol sahifa joylashgan guruh doim ochiq turadi.
+
 ## 1.0.7 — 2026-11-03
 - **Yangi: «Tizim holati» sahifasi** (Sozlamalar → Tizim holati, bosh paneldagi «Batafsil» havolasi ham shu yerga):
   - **Disk** — band/bo'sh joy va nima egallayotgani: qo'ng'iroq yozuvlari, zaxiralar, migratsiya fayllari,

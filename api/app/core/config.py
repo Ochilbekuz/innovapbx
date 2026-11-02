@@ -172,6 +172,12 @@ class Settings(BaseSettings):
     # serverlar uchun tekshiruv o'chirilgan (orqaga moslik).
     setup_code: str = Field(default="")
 
+    # --- M8: tarmoq sozlamalari — `netd` bilan unix-soket orqali gaplashish
+    # (m8-network-contract.md bo'lim 1). Soket api/netd konteynerlari orasida
+    # umumiy `netd-sock` volume orqali ulashiladi.
+    netd_socket_path: str = "/run/innova-netd/netd.sock"
+    netd_timeout_s: float = 10.0
+
     def require_internal_api_token(self) -> str:
         return self._require(self.internal_api_token, "INTERNAL_API_TOKEN")
 

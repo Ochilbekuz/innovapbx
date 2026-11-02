@@ -55,6 +55,8 @@ import type {
   CreateRolePayload, RoleOut, UpdateRolePayload,
   // Tizim holati (status) — pbx-klon vazifa (2026-11-02)
   CleanupIn, CleanupResult, SystemStatus,
+  // M8 — qarang ../../replica/m8-network-contract.md
+  NetworkConfigIn, NetworkStateOut, NetworkValidateResult,
 } from './types';
 import type { ApplyResult } from './types';
 
@@ -401,4 +403,11 @@ export const realClient: ApiClient = {
   systemStatus: () => request<SystemStatus>('/system/status'),
   previewCleanup: (payload: CleanupIn) => request<CleanupResult>('/system/cleanup/preview', { method: 'POST', body: payload }),
   cleanup: (payload: CleanupIn) => request<CleanupResult>('/system/cleanup', { method: 'POST', body: payload }),
+
+  // M8 — qarang ../../replica/m8-network-contract.md
+  networkState: () => request<NetworkStateOut>('/network/state'),
+  validateNetwork: (payload: NetworkConfigIn) => request<NetworkValidateResult>('/network/validate', { method: 'POST', body: payload }),
+  applyNetwork: (payload: NetworkConfigIn) => request<NetworkStateOut>('/network/apply', { method: 'POST', body: payload }),
+  confirmNetwork: (pendingId: string) => request<NetworkStateOut>('/network/confirm', { method: 'POST', body: { pending_id: pendingId } }),
+  rollbackNetwork: (pendingId: string) => request<NetworkStateOut>('/network/rollback', { method: 'POST', body: { pending_id: pendingId } }),
 };

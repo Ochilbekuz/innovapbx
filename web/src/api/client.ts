@@ -6,7 +6,8 @@ import type {
   CreateVoicemailBoxPayload, DashboardResult, FeatureCode,
   Extension, FlowResult, Holiday, ImportUzHolidaysPayload, ImportUzHolidaysResult, InboundRoute, Ivr, ListAuditParams,
   ListBlacklistParams,
-  ListCallsParams, ListExtensionsParams, ListTargetsParams, ListVoicemailBoxesParams, MohClass, NotifySettings,
+  ListCallsParams, ListExtensionsParams, ListTargetsParams, ListVoicemailBoxesParams, MohClass, NetworkConfigIn,
+  NetworkStateOut, NetworkValidateResult, NotifySettings,
   NotifyTestPayload, NotifyTestResult, NumbersFreeParams, OutboundOrderPayload,
   OutboundRoute, OutboundSimulateParams, OutboundSimulateResult, OverrideTimeConditionPayload, Paged, Parking, Queue,
   QueueMember,
@@ -374,6 +375,13 @@ export interface ApiClient {
   systemStatus(): Promise<SystemStatus>;
   previewCleanup(payload: CleanupIn): Promise<CleanupResult>;
   cleanup(payload: CleanupIn): Promise<CleanupResult>;
+
+  // M8 — qarang ../../replica/m8-network-contract.md, S38 «Tarmoq»
+  networkState(): Promise<NetworkStateOut>;
+  validateNetwork(payload: NetworkConfigIn): Promise<NetworkValidateResult>;
+  applyNetwork(payload: NetworkConfigIn): Promise<NetworkStateOut>;
+  confirmNetwork(pendingId: string): Promise<NetworkStateOut>;
+  rollbackNetwork(pendingId: string): Promise<NetworkStateOut>;
 }
 
 export const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));

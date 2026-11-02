@@ -2,10 +2,11 @@
 frontend `web/src/api/types.ts` shu bilan mos bo'lishi SHART)."""
 from __future__ import annotations
 
+import ipaddress
 from datetime import datetime
 from typing import Any, Literal
 
-from pydantic import AliasChoices, BaseModel, Field, model_validator
+from pydantic import AliasChoices, BaseModel, Field, field_validator, model_validator
 
 Lang = Literal["uz", "ru", "en"]
 # m7-roles-contract.md §3: endi istalgan mavjud rol NOMI (maxsus rollar ham
@@ -1234,6 +1235,175 @@ class UpdateMohClassPayload(BaseModel):
 class MohClassMutated(BaseModel):
     item: MohClassOut
     apply: ApplyResult
+
+
+# =============================================================== M8: tarmoq sozlamalari
+# m8-network-contract.md bo'lim 4 — maydon nomlari FRONTEND bilan bitta manba
+# (shartnoma); IP/interfeys maydonlari bu yerda HAM tekshiriladi (chegara
+# intizomi: `ipaddress`/regex — birinchi himoya chizig'i), to'liq biznes
+# qoidalari (subnet/shlyuz mosligi va h.k.) `app/netd/validate.py`da.
+_IFACE_NAME_RE = r"^[a-zA-Z0-9_.:-]{1,15}$"
+NetworkMode = Literal["dhcp", "static"]
+
+
+def _check_ip_or_none(value: str | None) -> str | None:
+    if value is not None:
+        try:
+            ipaddress.ip_address(value)
+        except ValueError as exc:
+            raise ValueError("yaroqsiz IP manzil") from exc
+    return value
+
+
+def _check_cidr_or_none(value: str | None) -> str | None:
+    if value is not None:
+        try:
+            ipaddress.ip_interface(value)
+        except ValueError as exc:
+            raise ValueError("yaroqsiz CIDR manzil (masalan 10.0.0.5/24)") from exc
+    return value
+
+
+class NetworkInterfaceIn(BaseModel):
+    name: str = Field(pattern=_IFACE_NAME_RE)
+    mode: NetworkMode
+    address: str | None = Field(default=None, description="CIDR, masalan 10.0.0.5/24")
+    gateway: str | None = None
+    mtu: int | None = Field(default=None, ge=68, le=9000)
+
+    _check_address = field_validator("address")(classmethod(lambda cls, v: _check_cidr_or_none(v)))
+    _check_gateway = field_validator("gateway")(classmethod(lambda cls, v: _check_ip_or_none(v)))
+
+
+class NetworkRouteIn(BaseModel):
+    destination: str = Field(description="CIDR, masalan 10.1.0.0/24")
+    gateway: str | None = None
+    interface: str | None = Field(default=None, pattern=_IFACE_NAME_RE)
+    metric: int | None = Field(default=None, ge=0, le=65535)
+
+    _check_destination = field_validator("destination")(classmethod(lambda cls, v: _check_cidr_or_none(v)))
+    _check_gateway = field_validator("gateway")(classmethod(lambda cls, v: _check_ip_or_none(v)))
+
+
+class NetworkDnsIn(BaseModel):
+    servers: list[str] = Field(default_factory=list, max_length=4)
+    search: list[str] = Field(default_factory=list, max_length=4)
+
+    @field_validator("servers")
+    @classmethod
+    def _check_servers(cls, value: list[str]) -> list[str]:
+        for server in value:
+            _check_ip_or_none(server)
+        return value
+
+
+class NetworkConfigIn(BaseModel):
+    hostname: str = Field(min_length=1, max_length=253)
+    interfaces: list[NetworkInterfaceIn]
+    routes: list[NetworkRouteIn] = Field(default_factory=list)
+    dns: NetworkDnsIn = Field(default_factory=NetworkDnsIn)
+    timeout_s: int = Field(default=180, ge=60, le=600)
+
+
+class NetworkPendingActionIn(BaseModel):
+    pending_id: str = Field(min_length=1, max_length=64)
+
+
+class NetworkInterfaceConfigOut(BaseModel):
+    mode: str
+    address: str | None
+    gateway: str | None
+    mtu: int | None
+
+
+class NetworkInterfaceOut(BaseModel):
+    name: str
+    mac: str | None
+    kind: str
+    oper_state: str
+    carrier: bool
+    speed_mbps: int | None
+    mtu: int
+    live_ipv4: list[str]
+    live_ipv6: list[str]
+    editable: bool
+    config: NetworkInterfaceConfigOut
+
+
+class NetworkRouteOut(BaseModel):
+    destination: str
+    gateway: str | None
+    interface: str | None
+    metric: int | None
+
+
+class NetworkLiveRouteOut(BaseModel):
+    destination: str
+    gateway: str | None
+    interface: str | None
+    metric: int | None
+    protocol: str | None
+
+
+class NetworkRoutesOut(BaseModel):
+    static: list[NetworkRouteOut]
+    live: list[NetworkLiveRouteOut]
+
+
+class NetworkDnsOut(BaseModel):
+    servers: list[str]
+    search: list[str]
+    editable: bool
+
+
+class NetworkDefaultGatewayOut(BaseModel):
+    address: str | None
+    interface: str | None
+
+
+class NetworkPendingOut(BaseModel):
+    id: str
+    applied_at: datetime
+    expires_at: datetime
+    summary: list[str]
+
+
+class NetworkLastResultOut(BaseModel):
+    kind: str
+    at: datetime
+    message: str | None
+
+
+class NetworkHelperOut(BaseModel):
+    available: bool
+    version: str | None
+    error: str | None
+
+
+class NetworkStateOut(BaseModel):
+    helper: NetworkHelperOut
+    backend: str
+    editable: bool
+    readonly_reason: str | None
+    hostname: str
+    dns: NetworkDnsOut
+    default_gateway: NetworkDefaultGatewayOut
+    interfaces: list[NetworkInterfaceOut]
+    routes: NetworkRoutesOut
+    pending: NetworkPendingOut | None
+    last_result: NetworkLastResultOut | None
+
+
+class NetworkFieldErrorOut(BaseModel):
+    field: str
+    message: str
+
+
+class NetworkValidateOut(BaseModel):
+    ok: bool
+    errors: list[NetworkFieldErrorOut]
+    warnings: list[str]
+    diff: list[str]
 
 
 QueueOut.model_rebuild()

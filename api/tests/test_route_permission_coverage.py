@@ -19,7 +19,7 @@ _OPEN_PREFIXES = ("/me", "/auth", "/setup")
 # SHART (fail-closed, faqat `*`).
 _SYSTEM_ONLY_PREFIXES = (
     "/users", "/roles", "/settings", "/security", "/backups", "/migration",
-    "/audit", "/system", "/feature-codes", "/integrations", "/config",
+    "/audit", "/system", "/feature-codes", "/integrations", "/config", "/network",
 )
 
 # `/settings/provisioning` — ataylab `/settings`dan AJRATILGAN (eng uzun

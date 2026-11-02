@@ -41,6 +41,7 @@ import { isTrustedIp } from '../domain/security';
 import { parsePattern } from '../domain/pattern';
 import { simulateOutbound, type SimRoute } from '../domain/outbound';
 import { unifiedDiff } from '../domain/diff';
+import { buildNetworkDiff, buildNetworkWarnings, validateNetworkConfig } from '../domain/network';
 import { jobStep, validatedLocalTarget, validatedS3Target, validatedSftpTarget } from './fakeBackup';
 import {
   FREEPBX_FIXTURE_IGNORED, FREEPBX_FIXTURE_WARNINGS, SSH_HOST_KEY_FINGERPRINT, cloneFixturePlan,
@@ -104,6 +105,9 @@ import type {
   MigrationPlanItem, MigrationWarning, PatchMigrationPlanPayload, SshFetchPayload, SshTestPayload, SshTestResult,
   // Tizim holati (status) — pbx-klon vazifa (2026-11-02)
   CleanupIn, CleanupResult, DiskCategory, SystemDisk, SystemStatus,
+  // M8 — qarang ../../replica/m8-network-contract.md
+  NetworkConfigIn, NetworkInterface, NetworkLastResult, NetworkPending, NetworkStateOut, NetworkStaticRoute,
+  NetworkValidateResult,
 } from './types';
 import { API_KEY_SCOPES, DEVICE_VENDORS, WEBHOOK_EVENTS, WEBRTC_CODECS } from './types';
 
@@ -379,6 +383,28 @@ export function createFakeClient(): ApiClient {
   const diskVoicemail = { bytes: 1_288_490_189, files: 96 };
   const diskLogs = { bytes: 322_122_547, files: 140 };
   const backupJobs = new Map<string, FakeBackupJob>();
+
+  // ─────────────────────── Tarmoq sozlamalari (network) — M8 (../../replica/m8-network-contract.md) ───────────────────────
+  // Seed shartnoma §5'da berilgan: ifupdown, ens18 statik 192.168.10.20/24 (gw 192.168.10.1), ens19 dhcp,
+  // 1 statik marshrut 10.20.0.0/16 192.168.10.254 orqali.
+  let netHostname = 'innova-pbx1';
+  let netDns: { servers: string[]; search: string[] } = { servers: ['8.8.8.8', '1.1.1.1'], search: [] };
+  let netIfaces: NetworkInterface[] = [
+    {
+      name: 'ens18', mac: '52:54:00:11:22:33', kind: 'ethernet', oper_state: 'up', carrier: true, speed_mbps: 1000,
+      mtu: 1500, live_ipv4: ['192.168.10.20/24'], live_ipv6: [], editable: true,
+      config: { mode: 'static', address: '192.168.10.20/24', gateway: '192.168.10.1', mtu: 1500 },
+    },
+    {
+      name: 'ens19', mac: '52:54:00:11:22:34', kind: 'ethernet', oper_state: 'up', carrier: true, speed_mbps: 1000,
+      mtu: 1500, live_ipv4: ['192.168.10.55/24'], live_ipv6: [], editable: true,
+      config: { mode: 'dhcp', address: null, gateway: null, mtu: 1500 },
+    },
+  ];
+  let netRoutesStatic: NetworkStaticRoute[] = [{ destination: '10.20.0.0/16', gateway: '192.168.10.254', interface: null, metric: null }];
+  let netPending: NetworkPending | null = null;
+  let netPendingSnapshot: { hostname: string; dns: typeof netDns; interfaces: NetworkInterface[]; routes: NetworkStaticRoute[] } | null = null;
+  let netLastResult: NetworkLastResult | null = null;
 
   // ─────────────────────── M5a — qarang ../../replica/m5a-contract.md ───────────────────────
   const migrationJobs = new Map<string, FakeMigrationRecord>();
@@ -1192,6 +1218,59 @@ export function createFakeClient(): ApiClient {
       total_bytes: recordings.bytes + backupsResult.bytes + migrationsResult.bytes,
       errors: [],
     };
+  }
+
+  // ─────────────────────── Tarmoq sozlamalari (network) — M8 (../../replica/m8-network-contract.md) ───────────────────────
+
+  /** Pending muddati o'tgan bo'lsa — jim o'zi avtomatik qaytaradi (real taymer o'rniga har chaqiriqda tekshiradi). */
+  function checkNetworkPendingExpiry(): void {
+    if (!netPending || Date.now() <= Date.parse(netPending.expires_at)) return;
+    if (netPendingSnapshot) {
+      netHostname = netPendingSnapshot.hostname;
+      netDns = netPendingSnapshot.dns;
+      netIfaces = netPendingSnapshot.interfaces;
+      netRoutesStatic = netPendingSnapshot.routes;
+    }
+    netLastResult = { kind: 'rolled_back', at: new Date().toISOString(), message: 'Muddat tugadi — avtomatik qaytarildi.' };
+    netPending = null;
+    netPendingSnapshot = null;
+  }
+
+  function networkDefaultGateway(): { address: string | null; interface: string | null } {
+    const withGw = netIfaces.find((i) => i.config.mode === 'static' && i.config.gateway);
+    return { address: withGw?.config.gateway ?? null, interface: withGw?.name ?? null };
+  }
+
+  function buildNetworkState(): NetworkStateOut {
+    checkNetworkPendingExpiry();
+    return {
+      helper: { available: true, version: '1.0.0', error: null },
+      backend: 'ifupdown',
+      editable: true,
+      readonly_reason: null,
+      hostname: netHostname,
+      dns: { ...netDns, editable: true },
+      default_gateway: networkDefaultGateway(),
+      interfaces: netIfaces,
+      routes: { static: netRoutesStatic, live: netRoutesStatic.map((r) => ({ ...r, protocol: 'static' })) },
+      pending: netPending,
+      last_result: netLastResult,
+    };
+  }
+
+  /** `payload`dagi qiymatlarni joriy holatga ko'chiradi — faqat `applyNetwork` ichida, validatsiyadan keyin chaqiriladi. */
+  function applyNetworkConfigToState(payload: NetworkConfigIn): void {
+    netHostname = payload.hostname;
+    netDns = { servers: payload.dns.servers, search: payload.dns.search };
+    netIfaces = netIfaces.map((ifc) => {
+      const next = payload.interfaces.find((i) => i.name === ifc.name);
+      if (!next) return ifc;
+      const isStatic = next.mode === 'static';
+      const config = { mode: next.mode, address: isStatic ? next.address : null, gateway: isStatic ? next.gateway : null, mtu: next.mtu ?? ifc.mtu };
+      const live_ipv4 = isStatic && next.address ? [next.address] : next.mode === 'dhcp' ? (ifc.live_ipv4.length ? ifc.live_ipv4 : ['192.168.10.55/24']) : [];
+      return { ...ifc, config, live_ipv4, mtu: config.mtu };
+    });
+    netRoutesStatic = payload.routes.map((r) => ({ destination: r.destination, gateway: r.gateway, interface: r.interface, metric: r.metric }));
   }
 
   // ─────────────────────── M4a — qarang ../../replica/m4a-contract.md ───────────────────────
@@ -2285,6 +2364,71 @@ export function createFakeClient(): ApiClient {
       if (payload.migrations) diskMigrations = { bytes: 0, files: 0 };
       auditAdd('delete', 'system', null, 'Disk tozalash', { freed_bytes: [null, result.total_bytes] });
       return result;
+    },
+
+    // M8 — qarang ../../replica/m8-network-contract.md
+    async networkState(): Promise<NetworkStateOut> {
+      requireManage('*');
+      await delay(150);
+      return buildNetworkState();
+    },
+
+    async validateNetwork(payload: NetworkConfigIn): Promise<NetworkValidateResult> {
+      requireManage('*');
+      await delay(150);
+      checkNetworkPendingExpiry();
+      const errors = validateNetworkConfig(payload, netIfaces);
+      const warnings = buildNetworkWarnings(payload, netIfaces, typeof window !== 'undefined' ? window.location.hostname : null, payload.timeout_s);
+      const diff = buildNetworkDiff(payload, { hostname: netHostname, dns: netDns, interfaces: netIfaces, routes: netRoutesStatic });
+      return { ok: errors.length === 0, errors, warnings, diff };
+    },
+
+    async applyNetwork(payload: NetworkConfigIn): Promise<NetworkStateOut> {
+      requireManage('*');
+      await delay(250);
+      checkNetworkPendingExpiry();
+      if (netPending) err(409, 'pending_exists', 'Boshqa oʻzgarish hali tasdiqlanishini kutmoqda.');
+      const errors = validateNetworkConfig(payload, netIfaces);
+      if (errors.length > 0) err(422, 'validation_failed', 'Tekshiruvdan oʻtmadi.', { details: { fields: errors } });
+      netPendingSnapshot = { hostname: netHostname, dns: netDns, interfaces: netIfaces, routes: netRoutesStatic };
+      const summary = buildNetworkDiff(payload, { hostname: netHostname, dns: netDns, interfaces: netIfaces, routes: netRoutesStatic });
+      applyNetworkConfigToState(payload);
+      const appliedAt = new Date();
+      const timeoutS = clamp(payload.timeout_s, 60, 600);
+      netPending = { id: randomId('netpending'), applied_at: appliedAt.toISOString(), expires_at: new Date(appliedAt.getTime() + timeoutS * 1000).toISOString(), summary };
+      netLastResult = null;
+      auditAdd('update', 'network', netPending.id, 'Tarmoq sozlamalari qoʻllandi', {});
+      return buildNetworkState();
+    },
+
+    async confirmNetwork(pendingId: string): Promise<NetworkStateOut> {
+      requireManage('*');
+      await delay(200);
+      checkNetworkPendingExpiry();
+      if (!netPending || netPending.id !== pendingId) err(404, 'not_found', 'Kutilayotgan oʻzgarish topilmadi (muddati oʻtgan boʻlishi mumkin).');
+      netLastResult = { kind: 'confirmed', at: new Date().toISOString(), message: null };
+      netPending = null;
+      netPendingSnapshot = null;
+      auditAdd('update', 'network', pendingId, 'Tarmoq sozlamalari tasdiqlandi', {});
+      return buildNetworkState();
+    },
+
+    async rollbackNetwork(pendingId: string): Promise<NetworkStateOut> {
+      requireManage('*');
+      await delay(200);
+      checkNetworkPendingExpiry();
+      if (!netPending || netPending.id !== pendingId) err(404, 'not_found', 'Kutilayotgan oʻzgarish topilmadi (muddati oʻtgan boʻlishi mumkin).');
+      if (netPendingSnapshot) {
+        netHostname = netPendingSnapshot.hostname;
+        netDns = netPendingSnapshot.dns;
+        netIfaces = netPendingSnapshot.interfaces;
+        netRoutesStatic = netPendingSnapshot.routes;
+      }
+      netLastResult = { kind: 'rolled_back', at: new Date().toISOString(), message: null };
+      netPending = null;
+      netPendingSnapshot = null;
+      auditAdd('update', 'network', pendingId, 'Tarmoq sozlamalari qaytarildi', {});
+      return buildNetworkState();
     },
 
     async listAudit({ entity, user_id, action, from, to, q = '', page = 1, size = 50 }: ListAuditParams): Promise<Paged<AuditEntry>> {

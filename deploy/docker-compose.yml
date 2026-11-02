@@ -80,6 +80,29 @@ services:
     networks: [innova-net]
     restart: unless-stopped
 
+  # M8: host tarmog'ini boshqaruvchi — FAQAT shu konteyner privileged/host-netns
+  # (`/etc/network/interfaces`, `ip`, `hostname` — m8-network-contract.md bo'lim 1).
+  # `api` bilan FAQAT unix-soket orqali gaplashadi (`netd-sock`), DB/tarmoq
+  # kirish huquqi YO'Q. `NETD_READONLY=1` — dastur serverida (netplan, host
+  # tarmog'iga HECH QACHON yozilmasin) `deploy/.env`da majburiy o'rnatiladi.
+  netd:
+    build:
+      context: ../api
+    entrypoint: ["python", "-m", "app.netd"]
+    privileged: true
+    pid: host
+    network_mode: host
+    environment:
+      NETD_SOCKET_PATH: /run/innova-netd/netd.sock
+      NETD_READONLY: ${NETD_READONLY:-0}
+      NETD_EXEC: nsenter
+      NETD_HOST_ROOT: /proc/1/root
+      NETD_PENDING_PATH: /var/lib/innova/netd/pending.json
+    volumes:
+      - netd-sock:/run/innova-netd
+      - netd-state:/var/lib/innova/netd
+    restart: unless-stopped
+
   api:
     build:
       context: ../api
@@ -121,6 +144,8 @@ services:
       WEB_TLS_HOSTNAME: ${WEB_TLS_HOSTNAME:-innova-pbx}
       WEB_TLS_SAN_IPS: ${WEB_TLS_SAN_IPS:-}
       SETUP_CODE: ${SETUP_CODE:-}
+      # M8: `netd` unix-soketi (umumiy `netd-sock` volume — app/services/netd_client.py).
+      NETD_SOCKET_PATH: /run/innova-netd/netd.sock
     volumes:
       - dialplan:/srv/dialplan
       - sounds:/var/lib/innova/sounds
@@ -130,11 +155,14 @@ services:
       - recordings:/var/spool/asterisk/monitor  # M3b §1 — yozuvlarni beradi + saqlash muddati tozalashi (rw)
       - backups:/var/lib/innova/backups  # M4b §0/§1 — lokal zaxira nusxalari (`backup_job.py`/`restore_job.py`)
       - migrations:/var/lib/innova/migrations  # M5a §0 — yuklangan FreePBX to'plamlari (`migration.py`)
+      - netd-sock:/run/innova-netd  # M8 — `netd` bilan unix-soket (faqat mijoz, yozish huquqi shart emas)
     ports:
       - "127.0.0.1:${API_HOST_PORT:-8710}:8000"
     depends_on:
       migrate:
         condition: service_completed_successfully
+      netd:
+        condition: service_started
     networks: [innova-net]
     restart: unless-stopped
 
@@ -171,3 +199,5 @@ volumes:
   recordings:
   backups:
   migrations:
+  netd-sock:
+  netd-state:

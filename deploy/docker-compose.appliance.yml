@@ -29,6 +29,12 @@ services:
     environment:
       POSTGRES_HOST: 127.0.0.1
 
+  # M8: `netd` alohida image kerak emas — `api` image'ini qayta ishlatadi
+  # (faqat `api`/`asterisk`/`web` ISO ichiga paketlanadi, `install.sh`/`iso/build-iso.sh`).
+  netd:
+    <<: *innova-image
+    image: innova-pbx/api:${INNOVA_VERSION:-latest}
+
   api:
     <<: *innova-image
     image: innova-pbx/api:${INNOVA_VERSION:-latest}

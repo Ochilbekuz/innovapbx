@@ -2,7 +2,7 @@ import { createElement, type ReactNode } from 'react';
 import { hasPermission } from '@/auth/permissions';
 import {
   Activity, ArrowRightLeft, AudioLines, BadgeCheck, BellRing, CalendarClock, ChartNoAxesColumn, CircleUserRound, ClipboardCheck,
-  DatabaseBackup, Grid3x3, Hash, History, LayoutDashboard, ListOrdered, Megaphone, Mic2, Network, ParkingSquare,
+  DatabaseBackup, EthernetPort, Grid3x3, Hash, History, LayoutDashboard, ListOrdered, Megaphone, Mic2, Network, ParkingSquare,
   PhoneIncoming, PhoneOutgoing, Plug, ScrollText, ServerCog, Shuffle, ShieldCheck, ShieldOff, Smartphone, UserCog,
   Users, Voicemail, Waypoints,
 } from 'lucide-react';
@@ -66,6 +66,8 @@ export const SCREENS: ScreenDef[] = [
   // tayinlangan — mavjud kelishmovchilik, "status"ni o'zgartirish bu vazifa doirasidan tashqarida.
   { id: 'migration', reconId: 'S36', path: '/settings/migration', icon: icon(ArrowRightLeft), group: 'system', full: true },
   { id: 'status', reconId: 'S36', path: '/settings/status', icon: icon(ServerCog), group: 'system' },
+  // M8: shartnomada (m8-network-contract.md §5) S-raqam berilmagan — recon ro'yxatiga yangi qo'shilgan ekran.
+  { id: 'network', reconId: 'S38', path: '/settings/network', icon: icon(EthernetPort), group: 'system', full: true },
   { id: 'featurecodes', reconId: 'S24', path: '/settings/feature-codes', icon: icon(Hash), group: 'system', full: true },
   { id: 'integrations', reconId: 'S15', path: '/settings/integrations', icon: icon(Plug), group: 'system', full: true },
   { id: 'license', reconId: 'S19', path: '/settings/license', icon: icon(BadgeCheck), group: 'system' },

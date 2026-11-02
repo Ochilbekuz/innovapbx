@@ -41,6 +41,8 @@ import type {
   CampaignAction, CreateCampaignPayload, ImportCampaignContactsPayload, ListCampaignContactsParams, UpdateCampaignPayload,
   // Tizim holati (status) — pbx-klon vazifa (2026-11-02)
   CleanupIn,
+  // M8 — qarang ../../replica/m8-network-contract.md
+  NetworkConfigIn,
 } from './types';
 
 export const qk = {
@@ -134,6 +136,8 @@ export const qk = {
   campaignContacts: (id: string, p: ListCampaignContactsParams) => ['campaigns', id, 'contacts', p] as const,
   // Tizim holati (status) — pbx-klon vazifa (2026-11-02)
   systemStatus: ['system-status'] as const,
+  // M8 — qarang ../../replica/m8-network-contract.md
+  networkState: ['network-state'] as const,
 };
 
 export function useSetupState() {
@@ -1336,5 +1340,40 @@ export function useCleanup() {
   return useMutation({
     mutationFn: (payload: CleanupIn) => apiClient.cleanup(payload),
     onSuccess: () => invalidate([qk.systemStatus]),
+  });
+}
+
+// ─────────────────────── Tarmoq sozlamalari (network) — M8, S38 ───────────────────────
+
+/** `pending` bor ekan — 3s'da bir yangilanadi (muddat/tasdiqlash holatini kuzatish uchun), aks holda 30s. */
+export function useNetworkState() {
+  return useQuery({
+    queryKey: qk.networkState,
+    queryFn: () => apiClient.networkState(),
+    refetchInterval: (query) => (query.state.data?.pending ? 3_000 : 30_000),
+  });
+}
+export function useValidateNetwork() {
+  return useMutation({ mutationFn: (payload: NetworkConfigIn) => apiClient.validateNetwork(payload) });
+}
+export function useApplyNetwork() {
+  const invalidate = useInvalidate();
+  return useMutation({
+    mutationFn: (payload: NetworkConfigIn) => apiClient.applyNetwork(payload),
+    onSuccess: () => invalidate([qk.networkState]),
+  });
+}
+export function useConfirmNetwork() {
+  const invalidate = useInvalidate();
+  return useMutation({
+    mutationFn: (pendingId: string) => apiClient.confirmNetwork(pendingId),
+    onSuccess: () => invalidate([qk.networkState]),
+  });
+}
+export function useRollbackNetwork() {
+  const invalidate = useInvalidate();
+  return useMutation({
+    mutationFn: (pendingId: string) => apiClient.rollbackNetwork(pendingId),
+    onSuccess: () => invalidate([qk.networkState]),
   });
 }

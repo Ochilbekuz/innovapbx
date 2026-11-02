@@ -2,7 +2,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import * as Popover from '@radix-ui/react-popover';
-import { CircleCheck, LoaderCircle, LogOut, Menu, Moon, RotateCcw, Search, Sun } from 'lucide-react';
+import { ChevronDown, CircleCheck, LoaderCircle, LogOut, Menu, Moon, RotateCcw, Search, Sun } from 'lucide-react';
 import { cn } from '@/lib/cn';
 import { LANGS, persistLanguage, type Lang } from '@/lib/i18n';
 import { useTheme } from '@/lib/theme';
@@ -15,7 +15,8 @@ import { LiveDot } from '@/ui/Status';
 import { SoftphoneChip, type CallState } from '@/pbx/Softphone';
 import { SoftphoneWidget } from '@/softphone/SoftphoneWidget';
 import { useSoftphoneStore } from '@/softphone/store';
-import { byGroup, GROUP_ORDER, SCREENS } from './screens';
+import { loadCollapsedGroups, saveCollapsedGroups } from './navCollapse';
+import { byGroup, GROUP_ORDER, SCREENS, type ScreenGroupId } from './screens';
 
 function initialsOf(name: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean);
@@ -144,10 +145,80 @@ type ShellProps = {
   embedded?: boolean;
 };
 
+/** Guruh sarlavhasi — tugma (chevron, `aria-expanded`/`aria-controls`) + silliq balandlik animatsiyali ro'yxat (M8 §6). */
+/** Yig'ilgan guruhdagi havola ko'rinmaydi — Tab bilan unga fokus tushmasligi uchun `tabIndex=-1`. */
+function NavItem({ item: it, on, focusable, onNavigate }: {
+  item: ReturnType<typeof byGroup>[number];
+  on: boolean;
+  focusable: boolean;
+  onNavigate: () => void;
+}) {
+  const { t } = useTranslation();
+  return (
+    <li>
+      <Link
+        to={it.path}
+        onClick={onNavigate}
+        tabIndex={focusable ? undefined : -1}
+        aria-current={on ? 'page' : undefined}
+        className={cn(
+          'relative flex h-8 items-center gap-2.5 rounded-sm px-2.5 text-base transition-colors duration-fast [&_svg]:size-4',
+          on ? 'bg-sidebar-active font-medium text-sidebar-text' : 'text-sidebar-text/85 hover:bg-sidebar-surface hover:text-sidebar-text',
+        )}
+      >
+        {on && <span aria-hidden className="absolute inset-y-1.5 -left-2 w-[3px] rounded-r bg-brand-fire" />}
+        <span aria-hidden className={on ? 'text-brand-fire' : 'text-sidebar-muted'}>{it.icon}</span>
+        <span className="flex-1 truncate">{t(`nav.${it.id}`)}</span>
+        {it.live && <LiveDot />}
+        {it.count !== undefined && <span className="num text-xs text-sidebar-muted">{it.count}</span>}
+      </Link>
+    </li>
+  );
+}
+
+function NavGroup({ group, items, activeId, isOpen, onToggle, onNavigate }: {
+  group: ScreenGroupId;
+  items: ReturnType<typeof byGroup>;
+  activeId: string | undefined;
+  isOpen: boolean;
+  onToggle: () => void;
+  onNavigate: () => void;
+}) {
+  const { t } = useTranslation();
+  const hasLive = items.some((it) => it.live);
+  const panelId = `nav-group-${group}`;
+  return (
+    <div className="mb-3">
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-expanded={isOpen}
+        aria-controls={panelId}
+        className="flex w-full items-center gap-1.5 px-2.5 pb-1 text-2xs uppercase text-sidebar-muted transition-colors duration-fast hover:text-sidebar-text"
+      >
+        <ChevronDown aria-hidden className={cn('size-3 shrink-0 transition-transform duration-fast', !isOpen && '-rotate-90')} />
+        <span className="flex-1 truncate text-left">{t(`groups.${group}`)}</span>
+        {!isOpen && hasLive && <LiveDot />}
+      </button>
+      <div
+        id={panelId}
+        className={cn('grid transition-[grid-template-rows] duration-base motion-reduce:transition-none', isOpen ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]')}
+      >
+        <ul className="overflow-hidden" aria-hidden={!isOpen || undefined}>
+          {items.map((it) => (
+            <NavItem key={it.id} item={it} on={it.id === activeId} focusable={isOpen} onNavigate={onNavigate} />
+          ))}
+        </ul>
+      </div>
+    </div>
+  );
+}
+
 export function AppShell({ active, title, crumbs = [], health, revision, system, call, children, embedded }: ShellProps) {
   const { t, i18n } = useTranslation();
   const { theme, toggle } = useTheme();
   const [navOpen, setNavOpen] = useState(false);
+  const [collapsed, setCollapsed] = useState<Set<string>>(() => new Set(loadCollapsedGroups()));
   const location = useLocation();
   const permissions = useSession((s) => s.user?.permissions);
   const ownExt = useSession((s) => s.user?.extension);
@@ -155,6 +226,16 @@ export function AppShell({ active, title, crumbs = [], health, revision, system,
   // Tizim holati/reviziya — faqat `*` (operatorga 403); /design namunasida doim ko'rinadi.
   const showSystem = embedded || hasPermission(permissions, '*');
   const activeId = active ?? SCREENS.find((s) => location.pathname === s.path || location.pathname.startsWith(`${s.path}/`))?.id;
+  const activeGroup = SCREENS.find((s) => s.id === activeId)?.group;
+
+  const toggleGroup = (g: ScreenGroupId) => {
+    setCollapsed((prev) => {
+      const next = new Set(prev);
+      if (next.has(g)) next.delete(g); else next.add(g);
+      saveCollapsedGroups([...next]);
+      return next;
+    });
+  };
 
   // Idempotent: sahifalar o'rtasida AppShell qayta mount bo'lsa ham bir marta ulanadi; logout `teardown()` chaqiradi.
   useEffect(() => { if (!embedded) initSoftphone(); }, [embedded, initSoftphone]);
@@ -177,34 +258,17 @@ export function AppShell({ active, title, crumbs = [], health, revision, system,
           {GROUP_ORDER.map((g) => {
             const items = byGroup(g, permissions);
             if (items.length === 0) return null;
+            const isOpen = g === activeGroup || !collapsed.has(g);
             return (
-            <div key={g} className="mb-3">
-              <p className="px-2.5 pb-1 text-2xs uppercase text-sidebar-muted">{t(`groups.${g}`)}</p>
-              <ul>
-                {items.map((it) => {
-                  const on = it.id === activeId;
-                  return (
-                    <li key={it.id}>
-                      <Link
-                        to={it.path}
-                        onClick={() => setNavOpen(false)}
-                        aria-current={on ? 'page' : undefined}
-                        className={cn(
-                          'relative flex h-8 items-center gap-2.5 rounded-sm px-2.5 text-base transition-colors duration-fast [&_svg]:size-4',
-                          on ? 'bg-sidebar-active font-medium text-sidebar-text' : 'text-sidebar-text/85 hover:bg-sidebar-surface hover:text-sidebar-text',
-                        )}
-                      >
-                        {on && <span aria-hidden className="absolute inset-y-1.5 -left-2 w-[3px] rounded-r bg-brand-fire" />}
-                        <span aria-hidden className={on ? 'text-brand-fire' : 'text-sidebar-muted'}>{it.icon}</span>
-                        <span className="flex-1 truncate">{t(`nav.${it.id}`)}</span>
-                        {it.live && <LiveDot />}
-                        {it.count !== undefined && <span className="num text-xs text-sidebar-muted">{it.count}</span>}
-                      </Link>
-                    </li>
-                  );
-                })}
-              </ul>
-            </div>
+              <NavGroup
+                key={g}
+                group={g}
+                items={items}
+                activeId={activeId}
+                isOpen={isOpen}
+                onToggle={() => toggleGroup(g)}
+                onNavigate={() => setNavOpen(false)}
+              />
             );
           })}
         </nav>

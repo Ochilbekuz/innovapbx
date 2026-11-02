@@ -39,6 +39,7 @@ import * as migration from '@/i18n/migration';
 import * as followme from '@/i18n/followme';
 import * as campaigns from '@/i18n/campaigns';
 import * as status from '@/i18n/status';
+import * as network from '@/i18n/network';
 import { apiClient } from '@/api';
 
 export const LANGS = ['uz', 'ru', 'en'] as const;
@@ -49,7 +50,7 @@ const NAMESPACES = {
   extensions, ringgroups, trunks, routes, audio, ivr, outbound, queues, timegroups,
   voicemail, notify, featurecodes, conferences, blacklist,
   users, me, live, analytics, security, alerts, integrations, recordings, devices, backup, migration, followme, campaigns,
-  status,
+  status, network,
 } as const;
 
 function resourcesFor(lang: Lang) {

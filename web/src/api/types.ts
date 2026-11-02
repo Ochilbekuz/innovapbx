@@ -502,6 +502,60 @@ export type CleanupResult = {
   errors: string[];
 };
 
+// ─────────────────────── Tarmoq sozlamalari (network) — M8 (../../replica/m8-network-contract.md) ───────────────────────
+
+export type NetworkBackend = 'ifupdown' | 'netplan' | 'networkmanager' | 'unknown';
+export type NetworkInterfaceKind = 'ethernet' | 'vlan' | 'bond' | 'bridge' | 'wireless' | 'other';
+export type NetworkInterfaceMode = 'dhcp' | 'static' | 'manual' | 'unconfigured';
+
+export type NetworkInterfaceConfig = { mode: NetworkInterfaceMode; address: string | null; gateway: string | null; mtu: number | null };
+export type NetworkInterface = {
+  name: string;
+  mac: string | null;
+  kind: NetworkInterfaceKind;
+  oper_state: 'up' | 'down' | 'unknown';
+  carrier: boolean;
+  speed_mbps: number | null;
+  mtu: number;
+  live_ipv4: string[];
+  live_ipv6: string[];
+  editable: boolean;
+  config: NetworkInterfaceConfig;
+};
+
+export type NetworkStaticRoute = { destination: string; gateway: string | null; interface: string | null; metric: number | null };
+export type NetworkLiveRoute = NetworkStaticRoute & { protocol: string | null };
+
+export type NetworkPending = { id: string; applied_at: string; expires_at: string; summary: string[] };
+export type NetworkLastResult = { kind: 'confirmed' | 'rolled_back' | 'apply_failed'; at: string; message: string | null };
+
+export type NetworkStateOut = {
+  helper: { available: boolean; version: string | null; error: string | null };
+  backend: NetworkBackend;
+  editable: boolean;
+  readonly_reason: string | null;
+  hostname: string;
+  dns: { servers: string[]; search: string[]; editable: boolean };
+  default_gateway: { address: string | null; interface: string | null };
+  interfaces: NetworkInterface[];
+  routes: { static: NetworkStaticRoute[]; live: NetworkLiveRoute[] };
+  pending: NetworkPending | null;
+  last_result: NetworkLastResult | null;
+};
+
+export type NetworkInterfaceIn = { name: string; mode: 'dhcp' | 'static'; address: string | null; gateway: string | null; mtu: number | null };
+export type NetworkRouteIn = { destination: string; gateway: string | null; interface: string | null; metric: number | null };
+export type NetworkConfigIn = {
+  hostname: string;
+  dns: { servers: string[]; search: string[] };
+  interfaces: NetworkInterfaceIn[];
+  routes: NetworkRouteIn[];
+  timeout_s: number;
+};
+
+export type NetworkFieldError = { field: string; message: string };
+export type NetworkValidateResult = { ok: boolean; errors: NetworkFieldError[]; warnings: string[]; diff: string[] };
+
 export type AuditAction = 'create' | 'update' | 'delete' | 'login' | 'login_failed' | 'restore' | 'restart' | 'override' | 'spy';
 export type AuditDiff = Record<string, [unknown, unknown]>;
 export type AuditEntry = {

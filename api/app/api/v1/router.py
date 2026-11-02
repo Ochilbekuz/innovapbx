@@ -29,6 +29,7 @@ from app.api.v1 import (
     migration,
     migration_ssh,
     moh_classes,
+    network,
     notify_settings,
     numbers,
     onec,
@@ -107,3 +108,4 @@ router.include_router(settings_backup.router)
 router.include_router(migration.router)
 router.include_router(migration_ssh.router)
 router.include_router(campaigns.router)
+router.include_router(network.router)

@@ -1,0 +1,10 @@
+# `netd` uchun HAQIQIY `ifupdown` integratsiya sinovi — FAQAT shu
+# izolyatsiyalangan konteyner ichida ishlaydi, host tarmog'iga HECH QACHON
+# tegmaydi (dummy `eth1`, konteyner ichidagi o'z `/etc/network/interfaces`).
+FROM debian:trixie
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ifupdown iproute2 python3 \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN mkdir -p /var/lib/innova/netd /etc/network
