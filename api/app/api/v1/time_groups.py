@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_session, require_admin
+from app.api.deps import get_session, require_access
 from app.core.errors import ApiError
 from app.core.lookups import get_tenant_scoped_or_404
 from app.core.optimistic import check_not_stale
@@ -59,7 +59,7 @@ def _parse_hm(value: str) -> dt_time:
 
 @router.get("")
 async def list_time_groups(
-    session: AsyncSession = Depends(get_session), user: User = Depends(require_admin),
+    session: AsyncSession = Depends(get_session), user: User = Depends(require_access),
 ) -> dict:
     groups = (await session.execute(
         select(TimeGroup).where(TimeGroup.tenant_id == user.tenant_id).order_by(TimeGroup.name)
@@ -70,7 +70,7 @@ async def list_time_groups(
 @router.post("", response_model=TimeGroupMutated, status_code=201)
 async def create_time_group(
     payload: CreateTimeGroupPayload, session: AsyncSession = Depends(get_session),
-    user: User = Depends(require_admin),
+    user: User = Depends(require_access),
 ) -> TimeGroupMutated:
     _validate_ranges(payload.ranges)
     group = TimeGroup(tenant_id=user.tenant_id, name=payload.name)
@@ -93,7 +93,7 @@ async def _get_group_or_404(session: AsyncSession, tenant_id: str, group_id: str
 @router.patch("/{group_id}", response_model=TimeGroupMutated)
 async def update_time_group(
     group_id: str, payload: UpdateTimeGroupPayload, session: AsyncSession = Depends(get_session),
-    user: User = Depends(require_admin),
+    user: User = Depends(require_access),
 ) -> TimeGroupMutated:
     group = await _get_group_or_404(session, str(user.tenant_id), group_id)
     check_not_stale(group.updated_at, payload.updated_at)
@@ -116,7 +116,7 @@ async def update_time_group(
 
 @router.delete("/{group_id}", status_code=204, response_model=None)
 async def delete_time_group(
-    group_id: str, session: AsyncSession = Depends(get_session), user: User = Depends(require_admin),
+    group_id: str, session: AsyncSession = Depends(get_session), user: User = Depends(require_access),
 ) -> None:
     group = await _get_group_or_404(session, str(user.tenant_id), group_id)
     usages = (await session.execute(

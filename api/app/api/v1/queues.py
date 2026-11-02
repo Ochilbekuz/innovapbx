@@ -12,7 +12,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.api.deps import get_ami, get_session, require_admin
+from app.api.deps import get_ami, get_session, require_access
 from app.core.errors import ApiError
 from app.core.lookups import get_tenant_scoped_or_404
 from app.core.optimistic import check_not_stale
@@ -133,7 +133,7 @@ async def _tenant_code(session: AsyncSession, tenant_id: str) -> str:
 
 @router.get("")
 async def list_queues(
-    session: AsyncSession = Depends(get_session), user: User = Depends(require_admin), ami=Depends(get_ami),
+    session: AsyncSession = Depends(get_session), user: User = Depends(require_access), ami=Depends(get_ami),
 ) -> dict:
     tenant_id = str(user.tenant_id)
     code = await _tenant_code(session, tenant_id)
@@ -155,7 +155,7 @@ async def _validate_create_queue_payload(session: AsyncSession, tenant_id: str, 
 @router.post("", response_model=QueueMutated, status_code=201)
 async def create_queue(
     payload: CreateQueuePayload, session: AsyncSession = Depends(get_session),
-    user: User = Depends(require_admin), ami=Depends(get_ami),
+    user: User = Depends(require_access), ami=Depends(get_ami),
 ) -> QueueMutated:
     tenant_id = str(user.tenant_id)
     await _validate_create_queue_payload(session, tenant_id, payload)
@@ -232,7 +232,7 @@ async def _apply_queue_moh_class(
 @router.patch("/{queue_id}", response_model=QueueMutated)
 async def update_queue(
     queue_id: str, payload: UpdateQueuePayload, session: AsyncSession = Depends(get_session),
-    user: User = Depends(require_admin), ami=Depends(get_ami),
+    user: User = Depends(require_access), ami=Depends(get_ami),
 ) -> QueueMutated:
     tenant_id = str(user.tenant_id)
     queue = await _get_queue_or_404(session, tenant_id, queue_id)
@@ -273,7 +273,7 @@ def _apply_simple_queue_fields(queue: Queue, payload: UpdateQueuePayload, diff: 
 @router.post("/{queue_id}/members", response_model=QueueMutated, status_code=201)
 async def add_queue_member(
     queue_id: str, payload: AddQueueMemberPayload, session: AsyncSession = Depends(get_session),
-    user: User = Depends(require_admin), ami=Depends(get_ami),
+    user: User = Depends(require_access), ami=Depends(get_ami),
 ) -> QueueMutated:
     """A'zo qo'shish — `queue_members` realtime, reload SHART EMAS (m1a-contract.md S10),
     shu sabab `apply_config` chaqirilmaydi — tanlagan diapplan ravon qoladi."""
@@ -297,7 +297,7 @@ async def add_queue_member(
 @router.patch("/{queue_id}/members/{extension_id}", response_model=QueueMemberMutated)
 async def update_queue_member(
     queue_id: str, extension_id: str, payload: UpdateQueueMemberPayload,
-    session: AsyncSession = Depends(get_session), user: User = Depends(require_admin),
+    session: AsyncSession = Depends(get_session), user: User = Depends(require_access),
 ) -> QueueMemberMutated:
     """`{penalty?, dynamic?}` — realtime, `apply` YO'Q (m2b-contract.md §1)."""
     tenant_id = str(user.tenant_id)
@@ -358,7 +358,7 @@ async def _member_action(
 async def act_on_queue_member(
     queue_id: str, extension_id: str, action: MemberAction,
     payload: QueueMemberActionPayload = QueueMemberActionPayload(),
-    session: AsyncSession = Depends(get_session), user: User = Depends(require_admin), ami=Depends(get_ami),
+    session: AsyncSession = Depends(get_session), user: User = Depends(require_access), ami=Depends(get_ami),
 ) -> QueueMemberMutated:
     """m2b-contract.md §1: `POST /queues/{id}/members/{extension_id}/{login|logout|pause|unpause}`
     `{reason?}` -> `{item: QueueMemberOut}`. `action` yo'l segmentida — 4 ta
@@ -372,7 +372,7 @@ async def act_on_queue_member(
 
 @router.delete("/{queue_id}", status_code=204, response_model=None)
 async def delete_queue(
-    queue_id: str, session: AsyncSession = Depends(get_session), user: User = Depends(require_admin),
+    queue_id: str, session: AsyncSession = Depends(get_session), user: User = Depends(require_access),
     ami=Depends(get_ami),
 ) -> None:
     tenant_id = str(user.tenant_id)

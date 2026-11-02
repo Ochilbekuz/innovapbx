@@ -3,11 +3,12 @@ import { useSystemHealth, useConfigRevisions } from '@/api/queries';
 import type { HealthItem } from '@/ui/Health';
 import { formatTime, formatUptime } from '@/lib/time';
 import { useSession } from '@/api';
+import { hasPermission } from '@/auth/permissions';
 import { AppShell, type Revision, type SystemInfo } from './AppShell';
 
 /** Haqiqiy sahifalar uchun: tizim holati va reviziyani o'zi yuklab, `AppShell`ga beradi. */
 export function AppShellPage({ title, crumbs, children }: { title: string; crumbs?: string[]; children: ReactNode }) {
-  const isAdmin = useSession((s) => s.user?.role) === 'admin';
+  const isAdmin = useSession((s) => hasPermission(s.user?.permissions, '*'));
   const { data: health } = useSystemHealth(isAdmin);
   const { data: revisions } = useConfigRevisions(1, isAdmin);
 

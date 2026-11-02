@@ -6,7 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.api.deps import get_ami, get_session, require_admin
+from app.api.deps import get_ami, get_session, require_access
 from app.core.errors import ApiError
 from app.core.ids import parse_uuid
 from app.core.optimistic import check_not_stale
@@ -94,7 +94,7 @@ async def _get_ivr_or_404(session: AsyncSession, tenant_id: str, ivr_id: str) ->
 
 @router.get("")
 async def list_ivrs(
-    session: AsyncSession = Depends(get_session), user: User = Depends(require_admin),
+    session: AsyncSession = Depends(get_session), user: User = Depends(require_access),
 ) -> dict:
     items = (await session.execute(
         select(Ivr).where(Ivr.tenant_id == user.tenant_id).order_by(Ivr.name).options(*_IVR_OPTIONS)
@@ -119,7 +119,7 @@ async def _validate_create_ivr_payload(session: AsyncSession, tenant_id: str, pa
 @router.post("", response_model=IvrMutated, status_code=201)
 async def create_ivr(
     payload: CreateIvrPayload, session: AsyncSession = Depends(get_session),
-    user: User = Depends(require_admin), ami=Depends(get_ami),
+    user: User = Depends(require_access), ami=Depends(get_ami),
 ) -> IvrMutated:
     tenant_id = str(user.tenant_id)
     await _validate_create_ivr_payload(session, tenant_id, payload)
@@ -213,7 +213,7 @@ async def _apply_ivr_number(
 @router.patch("/{ivr_id}", response_model=IvrMutated)
 async def update_ivr(
     ivr_id: str, payload: UpdateIvrPayload, session: AsyncSession = Depends(get_session),
-    user: User = Depends(require_admin), ami=Depends(get_ami),
+    user: User = Depends(require_access), ami=Depends(get_ami),
 ) -> IvrMutated:
     tenant_id = str(user.tenant_id)
     ivr = await _get_ivr_or_404(session, tenant_id, ivr_id)
@@ -238,7 +238,7 @@ async def update_ivr(
 
 @router.delete("/{ivr_id}", status_code=204, response_model=None)
 async def delete_ivr(
-    ivr_id: str, session: AsyncSession = Depends(get_session), user: User = Depends(require_admin),
+    ivr_id: str, session: AsyncSession = Depends(get_session), user: User = Depends(require_access),
     ami=Depends(get_ami),
 ) -> None:
     tenant_id = str(user.tenant_id)

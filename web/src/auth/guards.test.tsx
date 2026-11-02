@@ -20,6 +20,7 @@ function at(guard: (p: { children: ReactNode }) => ReactNode) {
         <Route path="/login" element={<p>login</p>} />
         <Route path="/setup" element={<p>setup</p>} />
         <Route path="/dashboard" element={<p>dashboard</p>} />
+        <Route path="/me" element={<p>me</p>} />
       </Routes>
     </MemoryRouter>,
   );
@@ -55,10 +56,22 @@ describe('auth guards', () => {
     expect(screen.getByText('setup')).toBeTruthy();
   });
 
-  it('RedirectIfAuthed: logged-in user → /dashboard', () => {
-    session.user = { id: 1 };
+  it('RedirectIfAuthed: "*" ruxsati bor foydalanuvchi → /dashboard', () => {
+    session.user = { id: 1, permissions: ['*'] };
     at(RedirectIfAuthed);
     expect(screen.getByText('dashboard')).toBeTruthy();
+  });
+
+  it('RedirectIfAuthed: "monitor:view" bor foydalanuvchi → /dashboard', () => {
+    session.user = { id: 1, permissions: ['monitor:view'] };
+    at(RedirectIfAuthed);
+    expect(screen.getByText('dashboard')).toBeTruthy();
+  });
+
+  it('RedirectIfAuthed: hech qanday ko\'rinadigan ekrani yo\'q foydalanuvchi → /me', () => {
+    session.user = { id: 1, permissions: [] };
+    at(RedirectIfAuthed);
+    expect(screen.getByText('me')).toBeTruthy();
   });
 
   it('RedirectIfAuthed: anonymous → children', () => {

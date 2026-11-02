@@ -2,7 +2,8 @@
 
 export type Lang = 'uz' | 'ru' | 'en';
 
-export type Role = 'admin' | 'operator';
+/** M7 — endi istalgan rol NOMI (tizim rollari `admin`/`operator` yoki maxsus rol nomi). */
+export type Role = string;
 
 export type User = {
   id: string;
@@ -708,6 +709,19 @@ export type UpdateUserPayload = {
   updated_at: string;
 };
 export type ChangePasswordPayload = { current: string; new: string };
+
+// M7 — rollar muharriri (qarang ../../replica/m7-roles-contract.md §2)
+
+export type RoleOut = {
+  id: string;
+  name: string;
+  permissions: string[];
+  is_system: boolean;
+  user_count: number;
+  updated_at: string;
+};
+export type CreateRolePayload = { name: string; permissions: string[] };
+export type UpdateRolePayload = { name?: string; permissions?: string[]; updated_at: string };
 
 // §4 — mening kabinetim (S30)
 

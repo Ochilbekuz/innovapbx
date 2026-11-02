@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_ami, get_session, require_admin
+from app.api.deps import get_ami, get_session, require_access
 from app.core.errors import ApiError
 from app.db.models import FeatureCode, FeatureCodeDefault, TimeCondition, User
 from app.schemas_features import FeatureCodeList, FeatureCodeMutated, FeatureCodeOut, UpdateFeatureCodePayload
@@ -51,7 +51,7 @@ def _item(fc: FeatureCode, defaults: dict[str, str]) -> FeatureCodeOut:
 
 @router.get("", response_model=FeatureCodeList)
 async def list_feature_codes(
-    session: AsyncSession = Depends(get_session), user: User = Depends(require_admin),
+    session: AsyncSession = Depends(get_session), user: User = Depends(require_access),
 ) -> FeatureCodeList:
     codes = await _load_codes(session, str(user.tenant_id))
     defaults = await _load_defaults(session)
@@ -86,7 +86,7 @@ async def _change(session: AsyncSession, user: User, ami, feature: str, *, code:
 @router.patch("/{feature}", response_model=FeatureCodeMutated)
 async def update_feature_code(
     feature: str, payload: UpdateFeatureCodePayload, session: AsyncSession = Depends(get_session),
-    user: User = Depends(require_admin), ami=Depends(get_ami),
+    user: User = Depends(require_access), ami=Depends(get_ami),
 ) -> FeatureCodeMutated:
     return await _change(session, user, ami, feature, code=payload.code, enabled=payload.enabled,
                          action="feature_code.update")
@@ -94,7 +94,7 @@ async def update_feature_code(
 
 @router.post("/{feature}/reset", response_model=FeatureCodeMutated)
 async def reset_feature_code(
-    feature: str, session: AsyncSession = Depends(get_session), user: User = Depends(require_admin),
+    feature: str, session: AsyncSession = Depends(get_session), user: User = Depends(require_access),
     ami=Depends(get_ami),
 ) -> FeatureCodeMutated:
     """Standart kod va `enabled=true` ga qaytaradi."""

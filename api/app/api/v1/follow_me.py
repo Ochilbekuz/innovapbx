@@ -8,7 +8,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_current_user, get_session, require_admin
+from app.api.deps import get_current_user, get_session, require_access
 from app.api.v1.extensions import _get_extension_or_404
 from app.api.v1.me import _require_own_extension
 from app.core.optimistic import check_not_stale
@@ -40,20 +40,20 @@ async def _qr(session: AsyncSession, ext: Extension, user: User) -> QrProvisioni
 
 @router.get("/extensions/{ext_id}/follow-me", response_model=FollowMeOut)
 async def get_follow_me(ext_id: str, session: AsyncSession = Depends(get_session),
-                        user: User = Depends(require_admin)) -> FollowMeOut:
+                        user: User = Depends(require_access)) -> FollowMeOut:
     return _out(await _get_extension_or_404(session, str(user.tenant_id), ext_id))
 
 
 @router.put("/extensions/{ext_id}/follow-me", response_model=FollowMeOut)
 async def put_follow_me(ext_id: str, payload: FollowMePayload, session: AsyncSession = Depends(get_session),
-                        user: User = Depends(require_admin)) -> FollowMeOut:
+                        user: User = Depends(require_access)) -> FollowMeOut:
     ext = await _get_extension_or_404(session, str(user.tenant_id), ext_id)
     return await _put(session, ext, payload, user)
 
 
 @router.post("/extensions/{ext_id}/qr-provisioning", response_model=QrProvisioningOut)
 async def create_qr(ext_id: str, session: AsyncSession = Depends(get_session),
-                    user: User = Depends(require_admin)) -> QrProvisioningOut:
+                    user: User = Depends(require_access)) -> QrProvisioningOut:
     return await _qr(session, await _get_extension_or_404(session, str(user.tenant_id), ext_id), user)
 
 

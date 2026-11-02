@@ -14,7 +14,7 @@ from types import SimpleNamespace
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_session, require_admin
+from app.api.deps import get_session, require_access
 from app.core.errors import ApiError
 from app.core.optimistic import check_not_stale
 from app.db.models import NotifySettings, User
@@ -52,7 +52,7 @@ def _out(row: NotifySettings | None) -> NotifySettingsOut:
 
 @router.get("", response_model=NotifySettingsOut)
 async def get_notify_settings(
-    session: AsyncSession = Depends(get_session), user: User = Depends(require_admin),
+    session: AsyncSession = Depends(get_session), user: User = Depends(require_access),
 ) -> NotifySettingsOut:
     return _out(await session.get(NotifySettings, str(user.tenant_id)))
 
@@ -70,7 +70,7 @@ async def _apply_secrets(session: AsyncSession, row: NotifySettings, payload: Up
 @router.patch("", response_model=NotifySettingsOut)
 async def update_notify_settings(
     payload: UpdateNotifySettingsPayload, session: AsyncSession = Depends(get_session),
-    user: User = Depends(require_admin),
+    user: User = Depends(require_access),
 ) -> NotifySettingsOut:
     tenant_id = str(user.tenant_id)
     row = await session.get(NotifySettings, tenant_id)
@@ -96,7 +96,7 @@ async def update_notify_settings(
 
 @router.post("/test", response_model=NotifyTestResult)
 async def test_notify(
-    payload: NotifyTestPayload, session: AsyncSession = Depends(get_session), user: User = Depends(require_admin),
+    payload: NotifyTestPayload, session: AsyncSession = Depends(get_session), user: User = Depends(require_access),
 ) -> NotifyTestResult:
     cfg = await vm_notify.load_config(session, str(user.tenant_id))
     try:

@@ -6,7 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.api.deps import get_ami, get_session, require_admin
+from app.api.deps import get_ami, get_session, require_access
 from app.core.errors import ApiError
 from app.core.ids import parse_uuid
 from app.core.optimistic import check_not_stale
@@ -94,7 +94,7 @@ async def _validate_toggle_code(
 
 @router.get("")
 async def list_time_conditions(
-    session: AsyncSession = Depends(get_session), user: User = Depends(require_admin),
+    session: AsyncSession = Depends(get_session), user: User = Depends(require_access),
 ) -> dict:
     items = (await session.execute(
         select(TimeCondition).where(TimeCondition.tenant_id == user.tenant_id).order_by(TimeCondition.name)
@@ -106,7 +106,7 @@ async def list_time_conditions(
 @router.post("", response_model=TimeConditionMutated, status_code=201)
 async def create_time_condition(
     payload: CreateTimeConditionPayload, session: AsyncSession = Depends(get_session),
-    user: User = Depends(require_admin), ami=Depends(get_ami),
+    user: User = Depends(require_access), ami=Depends(get_ami),
 ) -> TimeConditionMutated:
     tenant_id = str(user.tenant_id)
     await _validate_time_group(session, tenant_id, payload.time_group_id)
@@ -139,7 +139,7 @@ async def create_time_condition(
 @router.patch("/{tc_id}", response_model=TimeConditionMutated)
 async def update_time_condition(
     tc_id: str, payload: UpdateTimeConditionPayload, session: AsyncSession = Depends(get_session),
-    user: User = Depends(require_admin), ami=Depends(get_ami),
+    user: User = Depends(require_access), ami=Depends(get_ami),
 ) -> TimeConditionMutated:
     tenant_id = str(user.tenant_id)
     tc = await _get_tc_or_404(session, tenant_id, tc_id)
@@ -187,7 +187,7 @@ async def update_time_condition(
 @router.post("/{tc_id}/override", response_model=TimeConditionMutated)
 async def override_time_condition(
     tc_id: str, payload: OverridePayload, session: AsyncSession = Depends(get_session),
-    user: User = Depends(require_admin), ami=Depends(get_ami),
+    user: User = Depends(require_access), ami=Depends(get_ami),
 ) -> TimeConditionMutated:
     tenant_id = str(user.tenant_id)
     tc = await _get_tc_or_404(session, tenant_id, tc_id)
@@ -202,7 +202,7 @@ async def override_time_condition(
 
 @router.delete("/{tc_id}", status_code=204, response_model=None)
 async def delete_time_condition(
-    tc_id: str, session: AsyncSession = Depends(get_session), user: User = Depends(require_admin),
+    tc_id: str, session: AsyncSession = Depends(get_session), user: User = Depends(require_access),
     ami=Depends(get_ami),
 ) -> None:
     tenant_id = str(user.tenant_id)

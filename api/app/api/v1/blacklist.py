@@ -5,7 +5,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_session, require_admin
+from app.api.deps import get_session, require_access
 from app.core.errors import ApiError
 from app.db.models import Blacklist, User
 from app.schemas_blacklist import BlacklistCreated, BlacklistEntryOut, BlacklistList, CreateBlacklistPayload
@@ -21,7 +21,7 @@ def _out(entry: Blacklist) -> BlacklistEntryOut:
 
 @router.get("", response_model=BlacklistList)
 async def list_blacklist(
-    q: str | None = None, session: AsyncSession = Depends(get_session), user: User = Depends(require_admin),
+    q: str | None = None, session: AsyncSession = Depends(get_session), user: User = Depends(require_access),
 ) -> BlacklistList:
     items = await list_entries(session, str(user.tenant_id), q)
     return BlacklistList(items=[_out(e) for e in items])
@@ -30,7 +30,7 @@ async def list_blacklist(
 @router.post("", response_model=BlacklistCreated, status_code=201)
 async def add_blacklist_entry(
     payload: CreateBlacklistPayload, session: AsyncSession = Depends(get_session),
-    user: User = Depends(require_admin),
+    user: User = Depends(require_access),
 ) -> BlacklistCreated:
     tenant_id = str(user.tenant_id)
     number = validate_blacklist_number(payload.number)
@@ -47,7 +47,7 @@ async def add_blacklist_entry(
 
 @router.delete("/{number}", status_code=204, response_model=None)
 async def remove_blacklist_entry(
-    number: str, session: AsyncSession = Depends(get_session), user: User = Depends(require_admin),
+    number: str, session: AsyncSession = Depends(get_session), user: User = Depends(require_access),
 ) -> None:
     tenant_id = str(user.tenant_id)
     try:

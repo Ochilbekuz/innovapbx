@@ -12,7 +12,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_session, require_admin
+from app.api.deps import get_session, require_access
 from app.core.errors import ApiError
 from app.core.lookups import get_tenant_scoped_or_404
 from app.core.optimistic import check_not_stale
@@ -92,7 +92,7 @@ async def _check_last_admin(session: AsyncSession, tenant_id: str, target: User,
 
 
 @router.get("")
-async def list_users(session: AsyncSession = Depends(get_session), user: User = Depends(require_admin)) -> dict:
+async def list_users(session: AsyncSession = Depends(get_session), user: User = Depends(require_access)) -> dict:
     rows = (await session.execute(
         select(User).where(User.tenant_id == user.tenant_id).order_by(User.username)
     )).scalars().all()
@@ -101,7 +101,7 @@ async def list_users(session: AsyncSession = Depends(get_session), user: User = 
 
 @router.post("", response_model=UserMutated, status_code=201)
 async def create_user(
-    payload: CreateUserPayload, session: AsyncSession = Depends(get_session), user: User = Depends(require_admin),
+    payload: CreateUserPayload, session: AsyncSession = Depends(get_session), user: User = Depends(require_access),
 ) -> UserMutated:
     tenant_id = str(user.tenant_id)
     username = payload.username.strip()
@@ -207,7 +207,7 @@ def _apply_password(target: User, payload: UpdateUserPayload) -> dict:
 @router.patch("/{user_id}", response_model=UserMutated)
 async def update_user(
     user_id: str, payload: UpdateUserPayload, session: AsyncSession = Depends(get_session),
-    user: User = Depends(require_admin),
+    user: User = Depends(require_access),
 ) -> UserMutated:
     tenant_id = str(user.tenant_id)
     target = await _get_user_or_404(session, tenant_id, user_id)
@@ -254,7 +254,7 @@ async def update_user(
 
 @router.delete("/{user_id}", status_code=204, response_model=None)
 async def delete_user(
-    user_id: str, session: AsyncSession = Depends(get_session), user: User = Depends(require_admin),
+    user_id: str, session: AsyncSession = Depends(get_session), user: User = Depends(require_access),
 ) -> None:
     tenant_id = str(user.tenant_id)
     target = await _get_user_or_404(session, tenant_id, user_id)

@@ -4,7 +4,7 @@ import { EyeOff, Plus, ShieldAlert, ShieldOff, Trash2 } from 'lucide-react';
 import { useBlacklist, useCreateBlacklistEntry, useDeleteBlacklistEntry } from '@/api/queries';
 import { isApiError } from '@/api/errors';
 import type { BlacklistEntry } from '@/api/types';
-import { usePermission } from '@/auth/permissions';
+import { useCanEdit } from '@/auth/permissions';
 import { formatDateTimeShort } from '@/lib/time';
 import { AppShellPage } from '@/shell/AppShellPage';
 import { Button } from '@/ui/Button';
@@ -20,7 +20,7 @@ const ANONYMOUS = 'anonymous';
 export function BlacklistPage() {
   const { t } = useTranslation('blacklist');
   const { data, isLoading, isError, refetch } = useBlacklist({});
-  const canManage = usePermission('pbx.manage');
+  const canManage = useCanEdit('apps');
   const toast = useToast();
   const [adding, setAdding] = useState(false);
   const [deleting, setDeleting] = useState<BlacklistEntry | null>(null);

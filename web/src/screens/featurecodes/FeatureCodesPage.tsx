@@ -72,7 +72,7 @@ function CodeCell({ fc, canManage }: { fc: FeatureCode; canManage: boolean }) {
 export function FeatureCodesPage() {
   const { t } = useTranslation('featurecodes');
   const { data, isLoading, isError, refetch } = useFeatureCodes();
-  const canManage = usePermission('pbx.manage');
+  const canManage = usePermission('*');
   const toast = useToast();
   const updateM = useUpdateFeatureCode();
 

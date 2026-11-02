@@ -42,6 +42,8 @@ _CLEANUP = (
     "DELETE FROM ivrs WHERE tenant_id = :t",
     "DELETE FROM announcements WHERE tenant_id = :t",
     "DELETE FROM moh_class_files WHERE moh_class_id IN (SELECT id FROM moh_classes WHERE tenant_id = :t)",
+    # outbound_route_trunks.trunk_id — RESTRICT: tenant kaskadida trunk'dan oldin yo'nalish o'chishi kafolatlanmaydi.
+    "DELETE FROM outbound_routes WHERE tenant_id = :t",
     "DELETE FROM tenants WHERE id = :t",
 )
 

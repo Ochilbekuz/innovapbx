@@ -1,5 +1,26 @@
 # O'zgarishlar tarixi
 
+## 1.0.5 — 2026-11-02
+- **Yangi: rollar muharriri.** Sozlamalar → Foydalanuvchilar → **Rollar** bo'limida o'z rollaringizni yaratasiz
+  (FreePBX'dagi User Management guruhlari kabi). Har bir rol uchun 6 ta bo'limning har biriga daraja beriladi:
+  **Yo'q / Ko'rish / Tahrirlash**. Bo'limlar:
+  - Monitoring (panel, ogohlantirishlar, jonli qo'ng'iroqlar);
+  - Ichki raqamlar (qurilmalar, ovozli pochta);
+  - Ulanish (trunklar, kiruvchi va chiquvchi marshrutlar);
+  - Yo'naltirish (IVR, navbatlar, guruhlar, vaqt shartlari);
+  - Ilovalar (audio, konferensiya, park, qora ro'yxat, kampaniyalar);
+  - Hisobotlar (qo'ng'iroqlar, hisobotlar, yozuvlar).
+- Foydalanuvchiga istalgan rolni berish mumkin. Ruxsat o'zgarsa, darhol kuchga kiradi, qayta kirish shart emas.
+- «Ko'rish» darajasida sahifa ochiladi, lekin yaratish, tahrirlash va o'chirish tugmalari yashiriladi.
+  Server ham bunday so'rovlarni rad etadi (403).
+- Menyuda faqat ruxsat berilgan bo'limlar ko'rinadi.
+- **Xavfsizlik:**
+  - tizim bo'limi (foydalanuvchilar, xavfsizlik, zaxira, SIP, migratsiya, integratsiyalar) faqat admin uchun;
+  - tizim rollari (admin, operator) o'zgartirilmaydi;
+  - foydalanuvchisi bor rolni o'chirib bo'lmaydi.
+- **Tuzatildi:** mavjud quti raqami bilan yangi umumiy ovozli pochta qutisi yaratilsa, «Bu quti raqami band» xatosi
+  chiqadi (1.0.4 da umumiy «raqam band» xatosi chiqardi).
+
 ## 1.0.4 — 2026-11-02
 - **Tuzatildi:** Boshqaruv panelidagi ogohlantirishlarda «Ko'rish» hech narsa qilmasdi — havolalar mavjud bo'lmagan
   sahifalarga (`/outbound-routes`, `/system`) yo'naltirardi. Endi to'g'ri sahifa ochiladi (Chiquvchi marshrutlar,

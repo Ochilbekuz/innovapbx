@@ -4,7 +4,7 @@ import { Pencil, Phone, Plus, ShieldAlert, Trash2 } from 'lucide-react';
 import { useCreateRingGroup, useDeleteRingGroup, useExtensions, useRingGroups, useTargets, useUpdateRingGroup } from '@/api/queries';
 import { isApiError } from '@/api/errors';
 import type { RingGroup, RingGroupMemberInput, RingGroupStrategy } from '@/api/types';
-import { usePermission } from '@/auth/permissions';
+import { useCanEdit } from '@/auth/permissions';
 import { applyToast } from '@/lib/applyToast';
 import { usagesOf } from '@/lib/usageError';
 import { normalizeNumber, type Catalog, type Destination } from '@/domain/destination';
@@ -35,7 +35,7 @@ export function RingGroupsPage() {
   const { data, isLoading, isError, refetch } = useRingGroups();
   const { data: extensions } = useExtensions({ size: 200 });
   const { data: targets } = useTargets({ kind: M1A_TARGETS.join(',') });
-  const canManage = usePermission('routes.manage');
+  const canManage = useCanEdit('routing');
   const toast = useToast();
   const [editing, setEditing] = useState<RingGroup | 'new' | null>(null);
   const [deleting, setDeleting] = useState<RingGroup | null>(null);

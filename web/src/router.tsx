@@ -70,10 +70,10 @@ const FULL_PAGES: Record<string, ComponentType> = {
   migration: MigrationPage,
 };
 
-/** `/` va noma'lum yo'llar uchun rolga mos boshlang'ich sahifa (operator → `/me`, admin → `/dashboard`). */
+/** `/` va noma'lum yo'llar uchun ruxsatga mos boshlang'ich sahifa (M7 §4 — qarang `homeFor`). */
 function RoleHome() {
-  const role = useSession((s) => s.user?.role);
-  return <Navigate to={homeFor(role)} replace />;
+  const permissions = useSession((s) => s.user?.permissions);
+  return <Navigate to={homeFor(permissions)} replace />;
 }
 
 export function AppRouter() {

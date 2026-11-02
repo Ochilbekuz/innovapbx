@@ -15,7 +15,7 @@ import ipaddress
 from fastapi import APIRouter, Depends, File, UploadFile
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_ami, get_session, require_admin
+from app.api.deps import get_ami, get_session, require_access
 from app.core.errors import ApiError
 from app.db.models import SystemSettings, User
 from app.schemas import (
@@ -135,7 +135,7 @@ async def _push_or_502(coro, code: str, what: str) -> None:
 
 @router.get("/sip", response_model=SipSettingsOut)
 async def get_sip_settings(
-    session: AsyncSession = Depends(get_session), user: User = Depends(require_admin),
+    session: AsyncSession = Depends(get_session), user: User = Depends(require_access),
 ) -> SipSettingsOut:
     row = await get_settings_row(session, str(user.tenant_id))
     return _settings_out(row)
@@ -144,7 +144,7 @@ async def get_sip_settings(
 @router.patch("/sip", response_model=SipSettingsMutated)
 async def update_sip_settings(
     payload: UpdateSipSettingsPayload, session: AsyncSession = Depends(get_session),
-    user: User = Depends(require_admin), ami=Depends(get_ami),
+    user: User = Depends(require_access), ami=Depends(get_ami),
 ) -> SipSettingsMutated:
     tenant_id = str(user.tenant_id)
     row = await get_settings_row(session, tenant_id)
@@ -195,7 +195,7 @@ def _install_certificate(cert_pem: bytes, key_pem: bytes, chain_pem: bytes | Non
 
 @router.get("/sip/tls", response_model=SipTlsOut)
 async def get_sip_tls(
-    session: AsyncSession = Depends(get_session), user: User = Depends(require_admin),
+    session: AsyncSession = Depends(get_session), user: User = Depends(require_access),
 ) -> SipTlsOut:
     row = await get_settings_row(session, str(user.tenant_id))
     return _tls_out(row)
@@ -204,7 +204,7 @@ async def get_sip_tls(
 @router.post("/sip/tls/certificate", response_model=SipTlsOut)
 async def upload_sip_tls_certificate(
     cert: UploadFile = File(...), key: UploadFile = File(...), chain: UploadFile | None = File(None),
-    session: AsyncSession = Depends(get_session), user: User = Depends(require_admin),
+    session: AsyncSession = Depends(get_session), user: User = Depends(require_access),
 ) -> SipTlsOut:
     tenant_id = str(user.tenant_id)
     row = await get_settings_row(session, tenant_id)
@@ -222,7 +222,7 @@ async def upload_sip_tls_certificate(
 @router.post("/sip/tls/self-signed", response_model=SipTlsOut)
 async def create_self_signed_sip_tls_certificate(
     payload: SelfSignedCertPayload, session: AsyncSession = Depends(get_session),
-    user: User = Depends(require_admin),
+    user: User = Depends(require_access),
 ) -> SipTlsOut:
     tenant_id = str(user.tenant_id)
     row = await get_settings_row(session, tenant_id)
@@ -239,7 +239,7 @@ async def create_self_signed_sip_tls_certificate(
 
 @router.post("/sip/restart", response_model=RestartResult)
 async def restart_sip(
-    force: bool = False, session: AsyncSession = Depends(get_session), user: User = Depends(require_admin),
+    force: bool = False, session: AsyncSession = Depends(get_session), user: User = Depends(require_access),
     ami=Depends(get_ami),
 ) -> RestartResult:
     tenant_id = str(user.tenant_id)

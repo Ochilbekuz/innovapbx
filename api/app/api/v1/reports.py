@@ -2,7 +2,7 @@
 FAQAT ma'lumot YIG'ADI (CDR/queue_log/agent_events/extensions qatorlari) —
 BUTUN hisoblash mantiqi `app/services/report_defs.py`da (sof funksiyalar,
 testlanadi) — dashboard.py bilan BIR XIL naqsh (ub-mode Boundary Discipline).
-Hammasi admin-only (`require_admin`, m2b-contract.md §0)."""
+Hammasi admin-only (`require_access`, m2b-contract.md §0)."""
 from __future__ import annotations
 
 from datetime import date, datetime, timezone
@@ -11,7 +11,7 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_session, require_admin
+from app.api.deps import get_session, require_access
 from app.core.errors import ApiError
 from app.core.lookups import get_tenant_scoped_or_404
 from app.db.models import AgentEvent, Cdr, Extension, Queue, QueueLog, QueueMember, User
@@ -105,7 +105,7 @@ def _call_ids_from_log(rows: list[QueueLog]) -> set[str]:
 @router.get("/summary", response_model=ReportSummaryOut)
 async def get_summary(
     from_: str = Query(alias="from"), to: str = Query(...), queue_id: str | None = Query(default=None),
-    session: AsyncSession = Depends(get_session), user: User = Depends(require_admin),
+    session: AsyncSession = Depends(get_session), user: User = Depends(require_access),
 ) -> ReportSummaryOut:
     tenant = user.tenant
     tenant_id = str(user.tenant_id)
@@ -131,7 +131,7 @@ async def get_summary(
 @router.get("/queues", response_model=ReportQueuesOut)
 async def get_queues_report(
     from_: str = Query(alias="from"), to: str = Query(...), queue_id: str | None = Query(default=None),
-    session: AsyncSession = Depends(get_session), user: User = Depends(require_admin),
+    session: AsyncSession = Depends(get_session), user: User = Depends(require_access),
 ) -> ReportQueuesOut:
     tenant = user.tenant
     tenant_id = str(user.tenant_id)
@@ -176,7 +176,7 @@ async def _agent_members(session: AsyncSession, tenant_id: str, queue_id: str | 
 @router.get("/agents", response_model=ReportAgentsOut)
 async def get_agents_report(
     from_: str = Query(alias="from"), to: str = Query(...), queue_id: str | None = Query(default=None),
-    session: AsyncSession = Depends(get_session), user: User = Depends(require_admin),
+    session: AsyncSession = Depends(get_session), user: User = Depends(require_access),
 ) -> ReportAgentsOut:
     tenant = user.tenant
     tenant_id = str(user.tenant_id)
@@ -225,7 +225,7 @@ async def get_agents_report(
 @router.get("/hourly", response_model=ReportHourlyOut)
 async def get_hourly_report(
     from_: str = Query(alias="from"), to: str = Query(...), queue_id: str | None = Query(default=None),
-    session: AsyncSession = Depends(get_session), user: User = Depends(require_admin),
+    session: AsyncSession = Depends(get_session), user: User = Depends(require_access),
 ) -> ReportHourlyOut:
     tenant = user.tenant
     tenant_id = str(user.tenant_id)
@@ -246,7 +246,7 @@ async def get_hourly_report(
 @router.get("/daily", response_model=ReportDailyOut)
 async def get_daily_report(
     from_: str = Query(alias="from"), to: str = Query(...), queue_id: str | None = Query(default=None),
-    session: AsyncSession = Depends(get_session), user: User = Depends(require_admin),
+    session: AsyncSession = Depends(get_session), user: User = Depends(require_access),
 ) -> ReportDailyOut:
     tenant = user.tenant
     tenant_id = str(user.tenant_id)

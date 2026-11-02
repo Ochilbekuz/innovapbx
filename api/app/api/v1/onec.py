@@ -11,7 +11,7 @@ from pathlib import Path
 from fastapi import APIRouter, Depends
 from fastapi.responses import FileResponse
 
-from app.api.deps import require_admin
+from app.api.deps import require_access
 from app.core.errors import ApiError
 from app.db.models import User
 from app.schemas_crm import OneCSample
@@ -44,12 +44,12 @@ def sample_path(directory: Path, name: str) -> Path:
 
 
 @router.get("/samples")
-async def list_samples(_: User = Depends(require_admin)) -> dict:
+async def list_samples(_: User = Depends(require_access)) -> dict:
     return {"items": load_manifest(SAMPLES_DIR)}
 
 
 @router.get("/samples/{name}")
-async def download_sample(name: str, _: User = Depends(require_admin)) -> FileResponse:
+async def download_sample(name: str, _: User = Depends(require_access)) -> FileResponse:
     path = sample_path(SAMPLES_DIR, name)
     return FileResponse(path, filename=path.name,
                         media_type=MEDIA_TYPES.get(path.suffix.lower(), "application/octet-stream"))

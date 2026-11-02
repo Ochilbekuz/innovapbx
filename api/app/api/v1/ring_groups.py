@@ -11,7 +11,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.api.deps import get_ami, get_session, require_admin
+from app.api.deps import get_ami, get_session, require_access
 from app.core.errors import ApiError
 from app.core.ids import parse_uuid
 from app.core.optimistic import check_not_stale
@@ -104,7 +104,7 @@ async def _get_rg_or_404(session: AsyncSession, tenant_id: str, rg_id: str) -> R
 
 @router.get("")
 async def list_ring_groups(
-    session: AsyncSession = Depends(get_session), user: User = Depends(require_admin),
+    session: AsyncSession = Depends(get_session), user: User = Depends(require_access),
 ) -> dict:
     items = (await session.execute(
         select(RingGroup).where(RingGroup.tenant_id == user.tenant_id).order_by(RingGroup.name)
@@ -125,7 +125,7 @@ async def _validate_create_rg_payload(session: AsyncSession, tenant_id: str, pay
 @router.post("", response_model=RingGroupMutated, status_code=201)
 async def create_ring_group(
     payload: CreateRingGroupPayload, session: AsyncSession = Depends(get_session),
-    user: User = Depends(require_admin), ami=Depends(get_ami),
+    user: User = Depends(require_access), ami=Depends(get_ami),
 ) -> RingGroupMutated:
     tenant_id = str(user.tenant_id)
     await _validate_create_rg_payload(session, tenant_id, payload)
@@ -203,7 +203,7 @@ async def _apply_rg_number(
 @router.patch("/{rg_id}", response_model=RingGroupMutated)
 async def update_ring_group(
     rg_id: str, payload: UpdateRingGroupPayload, session: AsyncSession = Depends(get_session),
-    user: User = Depends(require_admin), ami=Depends(get_ami),
+    user: User = Depends(require_access), ami=Depends(get_ami),
 ) -> RingGroupMutated:
     tenant_id = str(user.tenant_id)
     group = await _get_rg_or_404(session, tenant_id, rg_id)
@@ -227,7 +227,7 @@ async def update_ring_group(
 
 @router.delete("/{rg_id}", status_code=204, response_model=None)
 async def delete_ring_group(
-    rg_id: str, session: AsyncSession = Depends(get_session), user: User = Depends(require_admin),
+    rg_id: str, session: AsyncSession = Depends(get_session), user: User = Depends(require_access),
     ami=Depends(get_ami),
 ) -> None:
     tenant_id = str(user.tenant_id)

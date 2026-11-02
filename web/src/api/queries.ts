@@ -18,6 +18,8 @@ import type {
   // M2b — qarang ../../replica/m2b-contract.md
   ChangePasswordPayload, CreateUserPayload, LiveSpyPayload, PatchMeExtensionPayload, QueueMemberAction,
   QueueMemberActionPayload, ReportRangeParams, UpdateQueueMemberPayload, UpdateUserPayload,
+  // M7 — qarang ../../replica/m7-roles-contract.md
+  CreateRolePayload, UpdateRolePayload,
   // M2c — qarang ../../replica/m2c-contract.md
   CreateBanPayload, ListAlertLogParams, ListSecurityEventsParams, SecurityStatsParams,
   UpdateAlertSettingsPayload, UpdateSecuritySettingsPayload,
@@ -77,6 +79,8 @@ export const qk = {
   // M2b — qarang ../../replica/m2b-contract.md
   live: ['live'] as const,
   users: ['users'] as const,
+  // M7 — qarang ../../replica/m7-roles-contract.md
+  roles: ['roles'] as const,
   meOverview: ['me-overview'] as const,
   meCalls: (p: ListCallsParams) => ['me-calls', p] as const,
   meVoicemail: ['me-voicemail'] as const,
@@ -698,6 +702,27 @@ export function useDeleteUser() {
 }
 export function useChangePassword() {
   return useMutation({ mutationFn: (payload: ChangePasswordPayload) => apiClient.changePassword(payload) });
+}
+
+// ─────────────────────── M7 — Rollar (qarang ../../replica/m7-roles-contract.md §2) ───────────────────────
+
+export function useRoles() {
+  return useQuery({ queryKey: qk.roles, queryFn: () => apiClient.listRoles() });
+}
+export function useCreateRole() {
+  const invalidate = useInvalidate();
+  return useMutation({ mutationFn: (payload: CreateRolePayload) => apiClient.createRole(payload), onSuccess: () => invalidate([qk.roles]) });
+}
+export function useUpdateRole() {
+  const invalidate = useInvalidate();
+  return useMutation({
+    mutationFn: ({ id, payload }: { id: string; payload: UpdateRolePayload }) => apiClient.updateRole(id, payload),
+    onSuccess: () => invalidate([qk.roles]),
+  });
+}
+export function useDeleteRole() {
+  const invalidate = useInvalidate();
+  return useMutation({ mutationFn: (id: string) => apiClient.deleteRole(id), onSuccess: () => invalidate([qk.roles]) });
 }
 
 // ─────────────────────── M2b §4 — Mening kabinetim (S30) ───────────────────────

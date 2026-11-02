@@ -11,7 +11,7 @@ from fastapi import APIRouter, Depends, Query, Request, Response
 from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_ami, get_session, require_admin
+from app.api.deps import get_ami, get_session, require_access
 from app.core.errors import ApiError
 from app.core.lookups import get_tenant_scoped_or_404
 from app.core.optimistic import check_not_stale
@@ -98,7 +98,7 @@ async def _create(session: AsyncSession, user: User, payload: CreateDevicePayloa
 # ------------------------------------------------------------------ ro'yxat / yaratish
 @router.get("", response_model=DeviceList)
 async def list_devices(extension_id: str | None = None, vendor: Vendor | None = None, q: str | None = None,
-                       session: AsyncSession = Depends(get_session), user: User = Depends(require_admin),
+                       session: AsyncSession = Depends(get_session), user: User = Depends(require_access),
                        ami=Depends(get_ami)) -> DeviceList:
     if extension_id:
         await _extension_or_422(session, user, extension_id)
@@ -108,21 +108,21 @@ async def list_devices(extension_id: str | None = None, vendor: Vendor | None = 
 
 @router.post("", response_model=DeviceItem, status_code=201)
 async def create_device(payload: CreateDevicePayload, session: AsyncSession = Depends(get_session),
-                        user: User = Depends(require_admin), ami=Depends(get_ami)) -> DeviceItem:
+                        user: User = Depends(require_access), ami=Depends(get_ami)) -> DeviceItem:
     device = await _create(session, user, payload)
     return DeviceItem(item=await views.device_view(session, ami, _tenant(user), device))
 
 
 # ------------------------------------------------------------------ statik yo'llar
 @router.get("/models", response_model=PhoneModelList)
-async def list_models(_user: User = Depends(require_admin)) -> PhoneModelList:
+async def list_models(_user: User = Depends(require_access)) -> PhoneModelList:
     return PhoneModelList(items=[PhoneModelOut(vendor=m.vendor, model=m.model, keys=m.keys, family=m.family)
                                  for m in prov_catalog.MODELS])
 
 
 @router.get("/discovered", response_model=DiscoveredList)
 async def list_discovered(session: AsyncSession = Depends(get_session),
-                          user: User = Depends(require_admin)) -> DiscoveredList:
+                          user: User = Depends(require_access)) -> DiscoveredList:
     rows = await session.execute(select(DiscoveredDevice).where(DiscoveredDevice.tenant_id == _tenant(user))
                                  .order_by(DiscoveredDevice.last_seen_at.desc()))
     return DiscoveredList(items=[views.discovered_out(row) for row in rows.scalars()])
@@ -138,7 +138,7 @@ async def _discovered_or_404(session: AsyncSession, user: User, raw_mac: str) ->
 
 @router.post("/discovered/{mac}/assign", response_model=DeviceItem, status_code=201)
 async def assign_discovered(mac: str, payload: AssignDiscoveredPayload, session: AsyncSession = Depends(get_session),
-                            user: User = Depends(require_admin), ami=Depends(get_ami)) -> DeviceItem:
+                            user: User = Depends(require_access), ami=Depends(get_ami)) -> DeviceItem:
     row = await _discovered_or_404(session, user, mac)
     vendor = payload.vendor or row.vendor
     if vendor is None:
@@ -151,7 +151,7 @@ async def assign_discovered(mac: str, payload: AssignDiscoveredPayload, session:
 
 @router.delete("/discovered/{mac}", status_code=204)
 async def dismiss_discovered(mac: str, session: AsyncSession = Depends(get_session),
-                             user: User = Depends(require_admin)) -> Response:
+                             user: User = Depends(require_access)) -> Response:
     row = await _discovered_or_404(session, user, mac)
     await session.delete(row)
     await _audit(session, user, "discovered_device.delete", views.mac_text(row.mac), entity="discovered_device")
@@ -163,7 +163,7 @@ async def dismiss_discovered(mac: str, session: AsyncSession = Depends(get_sessi
 async def list_requests(mac: str | None = None, ip: str | None = None,
                         limit: int = Query(default=REQUESTS_LIMIT, ge=1, le=REQUESTS_LIMIT),
                         session: AsyncSession = Depends(get_session),
-                        user: User = Depends(require_admin)) -> ProvisionRequestList:
+                        user: User = Depends(require_access)) -> ProvisionRequestList:
     query = select(ProvisionRequest).where(ProvisionRequest.tenant_id == _tenant(user))
     if mac:
         query = query.where(ProvisionRequest.mac == svc.normalize_mac_or_422(mac))
@@ -176,7 +176,7 @@ async def list_requests(mac: str | None = None, ip: str | None = None,
 # ------------------------------------------------------------------ bitta apparat
 @router.get("/{device_id}", response_model=DeviceItem)
 async def get_device(device_id: str, session: AsyncSession = Depends(get_session),
-                     user: User = Depends(require_admin), ami=Depends(get_ami)) -> DeviceItem:
+                     user: User = Depends(require_access), ami=Depends(get_ami)) -> DeviceItem:
     device = await _device_or_404(session, user, device_id)
     return DeviceItem(item=await views.device_view(session, ami, _tenant(user), device))
 
@@ -224,7 +224,7 @@ async def _apply_update(session: AsyncSession, user: User, device: Device, paylo
 
 @router.patch("/{device_id}", response_model=DeviceItem)
 async def update_device(device_id: str, payload: UpdateDevicePayload, session: AsyncSession = Depends(get_session),
-                        user: User = Depends(require_admin), ami=Depends(get_ami)) -> DeviceItem:
+                        user: User = Depends(require_access), ami=Depends(get_ami)) -> DeviceItem:
     device = await _device_or_404(session, user, device_id)
     check_not_stale(device.updated_at, payload.updated_at)
     changes = await _apply_update(session, user, device, payload)
@@ -238,7 +238,7 @@ async def update_device(device_id: str, payload: UpdateDevicePayload, session: A
 
 @router.delete("/{device_id}", status_code=204)
 async def delete_device(device_id: str, session: AsyncSession = Depends(get_session),
-                        user: User = Depends(require_admin)) -> Response:
+                        user: User = Depends(require_access)) -> Response:
     device = await _device_or_404(session, user, device_id)
     await session.delete(device)
     await _audit(session, user, "device.delete", str(device.id), {"mac": views.mac_text(device.mac)})
@@ -248,7 +248,7 @@ async def delete_device(device_id: str, session: AsyncSession = Depends(get_sess
 
 @router.put("/{device_id}/keys", response_model=DeviceItem)
 async def put_keys(device_id: str, payload: PutKeysPayload, session: AsyncSession = Depends(get_session),
-                   user: User = Depends(require_admin), ami=Depends(get_ami)) -> DeviceItem:
+                   user: User = Depends(require_access), ami=Depends(get_ami)) -> DeviceItem:
     device = await _device_or_404(session, user, device_id)
     if payload.updated_at is not None:
         check_not_stale(device.updated_at, payload.updated_at)
@@ -266,7 +266,7 @@ async def put_keys(device_id: str, payload: PutKeysPayload, session: AsyncSessio
 
 @router.post("/{device_id}/resync", response_model=ResyncResult)
 async def resync_device(device_id: str, session: AsyncSession = Depends(get_session),
-                        user: User = Depends(require_admin), ami=Depends(get_ami)) -> ResyncResult:
+                        user: User = Depends(require_access), ami=Depends(get_ami)) -> ResyncResult:
     device = await _device_or_404(session, user, device_id)
     registered, endpoint = await views.is_device_registered(session, ami, _tenant(user), device)
     if not registered:
@@ -282,7 +282,7 @@ async def resync_device(device_id: str, session: AsyncSession = Depends(get_sess
 
 @router.get("/{device_id}/config", response_model=DeviceConfigOut)
 async def view_config(device_id: str, request: Request, session: AsyncSession = Depends(get_session),
-                      user: User = Depends(require_admin)) -> DeviceConfigOut:
+                      user: User = Depends(require_access)) -> DeviceConfigOut:
     device = await _device_or_404(session, user, device_id)
     host = request.headers.get("x-forwarded-host") or request.headers.get("host")
     return await views.config_view(session, _tenant(user), device, host)

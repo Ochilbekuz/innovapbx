@@ -12,7 +12,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.api.deps import get_ami, get_session, require_admin
+from app.api.deps import get_ami, get_session, require_access
 from app.core.errors import ApiError
 from app.core.ids import parse_uuid
 from app.core.optimistic import check_not_stale
@@ -141,7 +141,7 @@ def _set_extension_links(route: OutboundRoute, extension_ids: str | list[str]) -
 
 @router.get("")
 async def list_outbound_routes(
-    session: AsyncSession = Depends(get_session), user: User = Depends(require_admin),
+    session: AsyncSession = Depends(get_session), user: User = Depends(require_access),
 ) -> dict:
     routes = (await session.execute(
         select(OutboundRoute).where(OutboundRoute.tenant_id == user.tenant_id)
@@ -183,7 +183,7 @@ async def _insert_at_priority(session: AsyncSession, tenant_id: str, priority: i
 @router.post("", response_model=OutboundRouteMutated, status_code=201)
 async def create_outbound_route(
     payload: CreateOutboundRoutePayload, session: AsyncSession = Depends(get_session),
-    user: User = Depends(require_admin), ami=Depends(get_ami),
+    user: User = Depends(require_access), ami=Depends(get_ami),
 ) -> OutboundRouteMutated:
     tenant_id = str(user.tenant_id)
     _validate_patterns(payload.patterns)
@@ -272,7 +272,7 @@ async def _apply_route_extensions(
 @router.patch("/{route_id}", response_model=OutboundRouteMutated)
 async def update_outbound_route(
     route_id: str, payload: UpdateOutboundRoutePayload, session: AsyncSession = Depends(get_session),
-    user: User = Depends(require_admin), ami=Depends(get_ami),
+    user: User = Depends(require_access), ami=Depends(get_ami),
 ) -> OutboundRouteMutated:
     tenant_id = str(user.tenant_id)
     route = await _get_route_or_404(session, tenant_id, route_id)
@@ -296,7 +296,7 @@ async def update_outbound_route(
 
 @router.delete("/{route_id}", status_code=204, response_model=None)
 async def delete_outbound_route(
-    route_id: str, session: AsyncSession = Depends(get_session), user: User = Depends(require_admin),
+    route_id: str, session: AsyncSession = Depends(get_session), user: User = Depends(require_access),
     ami=Depends(get_ami),
 ) -> None:
     tenant_id = str(user.tenant_id)
@@ -311,7 +311,7 @@ async def delete_outbound_route(
 @router.put("/order", response_model=dict)
 async def reorder_outbound_routes(
     payload: ReorderOutboundRoutesPayload, session: AsyncSession = Depends(get_session),
-    user: User = Depends(require_admin), ami=Depends(get_ami),
+    user: User = Depends(require_access), ami=Depends(get_ami),
 ) -> dict:
     tenant_id = str(user.tenant_id)
     existing = {str(i) for i in (await session.execute(
@@ -362,7 +362,7 @@ async def _simulate_blocked_by_extension_flag(
 
 @router.post("/simulate", response_model=SimulateResult)
 async def simulate_outbound_route(
-    payload: SimulatePayload, session: AsyncSession = Depends(get_session), user: User = Depends(require_admin),
+    payload: SimulatePayload, session: AsyncSession = Depends(get_session), user: User = Depends(require_access),
 ) -> SimulateResult:
     """Dialplan bilan BIR XIL qoidalar (`outbound_rules.resolve_route`/
     `resolve_callerid`) — m1b-contract.md bo'lim 2 so'nggi band."""

@@ -38,6 +38,7 @@ from app.api.v1 import (
     recordings,
     reports,
     ring_groups,
+    roles,
     security,
     settings,
     settings_alerts,
@@ -89,6 +90,7 @@ router.include_router(blacklist.router)
 router.include_router(live.router)
 router.include_router(reports.router)
 router.include_router(users.router)
+router.include_router(roles.router)
 router.include_router(me.router)
 router.include_router(softphone.router)
 router.include_router(security.router)

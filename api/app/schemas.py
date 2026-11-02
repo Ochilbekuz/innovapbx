@@ -8,7 +8,10 @@ from typing import Any, Literal
 from pydantic import AliasChoices, BaseModel, Field, model_validator
 
 Lang = Literal["uz", "ru", "en"]
-Role = Literal["admin", "operator"]
+# m7-roles-contract.md §3: endi istalgan mavjud rol NOMI (maxsus rollar ham
+# bo'lishi mumkin) — shu sabab `Literal["admin","operator"]` EMAS, erkin satr
+# (login/`/auth/me` javobida `user.role.name` qanday bo'lsa SHU qaytariladi).
+Role = str
 ApplyStatus = Literal["applied", "unchanged", "rolled_back", "realtime", "restart_required"]
 ExtensionStatus = Literal["online", "offline", "unknown"]
 TrunkHealthState = Literal["ok", "unreachable", "unknown", "disabled"]

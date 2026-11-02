@@ -32,7 +32,7 @@ const EVENT_KINDS: SecurityEventKind[] = ['ip_banned', 'ip_unbanned', 'ban_expir
 /** S33 — Xavfsizlik: SIP hujum himoyasi, toll-fraud bloklari va sozlamalar. Qarang ../../../replica/m2c-contract.md §1-3. */
 export function SecurityPage() {
   const { t } = useTranslation('security');
-  const canManage = usePermission('system.manage');
+  const canManage = usePermission('*');
 
   return (
     <AppShellPage title={t('title')}>

@@ -4,7 +4,7 @@ import { Pencil, Plug, Plus, ShieldAlert, Trash2 } from 'lucide-react';
 import { useCreateTrunk, useDeleteTrunk, useTestTrunk, useTrunks, useUpdateTrunk } from '@/api/queries';
 import { isApiError } from '@/api/errors';
 import type { Trunk, TrunkAuthMode, TrunkTestResult } from '@/api/types';
-import { usePermission } from '@/auth/permissions';
+import { useCanEdit } from '@/auth/permissions';
 import { applyToast } from '@/lib/applyToast';
 import { isValidCidr, isValidHost, splitList } from '@/lib/validators';
 import { AppShellPage } from '@/shell/AppShellPage';
@@ -50,7 +50,7 @@ export function TrunksPage() {
     registered: t('registration.registered'), rejected: t('registration.rejected'), unregistered: t('registration.unregistered'),
   };
   const { data, isLoading, isError, refetch } = useTrunks();
-  const canManage = usePermission('trunks.manage');
+  const canManage = useCanEdit('connect');
   const toast = useToast();
   const [editing, setEditing] = useState<Trunk | 'new' | null>(null);
   const [deleting, setDeleting] = useState<Trunk | null>(null);

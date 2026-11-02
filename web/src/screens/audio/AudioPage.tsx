@@ -7,7 +7,7 @@ import {
 } from '@/api/queries';
 import { isApiError } from '@/api/errors';
 import type { Audio, MohClass, Usage } from '@/api/types';
-import { usePermission } from '@/auth/permissions';
+import { useCanEdit } from '@/auth/permissions';
 import { cn } from '@/lib/cn';
 import { formatDateTimeShort, formatDurationMs, formatDurationSec } from '@/lib/time';
 import { usagesOf } from '@/lib/usageError';
@@ -46,7 +46,7 @@ export function AudioPage() {
 function FilesTab() {
   const { t } = useTranslation('audio');
   const { data, isLoading, isError, refetch } = useAudio();
-  const canManage = usePermission('routes.manage');
+  const canManage = useCanEdit('apps');
   const toast = useToast();
   const uploadM = useUploadAudio();
   const deleteM = useDeleteAudio();
@@ -272,7 +272,7 @@ function MohTab() {
   const { t } = useTranslation('audio');
   const { data, isLoading, isError, refetch } = useMohClasses();
   const { data: audioData } = useAudio();
-  const canManage = usePermission('routes.manage');
+  const canManage = useCanEdit('apps');
   const toast = useToast();
   const createM = useCreateMohClass();
   const updateM = useUpdateMohClass();

@@ -10,7 +10,7 @@ from fastapi.responses import PlainTextResponse
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_session, require_admin
+from app.api.deps import get_session, require_access
 from app.core.errors import ApiError
 from app.core.optimistic import check_not_stale
 from app.db.models import Campaign, CampaignContact, User
@@ -53,7 +53,7 @@ async def _commit_out(session: AsyncSession, item: Campaign) -> CampaignMutated:
 
 @router.get("", response_model=CampaignList)
 async def list_campaigns(session: AsyncSession = Depends(get_session),
-                         user: User = Depends(require_admin)) -> CampaignList:
+                         user: User = Depends(require_access)) -> CampaignList:
     items = (await session.execute(select(Campaign).where(Campaign.tenant_id == str(user.tenant_id))
                                    .order_by(Campaign.created_at.desc()))).scalars().all()
     return CampaignList(items=await svc.campaigns_out(session, list(items)))
@@ -61,14 +61,14 @@ async def list_campaigns(session: AsyncSession = Depends(get_session),
 
 @router.get("/{campaign_id}", response_model=CampaignMutated)
 async def get_campaign(campaign_id: str, session: AsyncSession = Depends(get_session),
-                       user: User = Depends(require_admin)) -> CampaignMutated:
+                       user: User = Depends(require_access)) -> CampaignMutated:
     item = await svc.get_campaign_or_404(session, str(user.tenant_id), campaign_id)
     return CampaignMutated(item=await _one_out(session, item))
 
 
 @router.post("", response_model=CampaignMutated, status_code=201)
 async def create_campaign(payload: CreateCampaignPayload, session: AsyncSession = Depends(get_session),
-                          user: User = Depends(require_admin)) -> CampaignMutated:
+                          user: User = Depends(require_access)) -> CampaignMutated:
     tenant_id = str(user.tenant_id)
     fields = svc.merge_fields({}, payload.model_dump())
     await svc.validate_campaign(session, tenant_id, fields)
@@ -82,7 +82,7 @@ async def create_campaign(payload: CreateCampaignPayload, session: AsyncSession 
 @router.patch("/{campaign_id}", response_model=CampaignMutated)
 async def update_campaign(campaign_id: str, payload: UpdateCampaignPayload,
                           session: AsyncSession = Depends(get_session),
-                          user: User = Depends(require_admin)) -> CampaignMutated:
+                          user: User = Depends(require_access)) -> CampaignMutated:
     tenant_id = str(user.tenant_id)
     item = await svc.get_campaign_or_404(session, tenant_id, campaign_id)
     check_not_stale(item.updated_at, payload.updated_at)
@@ -98,7 +98,7 @@ async def update_campaign(campaign_id: str, payload: UpdateCampaignPayload,
 
 @router.delete("/{campaign_id}", status_code=204, response_model=None)
 async def delete_campaign(campaign_id: str, session: AsyncSession = Depends(get_session),
-                          user: User = Depends(require_admin)) -> None:
+                          user: User = Depends(require_access)) -> None:
     item = await svc.get_campaign_or_404(session, str(user.tenant_id), campaign_id)
     svc.require_editable(item)
     await _audit(session, user, "delete", item)
@@ -108,7 +108,7 @@ async def delete_campaign(campaign_id: str, session: AsyncSession = Depends(get_
 
 @router.post("/{campaign_id}/{action}", response_model=CampaignMutated)
 async def campaign_action(campaign_id: str, action: str, session: AsyncSession = Depends(get_session),
-                          user: User = Depends(require_admin)) -> CampaignMutated:
+                          user: User = Depends(require_access)) -> CampaignMutated:
     if action not in ("start", "pause", "stop"):
         raise ApiError(404, "not_found", "Amal topilmadi")
     item = await svc.get_campaign_or_404(session, str(user.tenant_id), campaign_id)
@@ -120,7 +120,7 @@ async def campaign_action(campaign_id: str, action: str, session: AsyncSession =
 @router.post("/{campaign_id}/contacts/import", response_model=ImportContactsResult)
 async def import_contacts(campaign_id: str, payload: ImportContactsPayload,
                           session: AsyncSession = Depends(get_session),
-                          user: User = Depends(require_admin)) -> ImportContactsResult:
+                          user: User = Depends(require_access)) -> ImportContactsResult:
     tenant_id = str(user.tenant_id)
     item = await svc.get_campaign_or_404(session, tenant_id, campaign_id)
     if item.status in ("completed", "stopped"):
@@ -146,7 +146,7 @@ def _contact_filter(campaign_id: str, status: str | None, q: str | None) -> list
 async def list_contacts(campaign_id: str, status: ContactStatus | None = None, q: str | None = Query(None, max_length=80),
                         page: int = Query(1, ge=1), page_size: int = Query(50, ge=1, le=200),
                         session: AsyncSession = Depends(get_session),
-                        user: User = Depends(require_admin)) -> ContactList:
+                        user: User = Depends(require_access)) -> ContactList:
     item = await svc.get_campaign_or_404(session, str(user.tenant_id), campaign_id)
     conds = _contact_filter(str(item.id), status, q)
     total = (await session.execute(select(func.count()).select_from(CampaignContact).where(*conds))).scalar_one()
@@ -157,7 +157,7 @@ async def list_contacts(campaign_id: str, status: ContactStatus | None = None, q
 
 @router.get("/{campaign_id}/export.csv", response_class=PlainTextResponse)
 async def export_contacts(campaign_id: str, session: AsyncSession = Depends(get_session),
-                          user: User = Depends(require_admin)) -> PlainTextResponse:
+                          user: User = Depends(require_access)) -> PlainTextResponse:
     item = await svc.get_campaign_or_404(session, str(user.tenant_id), campaign_id)
     rows = (await session.execute(select(CampaignContact).where(CampaignContact.campaign_id == item.id)
                                   .order_by(CampaignContact.id))).scalars().all()

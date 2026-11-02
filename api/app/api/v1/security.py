@@ -11,7 +11,7 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_ami, get_session, require_admin
+from app.api.deps import get_ami, get_session, require_access
 from app.core.errors import ApiError
 from app.core.optimistic import check_not_stale
 from app.db.models import Extension, SecurityEvent, SystemSettings, User
@@ -86,7 +86,7 @@ def _validate_toll_fraud_changes(changes: dict) -> None:
 
 @router.get("/settings", response_model=SecuritySettingsOut)
 async def get_security_settings(
-    session: AsyncSession = Depends(get_session), user: User = Depends(require_admin),
+    session: AsyncSession = Depends(get_session), user: User = Depends(require_access),
 ) -> SecuritySettingsOut:
     row = await get_settings_row(session, str(user.tenant_id))
     return _settings_out(row)
@@ -95,7 +95,7 @@ async def get_security_settings(
 @router.patch("/settings", response_model=SecuritySettingsMutated)
 async def update_security_settings(
     payload: UpdateSecuritySettingsPayload, session: AsyncSession = Depends(get_session),
-    user: User = Depends(require_admin), ami=Depends(get_ami),
+    user: User = Depends(require_access), ami=Depends(get_ami),
 ) -> SecuritySettingsMutated:
     tenant_id = str(user.tenant_id)
     row = await get_settings_row(session, tenant_id)
@@ -137,7 +137,7 @@ def _toll_block_out(ext: Extension) -> TollBlockOut:
 
 @router.get("/toll-blocks", response_model=TollBlockList)
 async def list_toll_blocks(
-    session: AsyncSession = Depends(get_session), user: User = Depends(require_admin),
+    session: AsyncSession = Depends(get_session), user: User = Depends(require_access),
 ) -> TollBlockList:
     rows = (await session.execute(
         select(Extension).where(Extension.tenant_id == user.tenant_id, Extension.toll_blocked_at.is_not(None))
@@ -148,7 +148,7 @@ async def list_toll_blocks(
 
 @router.post("/toll-blocks/{extension_id}/unblock", response_model=TollUnblockResult)
 async def unblock_toll(
-    extension_id: str, session: AsyncSession = Depends(get_session), user: User = Depends(require_admin),
+    extension_id: str, session: AsyncSession = Depends(get_session), user: User = Depends(require_access),
 ) -> TollUnblockResult:
     tenant_id = str(user.tenant_id)
     ext = (await session.execute(
@@ -176,7 +176,7 @@ async def unblock_toll(
 @router.get("/events", response_model=SecurityEventList)
 async def list_security_events(
     limit: int = Query(default=100, ge=1, le=500), kind: str | None = None,
-    session: AsyncSession = Depends(get_session), user: User = Depends(require_admin),
+    session: AsyncSession = Depends(get_session), user: User = Depends(require_access),
 ) -> SecurityEventList:
     stmt = (
         select(SecurityEvent, Extension.number)

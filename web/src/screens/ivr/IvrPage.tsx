@@ -5,7 +5,7 @@ import { apiClient } from '@/api';
 import { useAudio, useCreateIvr, useDeleteIvr, useIvrs, useTargets, useUpdateIvr } from '@/api/queries';
 import { isApiError } from '@/api/errors';
 import type { Ivr } from '@/api/types';
-import { usePermission } from '@/auth/permissions';
+import { useCanEdit } from '@/auth/permissions';
 import { applyToast } from '@/lib/applyToast';
 import { formatDurationMs } from '@/lib/time';
 import { usagesOf } from '@/lib/usageError';
@@ -34,7 +34,7 @@ export function IvrPage() {
   const { data, isLoading, isError, refetch } = useIvrs();
   const { data: audio } = useAudio();
   const { data: targets } = useTargets({ kind: M1A_TARGETS.join(',') });
-  const canManage = usePermission('routes.manage');
+  const canManage = useCanEdit('routing');
   const toast = useToast();
   const [editing, setEditing] = useState<Ivr | 'new' | null>(null);
   const [deleting, setDeleting] = useState<Ivr | null>(null);

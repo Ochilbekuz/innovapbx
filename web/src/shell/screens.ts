@@ -1,4 +1,5 @@
 import { createElement, type ReactNode } from 'react';
+import { hasPermission } from '@/auth/permissions';
 import {
   Activity, ArrowRightLeft, AudioLines, BadgeCheck, BellRing, CalendarClock, ChartNoAxesColumn, CircleUserRound, ClipboardCheck,
   DatabaseBackup, Grid3x3, Hash, History, LayoutDashboard, ListOrdered, Megaphone, Mic2, Network, ParkingSquare,
@@ -78,8 +79,52 @@ export const EXTRA_ROUTES = [
   { reconId: 'S17', path: '/settings/integrations/widget', titleKey: 'widget' },
 ];
 
-/** Operator roli faqat shaxsiy kabinet va o'z qo'ng'iroqlari tarixini ko'radi (M2b §4). */
+/**
+ * Operator roli faqat shaxsiy kabinet va o'z qo'ng'iroqlari tarixini ko'radi (M2b §4) — endi bu
+ * `operator` rolining HAQIQIY ruxsatlari (`calls:read:own`) orqali `isScreenVisible` natijasi bilan
+ * mos keladi, lekin eski (vaqtinchalik) selektorlar hali shu ro'yxatga tayanishi mumkin.
+ */
 export const OPERATOR_VISIBLE_IDS = ['portal', 'cdr'];
 
-export const byGroup = (g: ScreenGroupId, role?: 'admin' | 'operator') =>
-  SCREENS.filter((s) => s.group === g && (role !== 'operator' || OPERATOR_VISIBLE_IDS.includes(s.id)));
+/** M7 §1 jadvali: ekran id → hudud. `system` guruhidagilar bu yerda yo'q — alohida (faqat `*`) tekshiriladi. */
+export type Hudud = 'monitor' | 'extensions' | 'connect' | 'routing' | 'apps' | 'reports';
+export const HUDUD_LIST: Hudud[] = ['monitor', 'extensions', 'connect', 'routing', 'apps', 'reports'];
+
+export const SCREEN_HUDUD: Partial<Record<string, Hudud>> = {
+  dashboard: 'monitor', live: 'monitor',
+  extensions: 'extensions', devices: 'extensions', voicemail: 'extensions',
+  trunks: 'connect', inbound: 'connect', outbound: 'connect',
+  timegroups: 'routing', ivr: 'routing', queues: 'routing', ringgroups: 'routing', misc: 'routing',
+  audio: 'apps', conference: 'apps', parking: 'apps', blacklist: 'apps', campaigns: 'apps',
+  cdr: 'reports', analytics: 'reports', quality: 'reports',
+};
+
+/** Hech qanday ruxsatsiz ham barcha foydalanuvchiga ko'rinadigan ekranlar (M7 §4 — "portal hammaga"). */
+const ALWAYS_VISIBLE_IDS = ['portal'];
+
+/**
+ * Sof funksiya (M7 §1/§4): ekran berilgan `permissions` bilan ko'rinadimi. `cdr` maxsus — `reports:view`
+ * (yoki `:edit`) HAMMA chaqiruvlarni, `calls:read:own` esa faqat o'zinikini ko'rsatadi, lekin ekran
+ * darajasida ikkisi ham "ko'rinadi" deb hisoblanadi (filtrlash sahifa ichida). Xaritada yo'q
+ * (`system` guruhi) ekranlar faqat `*` bilan ko'rinadi — fail-closed.
+ */
+export function isScreenVisible(screen: Pick<ScreenDef, 'id' | 'group'>, permissions: string[] | undefined): boolean {
+  if (ALWAYS_VISIBLE_IDS.includes(screen.id)) return true;
+  if (hasPermission(permissions, '*')) return true;
+  if (screen.group === 'system') return false;
+  if (screen.id === 'cdr') {
+    return hasPermission(permissions, 'reports:view') || hasPermission(permissions, 'reports:edit') || hasPermission(permissions, 'calls:read:own');
+  }
+  const hudud = SCREEN_HUDUD[screen.id];
+  if (!hudud) return false;
+  return hasPermission(permissions, `${hudud}:view`) || hasPermission(permissions, `${hudud}:edit`);
+}
+
+/** Guruh ichidagi, joriy `permissions`ga ko'ra ko'rinadigan ekranlar (sidebar uchun). */
+export const byGroup = (g: ScreenGroupId, permissions?: string[]) =>
+  SCREENS.filter((s) => s.group === g && isScreenVisible(s, permissions));
+
+/** `portal`dan tashqari, SCREENS tartibidagi birinchi ko'rinadigan ekran (bosh sahifa qoidasi uchun). */
+export function firstVisibleScreen(permissions: string[] | undefined): ScreenDef | undefined {
+  return SCREENS.find((s) => s.id !== 'portal' && isScreenVisible(s, permissions));
+}

@@ -50,6 +50,8 @@ import type {
   // M6 — qarang ../../replica/m6-contract.md
   Campaign, CampaignAction, CampaignContact, CreateCampaignPayload, ImportCampaignContactsPayload,
   ImportCampaignContactsResult, ListCampaignContactsParams, UpdateCampaignPayload,
+  // M7 — qarang ../../replica/m7-roles-contract.md
+  CreateRolePayload, RoleOut, UpdateRolePayload,
 } from './types';
 import type { ApplyResult } from './types';
 
@@ -210,6 +212,12 @@ export interface ApiClient {
   deleteUser(id: string): Promise<void>;
   /** Barcha eski sessiyalar bekor qilinadi; joriy sessiya uchun yangi juftlik qaytadi. */
   changePassword(payload: ChangePasswordPayload): Promise<{ access: string; refresh: string }>;
+
+  // M7 — rollar muharriri (qarang ../../replica/m7-roles-contract.md §2)
+  listRoles(): Promise<{ items: RoleOut[] }>;
+  createRole(payload: CreateRolePayload): Promise<{ item: RoleOut }>;
+  updateRole(id: string, payload: UpdateRolePayload): Promise<{ item: RoleOut }>;
+  deleteRole(id: string): Promise<void>;
 
   // M2b §4 — mening kabinetim (S30)
   meOverview(): Promise<MeOverview>;

@@ -20,7 +20,7 @@ from fastapi.responses import FileResponse, PlainTextResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_ami, get_session, require_admin
+from app.api.deps import get_ami, get_session, require_access
 from app.core.config import settings
 from app.core.errors import ApiError
 from app.core.lookups import get_tenant_scoped_or_404
@@ -140,7 +140,7 @@ async def _get_job_or_404(session: AsyncSession, tenant_id: str, job_id: str) ->
 
 # ------------------------------------------------------------------ eksport skripti
 @router.get("/export-script")
-async def download_export_script(user: User = Depends(require_admin)) -> FileResponse:
+async def download_export_script(user: User = Depends(require_access)) -> FileResponse:
     if not EXPORT_SCRIPT_PATH.is_file():
         raise ApiError(404, "not_found", "Eksport skripti topilmadi")
     return FileResponse(EXPORT_SCRIPT_PATH, media_type="text/x-shellscript",
@@ -175,7 +175,7 @@ async def _stream_and_extract(file: UploadFile, work_dir: Path) -> tuple[Path, d
 @router.post("/upload", status_code=201, response_model=JobItem)
 async def upload_bundle(
     file: UploadFile = File(...), session: AsyncSession = Depends(get_session),
-    user: User = Depends(require_admin),
+    user: User = Depends(require_access),
 ) -> JobItem:
     tenant_id = str(user.tenant_id)
     migrations_dir = Path(settings.migrations_dir)
@@ -210,7 +210,7 @@ async def upload_bundle(
 # ------------------------------------------------------------------ tahlil (fon vazifa)
 @router.post("/jobs/{job_id}/analyze", status_code=202, response_model=JobItem)
 async def analyze_job_endpoint(
-    job_id: str, session: AsyncSession = Depends(get_session), user: User = Depends(require_admin),
+    job_id: str, session: AsyncSession = Depends(get_session), user: User = Depends(require_access),
 ) -> JobItem:
     tenant_id = str(user.tenant_id)
     job = await _get_job_or_404(session, tenant_id, job_id)
@@ -231,7 +231,7 @@ async def analyze_job_endpoint(
 # ------------------------------------------------------------------ ro'yxat/bitta ish
 @router.get("/jobs", response_model=JobList)
 async def list_jobs(
-    session: AsyncSession = Depends(get_session), user: User = Depends(require_admin),
+    session: AsyncSession = Depends(get_session), user: User = Depends(require_access),
 ) -> JobList:
     rows = (await session.execute(
         select(MigrationJob).where(MigrationJob.tenant_id == user.tenant_id)
@@ -242,7 +242,7 @@ async def list_jobs(
 
 @router.get("/jobs/{job_id}", response_model=JobItem)
 async def get_job(
-    job_id: str, session: AsyncSession = Depends(get_session), user: User = Depends(require_admin),
+    job_id: str, session: AsyncSession = Depends(get_session), user: User = Depends(require_access),
 ) -> JobItem:
     job = await _get_job_or_404(session, str(user.tenant_id), job_id)
     return await _job_item(session, job)
@@ -253,7 +253,7 @@ async def get_job(
 async def get_job_plan(
     job_id: str, kind: str | None = None, action: str | None = None, q: str | None = None,
     page: int = Query(1, ge=1), page_size: int = Query(50, ge=1, le=500),
-    session: AsyncSession = Depends(get_session), user: User = Depends(require_admin),
+    session: AsyncSession = Depends(get_session), user: User = Depends(require_access),
 ) -> PlanItemList:
     job = await _get_job_or_404(session, str(user.tenant_id), job_id)
     items = _require_plan(job)["items"]
@@ -272,7 +272,7 @@ async def get_job_plan(
 
 @router.get("/jobs/{job_id}/ignored", response_model=IgnoredList)
 async def get_job_ignored(
-    job_id: str, session: AsyncSession = Depends(get_session), user: User = Depends(require_admin),
+    job_id: str, session: AsyncSession = Depends(get_session), user: User = Depends(require_access),
 ) -> IgnoredList:
     job = await _get_job_or_404(session, str(user.tenant_id), job_id)
     return IgnoredList(items=[IgnoredItemOut(**i) for i in _require_plan(job)["ignored"]])
@@ -280,7 +280,7 @@ async def get_job_ignored(
 
 @router.get("/jobs/{job_id}/warnings", response_model=WarningList)
 async def get_job_warnings(
-    job_id: str, session: AsyncSession = Depends(get_session), user: User = Depends(require_admin),
+    job_id: str, session: AsyncSession = Depends(get_session), user: User = Depends(require_access),
 ) -> WarningList:
     job = await _get_job_or_404(session, str(user.tenant_id), job_id)
     return WarningList(items=[WarningItemOut(**w) for w in _require_plan(job)["warnings"]])
@@ -298,7 +298,7 @@ def _validate_patch_action(item: dict, new_action: str) -> None:
 @router.patch("/jobs/{job_id}/plan", response_model=JobItem)
 async def patch_job_plan(
     job_id: str, payload: PatchPlanPayload, session: AsyncSession = Depends(get_session),
-    user: User = Depends(require_admin),
+    user: User = Depends(require_access),
 ) -> JobItem:
     tenant_id = str(user.tenant_id)
     job = await _get_job_or_404(session, tenant_id, job_id)
@@ -365,7 +365,7 @@ def _spawn(coro) -> None:
 @router.post("/jobs/{job_id}/apply", status_code=202, response_model=JobItem)
 async def apply_job_endpoint(
     job_id: str, payload: ApplyPayload, session: AsyncSession = Depends(get_session),
-    user: User = Depends(require_admin), ami=Depends(get_ami),
+    user: User = Depends(require_access), ami=Depends(get_ami),
 ) -> JobItem:
     if payload.confirm != APPLY_CONFIRM:
         raise ApiError(422, "confirm_required", f'Tasdiqlash uchun confirm="{APPLY_CONFIRM}" yuboring', field="confirm")
@@ -390,7 +390,7 @@ async def apply_job_endpoint(
 
 @router.get("/jobs/{job_id}/report", response_class=PlainTextResponse)
 async def get_job_report(
-    job_id: str, session: AsyncSession = Depends(get_session), user: User = Depends(require_admin),
+    job_id: str, session: AsyncSession = Depends(get_session), user: User = Depends(require_access),
 ) -> PlainTextResponse:
     """CSV: kind,source_ref,name,number,action,reason,result,innova_id — sirsiz."""
     job = await _get_job_or_404(session, str(user.tenant_id), job_id)
@@ -408,7 +408,7 @@ async def get_job_report(
 # ------------------------------------------------------------------ o'chirish
 @router.delete("/jobs/{job_id}", status_code=204, response_model=None)
 async def delete_job(
-    job_id: str, session: AsyncSession = Depends(get_session), user: User = Depends(require_admin),
+    job_id: str, session: AsyncSession = Depends(get_session), user: User = Depends(require_access),
 ) -> Response:
     tenant_id = str(user.tenant_id)
     job = await _get_job_or_404(session, tenant_id, job_id)

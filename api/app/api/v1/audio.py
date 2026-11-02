@@ -10,7 +10,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_session, require_admin
+from app.api.deps import get_session, require_access
 from app.core.config import settings
 from app.core.errors import ApiError
 from app.core.lookups import get_tenant_code, get_tenant_scoped_or_404
@@ -33,7 +33,7 @@ def _wav_path(tenant_code: str, audio_id: uuid.UUID) -> Path:
 
 @router.get("")
 async def list_audio(
-    session: AsyncSession = Depends(get_session), user: User = Depends(require_admin),
+    session: AsyncSession = Depends(get_session), user: User = Depends(require_access),
 ) -> dict:
     items = (await session.execute(
         select(AudioFile).where(AudioFile.tenant_id == user.tenant_id).order_by(AudioFile.name)
@@ -44,7 +44,7 @@ async def list_audio(
 @router.post("", response_model=AudioCreated, status_code=201)
 async def upload_audio(
     name: str = Form(...), file: UploadFile = File(...),
-    session: AsyncSession = Depends(get_session), user: User = Depends(require_admin),
+    session: AsyncSession = Depends(get_session), user: User = Depends(require_access),
 ) -> AudioCreated:
     tenant_id = str(user.tenant_id)
     suffix = Path(file.filename or "").suffix.lower()
@@ -99,7 +99,7 @@ async def upload_audio(
 
 @router.get("/{audio_id}/stream")
 async def stream_audio(
-    audio_id: str, session: AsyncSession = Depends(get_session), user: User = Depends(require_admin),
+    audio_id: str, session: AsyncSession = Depends(get_session), user: User = Depends(require_access),
 ) -> FileResponse:
     audio = await get_tenant_scoped_or_404(
         session, AudioFile, str(user.tenant_id), audio_id, not_found_message="Audio topilmadi",
@@ -113,7 +113,7 @@ async def stream_audio(
 
 @router.delete("/{audio_id}", status_code=204, response_model=None)
 async def delete_audio(
-    audio_id: str, session: AsyncSession = Depends(get_session), user: User = Depends(require_admin),
+    audio_id: str, session: AsyncSession = Depends(get_session), user: User = Depends(require_access),
 ) -> None:
     tenant_id = str(user.tenant_id)
     audio = await get_tenant_scoped_or_404(

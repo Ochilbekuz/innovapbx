@@ -19,18 +19,39 @@ import type {
 
 export const SIM_ROLLBACK_MARK = 'SIMULYATSIYA_XATO';
 
+// M7 §1 — admin haqiqiy backendda `permissions: ["*"]` qaytaradi (qarang `auth/permissions.ts` izohi);
+// operatorning haqiqiy ruxsati `calls:read:own` — faqat shaxsiy kabinet va o'z qo'ng'iroqlari.
 export const SEED_ADMIN: User = {
   id: 'u-admin', login: 'admin', full_name: 'Administrator', role: 'admin',
-  permissions: ['pbx.view', 'pbx.manage', 'trunks.manage', 'routes.manage', 'reports.view', 'system.manage'],
-  language: 'uz',
+  permissions: ['*'], language: 'uz',
 };
 export const SEED_ADMIN_PASSWORD = 'Admin12345!';
 
 export const SEED_OPERATOR: User = {
   id: 'u-operator', login: 'operator', full_name: 'Operator Olimova', role: 'operator',
-  permissions: ['reports.view'], language: 'uz',
+  permissions: ['calls:read:own'], language: 'uz',
 };
 export const SEED_OPERATOR_PASSWORD = 'Operator12345!';
+
+/** M7 — maxsus rol namunasi (isbot §5dagi "routing:edit + reports:view" bilan bir xil). */
+export const SEED_CUSTOM_ROLE_ID = 'role-nazoratchi';
+export const SEED_CUSTOM_ROLE_NAME = 'Nazoratchi';
+export const SEED_CUSTOM_USER: User = {
+  id: 'u-nazoratchi', login: 'nazoratchi', full_name: 'Nilufar Qosimova', role: SEED_CUSTOM_ROLE_NAME,
+  permissions: ['routing:edit', 'reports:view'], language: 'uz',
+};
+export const SEED_CUSTOM_USER_PASSWORD = 'Nazoratchi12345!';
+
+export type FakeRoleSeed = { id: string; name: string; permissions: string[]; is_system: boolean; updated_at: string };
+
+export function seedRoles(): FakeRoleSeed[] {
+  const now = '2026-10-27T05:00:00Z';
+  return [
+    { id: 'role-admin', name: 'admin', permissions: ['*'], is_system: true, updated_at: now },
+    { id: 'role-operator', name: 'operator', permissions: ['calls:read:own'], is_system: true, updated_at: now },
+    { id: SEED_CUSTOM_ROLE_ID, name: SEED_CUSTOM_ROLE_NAME, permissions: [...SEED_CUSTOM_USER.permissions], is_system: false, updated_at: now },
+  ];
+}
 
 export function seedExtensions(): Extension[] {
   const now = '2026-10-27T05:00:00Z';
@@ -206,6 +227,11 @@ export function seedUsers(extensions: Extension[]): ManagedUser[] {
       id: SEED_OPERATOR.id, username: SEED_OPERATOR.login, full_name: SEED_OPERATOR.full_name, email: null,
       role: 'operator', extension: opExt ? { id: opExt.id, number: opExt.number, name: opExt.name } : null,
       is_active: true, language: 'uz', must_change_password: false, last_login_at: null, updated_at: now,
+    },
+    {
+      id: SEED_CUSTOM_USER.id, username: SEED_CUSTOM_USER.login, full_name: SEED_CUSTOM_USER.full_name, email: null,
+      role: SEED_CUSTOM_ROLE_NAME, extension: null, is_active: true, language: 'uz', must_change_password: false,
+      last_login_at: null, updated_at: now,
     },
   ];
 }

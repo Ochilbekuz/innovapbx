@@ -9,7 +9,7 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_session, require_admin
+from app.api.deps import get_session, require_access
 from app.core.errors import ApiError
 from app.core.optimistic import check_not_stale
 from app.db.models import AlertLog, SystemSettings, User
@@ -32,7 +32,7 @@ async def _settings_out(session: AsyncSession, row: SystemSettings) -> AlertSett
 
 @router.get("", response_model=AlertSettingsOut)
 async def get_alert_settings(
-    session: AsyncSession = Depends(get_session), user: User = Depends(require_admin),
+    session: AsyncSession = Depends(get_session), user: User = Depends(require_access),
 ) -> AlertSettingsOut:
     row = await get_settings_row(session, str(user.tenant_id))
     return await _settings_out(session, row)
@@ -61,7 +61,7 @@ def _validate_alert_changes(changes: dict) -> None:
 @router.patch("", response_model=AlertSettingsOut)
 async def update_alert_settings(
     payload: UpdateAlertSettingsPayload, session: AsyncSession = Depends(get_session),
-    user: User = Depends(require_admin),
+    user: User = Depends(require_access),
 ) -> AlertSettingsOut:
     tenant_id = str(user.tenant_id)
     row = await get_settings_row(session, tenant_id)
@@ -85,7 +85,7 @@ async def update_alert_settings(
 
 @router.post("/test", response_model=AlertTestResult)
 async def test_alert_settings(
-    session: AsyncSession = Depends(get_session), user: User = Depends(require_admin),
+    session: AsyncSession = Depends(get_session), user: User = Depends(require_access),
 ) -> AlertTestResult:
     tenant_id = str(user.tenant_id)
     cfg = await load_alert_config(session, tenant_id)

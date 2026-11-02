@@ -5,7 +5,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends
 
-from app.api.deps import get_session, require_admin
+from app.api.deps import get_session, require_access
 from app.core.ids import parse_uuid
 from app.db.models import User
 from app.schemas import TargetUsage
@@ -19,7 +19,7 @@ router = APIRouter(prefix="/targets", tags=["targets"])
 @router.get("")
 async def list_targets_endpoint(
     kind: str | None = None, q: str | None = None,
-    session: AsyncSession = Depends(get_session), user: User = Depends(require_admin),
+    session: AsyncSession = Depends(get_session), user: User = Depends(require_access),
 ) -> dict:
     kinds = [k.strip() for k in kind.split(",") if k.strip()] if kind else None
     items = await list_targets(session, str(user.tenant_id), kinds=kinds, q=q)
@@ -28,7 +28,7 @@ async def list_targets_endpoint(
 
 @router.get("/{target_id}/usages")
 async def target_usages(
-    target_id: str, session: AsyncSession = Depends(get_session), user: User = Depends(require_admin),
+    target_id: str, session: AsyncSession = Depends(get_session), user: User = Depends(require_access),
 ) -> dict:
     valid_id = parse_uuid(target_id, not_found_message="Manzil topilmadi")
     resolved = await resolve_target(session, str(user.tenant_id), str(valid_id))

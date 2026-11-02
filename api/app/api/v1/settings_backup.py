@@ -11,7 +11,7 @@ from typing import Literal
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_session, require_admin
+from app.api.deps import get_session, require_access
 from app.api.v1.settings import get_settings_row
 from app.core.errors import ApiError
 from app.core.optimistic import check_not_stale
@@ -86,7 +86,7 @@ async def _merged_sftp(session: AsyncSession, current: dict, payload) -> dict:
 
 @router.get("", response_model=BackupSettingsOut)
 async def get_backup_settings(
-    session: AsyncSession = Depends(get_session), user: User = Depends(require_admin),
+    session: AsyncSession = Depends(get_session), user: User = Depends(require_access),
 ) -> BackupSettingsOut:
     row = await get_settings_row(session, str(user.tenant_id))
     return _settings_out(row)
@@ -95,7 +95,7 @@ async def get_backup_settings(
 @router.put("", response_model=BackupSettingsOut)
 async def update_backup_settings(
     payload: UpdateBackupSettingsPayload, session: AsyncSession = Depends(get_session),
-    user: User = Depends(require_admin),
+    user: User = Depends(require_access),
 ) -> BackupSettingsOut:
     tenant_id = str(user.tenant_id)
     row = await get_settings_row(session, tenant_id)
@@ -133,7 +133,7 @@ async def update_backup_settings(
 @router.put("/passphrase")
 async def update_backup_passphrase(
     payload: UpdateBackupPassphrasePayload, session: AsyncSession = Depends(get_session),
-    user: User = Depends(require_admin),
+    user: User = Depends(require_access),
 ) -> dict:
     tenant_id = str(user.tenant_id)
     row = await get_settings_row(session, tenant_id)
@@ -156,7 +156,7 @@ async def update_backup_passphrase(
 @router.post("/targets/{target}/test", response_model=TestBackupTargetResult)
 async def test_backup_target(
     target: Literal["s3", "sftp"], session: AsyncSession = Depends(get_session),
-    user: User = Depends(require_admin),
+    user: User = Depends(require_access),
 ) -> TestBackupTargetResult:
     """Joriy SAQLANGAN nishon sozlamasini sinaydi (admin avval `PUT`da saqlashi
     kerak — frontend body yubormaydi, faqat yo'lda `target`, `web/src/api/real.ts`)."""
@@ -172,7 +172,7 @@ async def test_backup_target(
 @router.post("/targets/sftp/trust")
 async def trust_sftp_host_key(
     payload: TrustSftpHostKeyPayload, session: AsyncSession = Depends(get_session),
-    user: User = Depends(require_admin),
+    user: User = Depends(require_access),
 ) -> dict:
     tenant_id = str(user.tenant_id)
     row = await get_settings_row(session, tenant_id)

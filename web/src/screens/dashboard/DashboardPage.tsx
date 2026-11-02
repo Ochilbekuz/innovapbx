@@ -5,7 +5,7 @@ import {
   PhoneMissed, PhoneOutgoing, Users,
 } from 'lucide-react';
 import { useDashboard, useParking } from '@/api/queries';
-import { usePermission } from '@/auth/permissions';
+import { useCanView } from '@/auth/permissions';
 import type {
   CallDirection, DashboardAlert, DashboardHourBucket, DashboardLiveCall, DashboardMissedCall, DashboardQueueLive, ParkedCall,
 } from '@/api/types';
@@ -201,11 +201,11 @@ function QueuesLiveCard({ queues }: { queues: DashboardQueueLive[] }) {
 
 /**
  * M2a §3 — park (700-720): hozir kutayotgan qoʻngʻiroqlar roʻyxati, faqat koʻrish. 10s da yangilanadi.
- * `/parking` FAQAT admin uchun (`pbx.manage`) — operatorda 403 boʻladi, shuning uchun karta operatorda umuman koʻrinmaydi.
+ * `/parking` `apps:view` talab qiladi (M7) — operatorda 403 boʻladi, shuning uchun karta operatorda umuman koʻrinmaydi.
  */
 function ParkedCallsCard() {
   const { t } = useTranslation('dashboard');
-  const canView = usePermission('pbx.manage');
+  const canView = useCanView('apps');
   const { data, isLoading, isError } = useParking(canView);
   const parked: ParkedCall[] = data?.parked ?? [];
 

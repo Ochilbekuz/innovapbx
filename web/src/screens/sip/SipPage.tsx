@@ -31,7 +31,7 @@ export function SipPage() {
   const { t } = useTranslation('sip');
   const { data, isLoading, isError, refetch } = useSipSettings();
   const { data: tls } = useSipTls();
-  const canManage = usePermission('system.manage');
+  const canManage = usePermission('*');
   const toast = useToast();
   const updateM = useUpdateSipSettings();
   const restartM = useRestartAsterisk();

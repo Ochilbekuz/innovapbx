@@ -17,7 +17,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.api.deps import get_ami, get_session, require_admin
+from app.api.deps import get_ami, get_session, require_access
 from app.core.errors import ApiError
 from app.core.lookups import get_tenant_code, get_tenant_scoped_or_404
 from app.core.optimistic import check_not_stale
@@ -86,7 +86,7 @@ async def _moh_class_usages(session: AsyncSession, tenant_id: str, moh_id: str) 
 
 @router.get("")
 async def list_moh_classes(
-    session: AsyncSession = Depends(get_session), user: User = Depends(require_admin),
+    session: AsyncSession = Depends(get_session), user: User = Depends(require_access),
 ) -> dict:
     items = (await session.execute(
         select(MohClass).where(MohClass.tenant_id == user.tenant_id).order_by(MohClass.name).options(*_OPTIONS)
@@ -97,7 +97,7 @@ async def list_moh_classes(
 @router.post("", response_model=MohClassMutated, status_code=201)
 async def create_moh_class(
     payload: CreateMohClassPayload, session: AsyncSession = Depends(get_session),
-    user: User = Depends(require_admin), ami=Depends(get_ami),
+    user: User = Depends(require_access), ami=Depends(get_ami),
 ) -> MohClassMutated:
     tenant_id = str(user.tenant_id)
     files = await _resolve_files(session, tenant_id, payload.file_ids)
@@ -131,7 +131,7 @@ def _apply_simple_moh_fields(moh: MohClass, payload: UpdateMohClassPayload, diff
 @router.patch("/{moh_id}", response_model=MohClassMutated)
 async def update_moh_class(
     moh_id: str, payload: UpdateMohClassPayload, session: AsyncSession = Depends(get_session),
-    user: User = Depends(require_admin), ami=Depends(get_ami),
+    user: User = Depends(require_access), ami=Depends(get_ami),
 ) -> MohClassMutated:
     tenant_id = str(user.tenant_id)
     moh = await _get_moh_or_404(session, tenant_id, moh_id)
@@ -161,7 +161,7 @@ async def update_moh_class(
 
 @router.delete("/{moh_id}", status_code=204, response_model=None)
 async def delete_moh_class(
-    moh_id: str, session: AsyncSession = Depends(get_session), user: User = Depends(require_admin),
+    moh_id: str, session: AsyncSession = Depends(get_session), user: User = Depends(require_access),
     ami=Depends(get_ami),
 ) -> None:
     tenant_id = str(user.tenant_id)

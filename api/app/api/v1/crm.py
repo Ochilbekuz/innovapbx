@@ -10,7 +10,7 @@ from typing import Any
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_session, require_admin
+from app.api.deps import get_session, require_access
 from app.api.v1.integrations import check_webhook_url
 from app.core.errors import ApiError
 from app.core.optimistic import check_not_stale
@@ -53,7 +53,7 @@ async def _save(session: AsyncSession, user: User, sub: IntegrationSubscription,
 # ------------------------------------------------------------ o'qish
 @router.get("/{provider}", response_model=CrmConfigResult)
 async def get_crm(provider: CrmProvider, session: AsyncSession = Depends(get_session),
-                  user: User = Depends(require_admin)) -> CrmConfigResult:
+                  user: User = Depends(require_access)) -> CrmConfigResult:
     sub = await _subscription(session, user, provider)
     await session.commit()  # birinchi o'qishda yaratilgan qator saqlansin (hook_token barqaror)
     return await crm_settings.crm_view(session, sub)
@@ -93,7 +93,7 @@ async def amo_changes(payload: UpdateAmoPayload) -> Changes:
 
 @router.put("/bitrix24", response_model=CrmConfigResult)
 async def update_bitrix24(payload: UpdateBitrixPayload, session: AsyncSession = Depends(get_session),
-                          user: User = Depends(require_admin)) -> CrmConfigResult:
+                          user: User = Depends(require_access)) -> CrmConfigResult:
     sub = await _subscription(session, user, "bitrix24")
     check_not_stale(sub.updated_at, payload.updated_at)
     return await _save(session, user, sub, await bitrix_changes(payload))
@@ -101,7 +101,7 @@ async def update_bitrix24(payload: UpdateBitrixPayload, session: AsyncSession = 
 
 @router.put("/amocrm", response_model=CrmConfigResult)
 async def update_amocrm(payload: UpdateAmoPayload, session: AsyncSession = Depends(get_session),
-                        user: User = Depends(require_admin)) -> CrmConfigResult:
+                        user: User = Depends(require_access)) -> CrmConfigResult:
     sub = await _subscription(session, user, "amocrm")
     check_not_stale(sub.updated_at, payload.updated_at)
     return await _save(session, user, sub, await amo_changes(payload))
@@ -110,7 +110,7 @@ async def update_amocrm(payload: UpdateAmoPayload, session: AsyncSession = Depen
 # ------------------------------------------------------------ test va xarita
 @router.post("/{provider}/test", response_model=CrmTestResult)
 async def test_crm(provider: CrmProvider, session: AsyncSession = Depends(get_session),
-                   user: User = Depends(require_admin)) -> CrmTestResult:
+                   user: User = Depends(require_access)) -> CrmTestResult:
     sub = await _subscription(session, user, provider)
     result = await crm_settings.test_connection(session, sub)
     await _audit(session, user, f"crm.{provider}.test", sub, {"ok": result.ok, "users_loaded": result.users_loaded})
@@ -120,7 +120,7 @@ async def test_crm(provider: CrmProvider, session: AsyncSession = Depends(get_se
 
 @router.put("/{provider}/user-map")
 async def update_user_map(provider: CrmProvider, payload: UpdateCrmUserMapPayload,
-                          session: AsyncSession = Depends(get_session), user: User = Depends(require_admin)) -> dict:
+                          session: AsyncSession = Depends(get_session), user: User = Depends(require_access)) -> dict:
     tenant_id = str(user.tenant_id)
     sub = await _subscription(session, user, provider)
     await crm_settings.update_user_map(session, tenant_id, provider, payload.entries)

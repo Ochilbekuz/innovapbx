@@ -12,7 +12,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_ami, get_session, require_admin
+from app.api.deps import get_ami, get_session, require_access
 from app.core.errors import ApiError
 from app.core.lookups import get_tenant_scoped_or_404
 from app.core.optimistic import check_not_stale
@@ -69,7 +69,7 @@ def _validate_trunk_mode_fields(
 
 @router.get("")
 async def list_trunks(
-    session: AsyncSession = Depends(get_session), user: User = Depends(require_admin), ami=Depends(get_ami),
+    session: AsyncSession = Depends(get_session), user: User = Depends(require_access), ami=Depends(get_ami),
 ) -> dict:
     items = (await session.execute(
         select(Trunk).where(Trunk.tenant_id == user.tenant_id).order_by(Trunk.name)
@@ -79,7 +79,7 @@ async def list_trunks(
 
 @router.post("", response_model=TrunkMutated, status_code=201)
 async def create_trunk(
-    payload: CreateTrunkPayload, session: AsyncSession = Depends(get_session), user: User = Depends(require_admin),
+    payload: CreateTrunkPayload, session: AsyncSession = Depends(get_session), user: User = Depends(require_access),
     ami=Depends(get_ami),
 ) -> TrunkMutated:
     _validate_trunk_mode_fields(payload.auth_mode, payload.host, payload.username, payload.password, payload.match)
@@ -171,7 +171,7 @@ async def _trunk_apply_result(ami, trunk: Trunk, diff: dict) -> dict:
 @router.patch("/{trunk_id}", response_model=TrunkMutated)
 async def update_trunk(
     trunk_id: str, payload: UpdateTrunkPayload, session: AsyncSession = Depends(get_session),
-    user: User = Depends(require_admin), ami=Depends(get_ami),
+    user: User = Depends(require_access), ami=Depends(get_ami),
 ) -> TrunkMutated:
     trunk = await _get_trunk_or_404(session, str(user.tenant_id), trunk_id)
     check_not_stale(trunk.updated_at, payload.updated_at)
@@ -194,7 +194,7 @@ async def update_trunk(
 
 @router.delete("/{trunk_id}", status_code=204, response_model=None)
 async def delete_trunk(
-    trunk_id: str, session: AsyncSession = Depends(get_session), user: User = Depends(require_admin),
+    trunk_id: str, session: AsyncSession = Depends(get_session), user: User = Depends(require_access),
 ) -> None:
     trunk = await _get_trunk_or_404(session, str(user.tenant_id), trunk_id)
     usages = await usages_for_trunk(session, str(user.tenant_id), trunk_id)
@@ -214,7 +214,7 @@ async def delete_trunk(
 
 @router.post("/{trunk_id}/test", response_model=TrunkTestResult)
 async def test_trunk(
-    trunk_id: str, session: AsyncSession = Depends(get_session), user: User = Depends(require_admin),
+    trunk_id: str, session: AsyncSession = Depends(get_session), user: User = Depends(require_access),
     ami=Depends(get_ami),
 ) -> TrunkTestResult:
     trunk = await _get_trunk_or_404(session, str(user.tenant_id), trunk_id)

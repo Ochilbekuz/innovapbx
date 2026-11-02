@@ -13,7 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user, get_session
 from app.core.errors import ApiError
-from app.core.permissions import ALL, CALLS_READ_OWN, has_permission
+from app.core.permissions import ALL, CALLS_READ_OWN, has_permission, has_region_access
 from app.db.models import Cdr, Extension, User
 from app.schemas import CallDirection, CallOut
 from app.services.cdr_grouping import calls_from_rows, trunk_names
@@ -30,10 +30,13 @@ async def _own_extension_number(session: AsyncSession, user: User) -> str | None
 
 
 def _require_calls_permission(user: User) -> bool:
-    """`True` qaytaradi — admin (hammasini ko'radi); aks holda `CALLS_READ_OWN`
-    bo'lmasa 403 ko'taradi. Qaytgan qiymat chaqiruvchiga "o'z yozuvi bilan
-    cheklash kerakmi" degan savolga javob beradi (sof funksiya, testlanadi)."""
+    """`True` qaytaradi — admin YOKI `reports:view` (hammasini ko'radi,
+    m7-roles-contract.md §1); aks holda `CALLS_READ_OWN` bo'lmasa 403
+    ko'taradi. Qaytgan qiymat chaqiruvchiga "o'z yozuvi bilan cheklash
+    kerakmi" degan savolga javob beradi (sof funksiya, testlanadi)."""
     if has_permission(user.role.permissions, ALL):
+        return True
+    if has_region_access(user.role.permissions, "reports", "view"):
         return True
     if has_permission(user.role.permissions, CALLS_READ_OWN):
         return False

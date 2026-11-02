@@ -8,7 +8,7 @@ import {
 import { apiClient } from '@/api';
 import { isApiError } from '@/api/errors';
 import type { CreateVoicemailBoxPayload, Extension, UpdateVoicemailBoxPayload, VoicemailBox, VoicemailMessage } from '@/api/types';
-import { usePermission } from '@/auth/permissions';
+import { useCanEdit } from '@/auth/permissions';
 import { applyToast } from '@/lib/applyToast';
 import { formatDateTimeShort, formatDurationSec } from '@/lib/time';
 import { usagesOf } from '@/lib/usageError';
@@ -36,7 +36,7 @@ export function VoicemailPage() {
   const { data, isLoading, isError, refetch } = useVoicemailBoxes({});
   const { data: extensions } = useExtensions({ page: 1, size: 200 });
   const { data: audio } = useAudio();
-  const canManage = usePermission('pbx.manage');
+  const canManage = useCanEdit('extensions');
   const toast = useToast();
 
   const [editing, setEditing] = useState<VoicemailBox | 'new' | null>(null);

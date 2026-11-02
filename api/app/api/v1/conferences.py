@@ -13,7 +13,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_ami, get_session, require_admin
+from app.api.deps import get_ami, get_session, require_access
 from app.core.errors import ApiError
 from app.core.ids import parse_uuid
 from app.core.lookups import get_tenant_code
@@ -77,7 +77,7 @@ async def apply_dialplan_and_confbridge(session: AsyncSession, tenant_id: str, u
 
 @router.get("")
 async def list_conferences(
-    session: AsyncSession = Depends(get_session), user: User = Depends(require_admin), ami=Depends(get_ami),
+    session: AsyncSession = Depends(get_session), user: User = Depends(require_access), ami=Depends(get_ami),
 ) -> dict:
     tenant_id = str(user.tenant_id)
     tenant_code = await get_tenant_code(session, tenant_id)
@@ -90,7 +90,7 @@ async def list_conferences(
 @router.get("/{conference_id}", response_model=ConferenceOut)
 async def get_conference(
     conference_id: str, session: AsyncSession = Depends(get_session),
-    user: User = Depends(require_admin), ami=Depends(get_ami),
+    user: User = Depends(require_access), ami=Depends(get_ami),
 ) -> ConferenceOut:
     tenant_id = str(user.tenant_id)
     item = await _get_conf_or_404(session, tenant_id, conference_id)
@@ -100,7 +100,7 @@ async def get_conference(
 @router.post("", response_model=ConferenceMutated, status_code=201)
 async def create_conference(
     payload: CreateConferencePayload, session: AsyncSession = Depends(get_session),
-    user: User = Depends(require_admin), ami=Depends(get_ami),
+    user: User = Depends(require_access), ami=Depends(get_ami),
 ) -> ConferenceMutated:
     tenant_id = str(user.tenant_id)
     if payload.number:
@@ -163,7 +163,7 @@ async def _apply_conference_number(
 @router.patch("/{conference_id}", response_model=ConferenceMutated)
 async def update_conference(
     conference_id: str, payload: UpdateConferencePayload, session: AsyncSession = Depends(get_session),
-    user: User = Depends(require_admin), ami=Depends(get_ami),
+    user: User = Depends(require_access), ami=Depends(get_ami),
 ) -> ConferenceMutated:
     tenant_id = str(user.tenant_id)
     item = await _get_conf_or_404(session, tenant_id, conference_id)
@@ -191,7 +191,7 @@ async def update_conference(
 @router.delete("/{conference_id}", status_code=204, response_model=None)
 async def delete_conference(
     conference_id: str, session: AsyncSession = Depends(get_session),
-    user: User = Depends(require_admin), ami=Depends(get_ami),
+    user: User = Depends(require_access), ami=Depends(get_ami),
 ) -> None:
     tenant_id = str(user.tenant_id)
     item = await _get_conf_or_404(session, tenant_id, conference_id)

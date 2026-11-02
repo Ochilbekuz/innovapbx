@@ -7,7 +7,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_ami, get_session, require_admin
+from app.api.deps import get_ami, get_session, require_access
 from app.core.errors import ApiError
 from app.core.ids import parse_uuid
 from app.core.lookups import get_tenant_scoped_or_404
@@ -51,7 +51,7 @@ async def _route_out(session: AsyncSession, tenant_id: str, route: InboundRoute)
 
 @router.get("/inbound-routes")
 async def list_inbound_routes(
-    session: AsyncSession = Depends(get_session), user: User = Depends(require_admin),
+    session: AsyncSession = Depends(get_session), user: User = Depends(require_access),
 ) -> dict:
     items = (await session.execute(
         select(InboundRoute).where(InboundRoute.tenant_id == user.tenant_id).order_by(InboundRoute.name)
@@ -82,7 +82,7 @@ async def _did_conflict_exists(session: AsyncSession, tenant_id: str, did: str, 
 @router.post("/inbound-routes", response_model=InboundRouteMutated, status_code=201)
 async def create_inbound_route(
     payload: CreateInboundRoutePayload, session: AsyncSession = Depends(get_session),
-    user: User = Depends(require_admin), ami=Depends(get_ami),
+    user: User = Depends(require_access), ami=Depends(get_ami),
 ) -> InboundRouteMutated:
     did = payload.did or ""
     cid = payload.cid or ""
@@ -150,7 +150,7 @@ async def _apply_route_optional_fields(
 @router.patch("/inbound-routes/{route_id}", response_model=InboundRouteMutated)
 async def update_inbound_route(
     route_id: str, payload: UpdateInboundRoutePayload, session: AsyncSession = Depends(get_session),
-    user: User = Depends(require_admin), ami=Depends(get_ami),
+    user: User = Depends(require_access), ami=Depends(get_ami),
 ) -> InboundRouteMutated:
     route = await _get_route_or_404(session, str(user.tenant_id), route_id)
     check_not_stale(route.updated_at, payload.updated_at)
@@ -175,7 +175,7 @@ async def update_inbound_route(
 
 @router.delete("/inbound-routes/{route_id}", status_code=204, response_model=None)
 async def delete_inbound_route(
-    route_id: str, session: AsyncSession = Depends(get_session), user: User = Depends(require_admin),
+    route_id: str, session: AsyncSession = Depends(get_session), user: User = Depends(require_access),
     ami=Depends(get_ami),
 ) -> None:
     route = await _get_route_or_404(session, str(user.tenant_id), route_id)

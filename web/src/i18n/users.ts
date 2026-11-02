@@ -1,7 +1,8 @@
-// "users" namespace — UsersPage (S31: foydalanuvchilar va rollar).
+// "users" namespace — UsersPage (S31: foydalanuvchilar va rollar, M7 §4).
 
 export const uz = {
   title: 'Foydalanuvchilar',
+  tabs: { users: 'Foydalanuvchilar', roles: 'Rollar' },
   column: { username: 'Login', fullName: 'Ism', role: 'Rol', extension: 'Ichki raqam', status: 'Holat', lastLogin: 'Oxirgi kirish' },
   role: { admin: 'Admin', operator: 'Operator' },
   status: { active: 'Faol', inactive: 'Faolsizlantirilgan' },
@@ -10,9 +11,12 @@ export const uz = {
   caption: 'Foydalanuvchilar',
   newUser: 'Yangi foydalanuvchi',
   empty: { title: 'Hali foydalanuvchi yoʻq', body: 'Operatorlar va adminlar uchun hisob yarating.', action: 'Foydalanuvchi qoʻshish' },
-  toast: { added: 'Foydalanuvchi qoʻshildi', saved: 'Oʻzgarishlar saqlandi', deleted: '{{name}} oʻchirildi', deleteFailed: 'Oʻchirib boʻlmadi' },
+  toast: {
+    added: 'Foydalanuvchi qoʻshildi', saved: 'Oʻzgarishlar saqlandi', deleted: '{{name}} oʻchirildi', deleteFailed: 'Oʻchirib boʻlmadi',
+    roleAdded: 'Rol qoʻshildi', roleSaved: 'Rol saqlandi', roleDeleted: '{{name}} oʻchirildi', roleDeleteFailed: 'Oʻchirib boʻlmadi',
+  },
   deleteModal: { title: '{{name}}ni oʻchirish', body: '«{{name}}» hisobi butunlay oʻchiriladi.' },
-  cancel: 'Bekor qilish', delete: 'Oʻchirish', save: 'Saqlash', add: 'Qoʻshish',
+  cancel: 'Bekor qilish', delete: 'Oʻchirish', save: 'Saqlash', add: 'Qoʻshish', close: 'Yopish',
   form: {
     newTitle: 'Yangi foydalanuvchi', editTitle: '{{name}}ni tahrirlash',
     usernameLabel: 'Login', fullNameLabel: 'Toʻliq ism', emailLabel: 'Email', emailAside: 'ixtiyoriy',
@@ -21,10 +25,32 @@ export const uz = {
     passwordLabel: 'Parol', passwordHint: 'Kamida 10 belgi', passwordPlaceholderEdit: 'Oʻzgartirmaslik uchun boʻsh qoldiring',
     mustChangeLabel: 'Keyingi kirishda parolni oʻzgartirish talab qilinsin',
   },
+  hudud: { monitor: 'Monitoring', extensions: 'Ichki raqamlar', connect: 'Ulanish', routing: 'Yoʻnaltirish', apps: 'Ilovalar', reports: 'Hisobotlar' },
+  permLevel: { none: 'Yoʻq', view: 'Koʻrish', edit: 'Tahrirlash' },
+  permSummary: { all: 'Toʻliq (hamma huquq)', none: 'Hech narsa', ownCalls: 'Oʻz qoʻngʻiroqlari' },
+  rolesColumn: { name: 'Rol', userCount: 'Foydalanuvchilar', permissions: 'Ruxsatlar', systemBadge: 'Tizim' },
+  rolesCaption: 'Rollar',
+  rolesSearch: 'Rol nomi boʻyicha',
+  newRole: 'Yangi rol',
+  rolesEditAriaLabel: '{{name}} rolini tahrirlash', rolesDeleteAriaLabel: '{{name}} rolini oʻchirish',
+  rolesEmpty: { title: 'Hali maxsus rol yoʻq', body: 'Tizim (admin, operator) rollaridan tashqari yangi rol yaratishingiz mumkin.', action: 'Rol qoʻshish' },
+  roleForm: {
+    newTitle: 'Yangi rol', editTitle: '{{name}} rolini tahrirlash', viewTitle: '{{name}} roli',
+    nameLabel: 'Rol nomi', permissionsLabel: 'Hududlar boʻyicha ruxsatlar',
+    systemDesc: {
+      admin: 'Tizim roli — barcha hududlarga toʻliq ruxsat. Oʻzgartirib yoki oʻchirib boʻlmaydi.',
+      operator: 'Tizim roli — faqat oʻz qoʻngʻiroqlari tarixini koʻradi. Oʻzgartirib yoki oʻchirib boʻlmaydi.',
+    },
+  },
+  roleDeleteModal: {
+    title: '{{name}} rolini oʻchirish', body: '«{{name}}» roli butunlay oʻchiriladi.',
+    inUse: 'Bu rolga {{count}} ta foydalanuvchi bogʻlangan — avval ularni boshqa rolga oʻtkazing.',
+  },
 };
 
 export const ru = {
   title: 'Пользователи',
+  tabs: { users: 'Пользователи', roles: 'Роли' },
   column: { username: 'Логин', fullName: 'Имя', role: 'Роль', extension: 'Внутренний номер', status: 'Статус', lastLogin: 'Последний вход' },
   role: { admin: 'Админ', operator: 'Оператор' },
   status: { active: 'Активен', inactive: 'Деактивирован' },
@@ -33,9 +59,12 @@ export const ru = {
   caption: 'Пользователи',
   newUser: 'Новый пользователь',
   empty: { title: 'Пользователей пока нет', body: 'Создайте учётные записи для операторов и админов.', action: 'Добавить пользователя' },
-  toast: { added: 'Пользователь добавлен', saved: 'Изменения сохранены', deleted: '{{name}} удалён', deleteFailed: 'Не удалось удалить' },
+  toast: {
+    added: 'Пользователь добавлен', saved: 'Изменения сохранены', deleted: '{{name}} удалён', deleteFailed: 'Не удалось удалить',
+    roleAdded: 'Роль добавлена', roleSaved: 'Роль сохранена', roleDeleted: '{{name}} удалена', roleDeleteFailed: 'Не удалось удалить',
+  },
   deleteModal: { title: 'Удаление {{name}}', body: 'Учётная запись «{{name}}» будет удалена полностью.' },
-  cancel: 'Отмена', delete: 'Удалить', save: 'Сохранить', add: 'Добавить',
+  cancel: 'Отмена', delete: 'Удалить', save: 'Сохранить', add: 'Добавить', close: 'Закрыть',
   form: {
     newTitle: 'Новый пользователь', editTitle: 'Редактирование {{name}}',
     usernameLabel: 'Логин', fullNameLabel: 'Полное имя', emailLabel: 'Email', emailAside: 'необязательно',
@@ -44,10 +73,32 @@ export const ru = {
     passwordLabel: 'Пароль', passwordHint: 'Минимум 10 символов', passwordPlaceholderEdit: 'Оставьте пустым, чтобы не менять',
     mustChangeLabel: 'Потребовать смену пароля при следующем входе',
   },
+  hudud: { monitor: 'Мониторинг', extensions: 'Внутренние номера', connect: 'Подключение', routing: 'Маршрутизация', apps: 'Приложения', reports: 'Отчёты' },
+  permLevel: { none: 'Нет', view: 'Просмотр', edit: 'Редактирование' },
+  permSummary: { all: 'Полный доступ (все права)', none: 'Нет прав', ownCalls: 'Свои звонки' },
+  rolesColumn: { name: 'Роль', userCount: 'Пользователей', permissions: 'Права', systemBadge: 'Системная' },
+  rolesCaption: 'Роли',
+  rolesSearch: 'По названию роли',
+  newRole: 'Новая роль',
+  rolesEditAriaLabel: 'Редактировать роль {{name}}', rolesDeleteAriaLabel: 'Удалить роль {{name}}',
+  rolesEmpty: { title: 'Пока нет своих ролей', body: 'Кроме системных ролей (админ, оператор) можно создать свою.', action: 'Добавить роль' },
+  roleForm: {
+    newTitle: 'Новая роль', editTitle: 'Редактирование роли {{name}}', viewTitle: 'Роль {{name}}',
+    nameLabel: 'Название роли', permissionsLabel: 'Права по разделам',
+    systemDesc: {
+      admin: 'Системная роль — полный доступ ко всем разделам. Изменить или удалить нельзя.',
+      operator: 'Системная роль — видит только историю своих звонков. Изменить или удалить нельзя.',
+    },
+  },
+  roleDeleteModal: {
+    title: 'Удаление роли {{name}}', body: 'Роль «{{name}}» будет удалена полностью.',
+    inUse: 'С этой ролью связано {{count}} пользователей — сначала переведите их на другую роль.',
+  },
 };
 
 export const en = {
   title: 'Users',
+  tabs: { users: 'Users', roles: 'Roles' },
   column: { username: 'Username', fullName: 'Name', role: 'Role', extension: 'Extension', status: 'Status', lastLogin: 'Last login' },
   role: { admin: 'Admin', operator: 'Operator' },
   status: { active: 'Active', inactive: 'Deactivated' },
@@ -56,9 +107,12 @@ export const en = {
   caption: 'Users',
   newUser: 'New user',
   empty: { title: 'No users yet', body: 'Create accounts for operators and admins.', action: 'Add user' },
-  toast: { added: 'User added', saved: 'Changes saved', deleted: '{{name}} deleted', deleteFailed: 'Could not delete' },
+  toast: {
+    added: 'User added', saved: 'Changes saved', deleted: '{{name}} deleted', deleteFailed: 'Could not delete',
+    roleAdded: 'Role added', roleSaved: 'Role saved', roleDeleted: '{{name}} deleted', roleDeleteFailed: 'Could not delete',
+  },
   deleteModal: { title: 'Delete {{name}}', body: 'The account "{{name}}" will be permanently deleted.' },
-  cancel: 'Cancel', delete: 'Delete', save: 'Save', add: 'Add',
+  cancel: 'Cancel', delete: 'Delete', save: 'Save', add: 'Add', close: 'Close',
   form: {
     newTitle: 'New user', editTitle: 'Edit {{name}}',
     usernameLabel: 'Username', fullNameLabel: 'Full name', emailLabel: 'Email', emailAside: 'optional',
@@ -66,5 +120,26 @@ export const en = {
     languageLabel: 'Language', activeLabel: 'Active', activeDesc: "If off — the user won't be able to sign in",
     passwordLabel: 'Password', passwordHint: 'At least 10 characters', passwordPlaceholderEdit: 'Leave blank to keep unchanged',
     mustChangeLabel: 'Require a password change on next sign-in',
+  },
+  hudud: { monitor: 'Monitoring', extensions: 'Extensions', connect: 'Connectivity', routing: 'Routing', apps: 'Apps', reports: 'Reports' },
+  permLevel: { none: 'None', view: 'View', edit: 'Edit' },
+  permSummary: { all: 'Full access (all permissions)', none: 'No access', ownCalls: 'Own calls' },
+  rolesColumn: { name: 'Role', userCount: 'Users', permissions: 'Permissions', systemBadge: 'System' },
+  rolesCaption: 'Roles',
+  rolesSearch: 'Search by role name',
+  newRole: 'New role',
+  rolesEditAriaLabel: 'Edit role {{name}}', rolesDeleteAriaLabel: 'Delete role {{name}}',
+  rolesEmpty: { title: 'No custom roles yet', body: 'Besides the system roles (admin, operator) you can create your own.', action: 'Add role' },
+  roleForm: {
+    newTitle: 'New role', editTitle: 'Edit role {{name}}', viewTitle: 'Role {{name}}',
+    nameLabel: 'Role name', permissionsLabel: 'Permissions by area',
+    systemDesc: {
+      admin: 'System role — full access to every area. Cannot be changed or deleted.',
+      operator: 'System role — sees only their own call history. Cannot be changed or deleted.',
+    },
+  },
+  roleDeleteModal: {
+    title: 'Delete role {{name}}', body: 'The role "{{name}}" will be permanently deleted.',
+    inUse: '{{count}} user(s) are assigned to this role — move them to another role first.',
   },
 };

@@ -4,7 +4,7 @@ import { Pencil, Plus, ShieldAlert, Trash2, Users } from 'lucide-react';
 import { useConferences, useCreateConference, useDeleteConference, useUpdateConference } from '@/api/queries';
 import { isApiError } from '@/api/errors';
 import type { Conference, Usage } from '@/api/types';
-import { usePermission } from '@/auth/permissions';
+import { useCanEdit } from '@/auth/permissions';
 import { applyToast } from '@/lib/applyToast';
 import { usagesOf } from '@/lib/usageError';
 import { UsageList } from '@/pbx/UsageList';
@@ -54,7 +54,7 @@ function secretPayload(enabled: boolean, value: string, hadBefore: boolean): str
 export function ConferencesPage() {
   const { t } = useTranslation('conferences');
   const { data, isLoading, isError, refetch } = useConferences();
-  const canManage = usePermission('pbx.manage');
+  const canManage = useCanEdit('apps');
   const toast = useToast();
   const [editing, setEditing] = useState<Conference | 'new' | null>(null);
   const [deleting, setDeleting] = useState<Conference | null>(null);

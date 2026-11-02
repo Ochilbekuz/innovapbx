@@ -8,7 +8,7 @@ from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_ami, get_session, require_admin
+from app.api.deps import get_ami, get_session, require_access
 from app.api.v1.voicemail_boxes import apply_dialplan_and_voicemail, delete_box_and_target
 from app.core.errors import ApiError
 from app.core.lookups import get_tenant_code, get_tenant_scoped_or_404
@@ -109,7 +109,7 @@ async def _bulk_extension_out(ami, items: list[Extension]) -> list[ExtensionOut]
 @router.get("", response_model=Paged)
 async def list_extensions(
     q: str | None = None, page: int = 1, size: int = 50,
-    session: AsyncSession = Depends(get_session), user: User = Depends(require_admin),
+    session: AsyncSession = Depends(get_session), user: User = Depends(require_access),
     ami=Depends(get_ami),
 ) -> Paged:
     stmt = select(Extension).where(Extension.tenant_id == user.tenant_id)
@@ -135,7 +135,7 @@ def new_extension(*, codecs: list[str] | None, **fields) -> Extension:
 @router.post("", response_model=ExtensionCreated, status_code=201)
 async def create_extension(
     payload: CreateExtensionPayload, request: Request, session: AsyncSession = Depends(get_session),
-    user: User = Depends(require_admin), ami=Depends(get_ami),
+    user: User = Depends(require_access), ami=Depends(get_ami),
 ) -> ExtensionCreated:
     codecs = resolve_codecs(webrtc=payload.webrtc, requested=payload.codecs, current=None,
                             switching_on=payload.webrtc)  # 422 — DB'ga tegmasdan oldin
@@ -282,7 +282,7 @@ async def _apply_extension_config(session: AsyncSession, tenant_id: str, user: U
 @router.patch("/{ext_id}", response_model=ExtensionMutated)
 async def update_extension(
     ext_id: str, payload: UpdateExtensionPayload, session: AsyncSession = Depends(get_session),
-    user: User = Depends(require_admin), ami=Depends(get_ami),
+    user: User = Depends(require_access), ami=Depends(get_ami),
 ) -> ExtensionMutated:
     ext = await _get_extension_or_404(session, str(user.tenant_id), ext_id)
     check_not_stale(ext.updated_at, payload.updated_at)
@@ -323,7 +323,7 @@ async def _finish_secret_change(
 @router.post("/{ext_id}/rotate-secret", response_model=RotateSecretResult)
 async def rotate_secret(
     ext_id: str, request: Request, session: AsyncSession = Depends(get_session),
-    user: User = Depends(require_admin), ami=Depends(get_ami),
+    user: User = Depends(require_access), ami=Depends(get_ami),
 ) -> RotateSecretResult:
     ext = await _get_extension_or_404(session, str(user.tenant_id), ext_id)
     secret = generate_sip_secret()
@@ -334,7 +334,7 @@ async def rotate_secret(
 @router.put("/{ext_id}/secret", response_model=RotateSecretResult)
 async def set_secret(
     ext_id: str, payload: SetSecretPayload, request: Request, session: AsyncSession = Depends(get_session),
-    user: User = Depends(require_admin), ami=Depends(get_ami),
+    user: User = Depends(require_access), ami=Depends(get_ami),
 ) -> RotateSecretResult:
     """Foydalanuvchi o'zi tanlagan SIP paroli (FreePBX-uslubida) — `rotate-secret`dan farqli,
     tasodifiy EMAS, qoida bo'yicha (`sip_secret_policy.validate_sip_password`) tekshiriladi."""
@@ -346,7 +346,7 @@ async def set_secret(
 
 @router.delete("/{ext_id}", status_code=204, response_model=None)
 async def delete_extension(
-    ext_id: str, session: AsyncSession = Depends(get_session), user: User = Depends(require_admin),
+    ext_id: str, session: AsyncSession = Depends(get_session), user: User = Depends(require_access),
     ami=Depends(get_ami),
 ) -> None:
     ext = await _get_extension_or_404(session, str(user.tenant_id), ext_id)

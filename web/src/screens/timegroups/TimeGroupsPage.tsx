@@ -8,7 +8,7 @@ import {
 } from '@/api/queries';
 import { isApiError } from '@/api/errors';
 import type { Holiday, TimeCondition, TimeConditionOverride, TimeGroup } from '@/api/types';
-import { usePermission } from '@/auth/permissions';
+import { useCanEdit } from '@/auth/permissions';
 import { applyToast } from '@/lib/applyToast';
 import { formatDateShort } from '@/lib/time';
 import { usagesOf } from '@/lib/usageError';
@@ -35,7 +35,7 @@ const NAME_MAX = 60;
 /** S08 — ish vaqti: guruhlar (haftalik setka), bayramlar, va shartlar (DID qayerga tushishini belgilaydi). */
 export function TimeGroupsPage() {
   const { t } = useTranslation('timegroups');
-  const canManage = usePermission('routes.manage');
+  const canManage = useCanEdit('routing');
   return (
     <AppShellPage title={t('title')}>
       {!canManage && (

@@ -22,7 +22,7 @@ const STATUS_TONE: Record<AlertStatus, Tone> = { pending: 'neutral', sent: 'succ
 /** /settings/alerts — Telegram ogohlantirishlari: chatlar, hodisa turlari, sinov xabari, tarix. Qarang ../../../replica/m2c-contract.md §4. */
 export function AlertsPage() {
   const { t } = useTranslation('alerts');
-  const canManage = usePermission('system.manage');
+  const canManage = usePermission('*');
   const toast = useToast();
   const { data, isLoading, isError, refetch } = useAlertSettings();
   const updateM = useUpdateAlertSettings();

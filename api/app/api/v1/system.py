@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_ami, get_session, require_admin
+from app.api.deps import get_ami, get_session, require_access
 from app.core.errors import ApiError
 from app.db.models import ConfigRevision, Tenant, User
 from app.schemas import (
@@ -29,7 +29,7 @@ router = APIRouter(tags=["system"])
 
 @router.get("/system/health", response_model=SystemHealth)
 async def system_health(
-    session: AsyncSession = Depends(get_session), user: User = Depends(require_admin), ami=Depends(get_ami),
+    session: AsyncSession = Depends(get_session), user: User = Depends(require_access), ami=Depends(get_ami),
 ) -> SystemHealth:
     db_is_up = await db_up(session)
     asterisk = await asterisk_health(ami)
@@ -45,7 +45,7 @@ async def system_health(
 
 @router.get("/config/revisions")
 async def config_revisions(
-    limit: int = 20, session: AsyncSession = Depends(get_session), user: User = Depends(require_admin),
+    limit: int = 20, session: AsyncSession = Depends(get_session), user: User = Depends(require_access),
 ) -> dict:
     rows = (await session.execute(
         select(ConfigRevision).where(ConfigRevision.tenant_id == user.tenant_id)
@@ -79,7 +79,7 @@ async def _revision_user_ref(session: AsyncSession, user_id: str | None) -> Audi
 
 @router.get("/config/revisions/{revision_id}", response_model=ConfigRevisionDetailOut)
 async def get_config_revision(
-    revision_id: str, session: AsyncSession = Depends(get_session), user: User = Depends(require_admin),
+    revision_id: str, session: AsyncSession = Depends(get_session), user: User = Depends(require_access),
 ) -> ConfigRevisionDetailOut:
     revision = await _get_revision_or_404(session, str(user.tenant_id), revision_id)
     user_ref = await _revision_user_ref(session, revision.user_id)
@@ -112,7 +112,7 @@ async def _diff_against_revision(
 @router.get("/config/revisions/{revision_id}/diff", response_model=ConfigRevisionDiffOut)
 async def diff_config_revision(
     revision_id: str, against: str = "prev", session: AsyncSession = Depends(get_session),
-    user: User = Depends(require_admin),
+    user: User = Depends(require_access),
 ) -> ConfigRevisionDiffOut:
     if against not in ("prev", "current"):
         raise ApiError(422, "bad_value", "against faqat prev|current bo'lishi mumkin", field="against")
@@ -130,7 +130,7 @@ async def diff_config_revision(
 
 @router.post("/config/revisions/{revision_id}/restore", response_model=RestoreRevisionResult)
 async def restore_config_revision(
-    revision_id: str, session: AsyncSession = Depends(get_session), user: User = Depends(require_admin),
+    revision_id: str, session: AsyncSession = Depends(get_session), user: User = Depends(require_access),
     ami=Depends(get_ami),
 ) -> RestoreRevisionResult:
     tenant_id = str(user.tenant_id)

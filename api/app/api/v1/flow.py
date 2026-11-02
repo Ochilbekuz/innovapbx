@@ -6,7 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.api.deps import get_session, require_admin
+from app.api.deps import get_session, require_access
 from app.core.lookups import get_tenant_scoped_or_404
 from app.db.models import InboundRoute, Ivr, Queue, RingGroup, TimeCondition, User
 from app.schemas import FlowNode, FlowOut, RouteTarget
@@ -76,7 +76,7 @@ async def _build_node(
 
 @router.get("/flow/{inbound_route_id}", response_model=FlowOut)
 async def get_flow(
-    inbound_route_id: str, session: AsyncSession = Depends(get_session), user: User = Depends(require_admin),
+    inbound_route_id: str, session: AsyncSession = Depends(get_session), user: User = Depends(require_access),
 ) -> FlowOut:
     route = await get_tenant_scoped_or_404(
         session, InboundRoute, str(user.tenant_id), inbound_route_id, not_found_message="Marshrut topilmadi",

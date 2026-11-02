@@ -9,7 +9,7 @@ from fastapi import APIRouter, Depends, Response
 from fastapi.responses import FileResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_current_user, get_session, require_admin
+from app.api.deps import get_current_user, get_session, require_access
 from app.api.v1.calls import _own_extension_number, _require_calls_permission
 from app.core.errors import ApiError
 from app.db.models import CallRecording, User
@@ -47,7 +47,7 @@ async def recording_audio(recording_id: str, session: AsyncSession = Depends(get
 
 @router.delete("/{recording_id}", status_code=204, response_model=None)
 async def delete_recording(recording_id: str, session: AsyncSession = Depends(get_session),
-                           user: User = Depends(require_admin)) -> Response:
+                           user: User = Depends(require_access)) -> Response:
     rec = await recordings.get_active(session, str(user.tenant_id), recording_id)
     if rec is None:
         raise not_found()

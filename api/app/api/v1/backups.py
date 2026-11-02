@@ -2,7 +2,7 @@
 
 `GET /backups/jobs/{id}` — m4b-contract.md §0: texnik xizmat rejimida HAM ochiq,
 avtorizatsiyasiz (`app/services/maintenance.py::_JOB_STATUS_RE`) — shu sabab bu
-YAGONA endpoint `require_admin` ISHLATMAYDI va tenant-skopsiz (job id'sining o'zi
+YAGONA endpoint `require_access` ISHLATMAYDI va tenant-skopsiz (job id'sining o'zi
 "sir" — uni taxmin qilish amalda mumkin emas, UUID).
 
 Fon ishlar (`backup_job.run_backup_job`/`restore_job.run_restore_job`) `pg_advisory_lock`
@@ -25,7 +25,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.api.deps import get_ami, get_session, require_admin
+from app.api.deps import get_ami, get_session, require_access
 from app.core.config import settings
 from app.core.errors import ApiError
 from app.core.ids import parse_uuid
@@ -107,7 +107,7 @@ async def _resolve_passphrase(session: AsyncSession, tenant_id: str, payload_pas
 # ------------------------------------------------------------------ ro'yxat/yaratish
 @router.get("", response_model=BackupList)
 async def list_backups(
-    session: AsyncSession = Depends(get_session), user: User = Depends(require_admin),
+    session: AsyncSession = Depends(get_session), user: User = Depends(require_access),
 ) -> BackupList:
     rows = (await session.execute(
         select(Backup).where(Backup.tenant_id == user.tenant_id)
@@ -119,7 +119,7 @@ async def list_backups(
 @router.post("", status_code=202, response_model=BackupJobResponse)
 async def create_backup(
     payload: CreateBackupPayload, session: AsyncSession = Depends(get_session),
-    user: User = Depends(require_admin),
+    user: User = Depends(require_access),
 ) -> BackupJobResponse:
     tenant_id = str(user.tenant_id)
     try:
@@ -146,7 +146,7 @@ async def create_backup(
 
 @router.get("/restores", response_model=RestoreJobList)
 async def list_restores(
-    session: AsyncSession = Depends(get_session), user: User = Depends(require_admin),
+    session: AsyncSession = Depends(get_session), user: User = Depends(require_access),
 ) -> RestoreJobList:
     rows = (await session.execute(
         select(RestoreJob).where(RestoreJob.tenant_id == user.tenant_id).order_by(RestoreJob.started_at.desc())
@@ -185,7 +185,7 @@ async def get_backup_job_state(job_id: str, session: AsyncSession = Depends(get_
 @router.post("/upload", response_model=BackupItem)
 async def upload_backup(
     file: UploadFile = File(...), session: AsyncSession = Depends(get_session),
-    user: User = Depends(require_admin),
+    user: User = Depends(require_access),
 ) -> BackupItem:
     """Butunini xotiraga yuklamasdan diskka yozadi (nginx `client_max_body_size 50g`/
     `proxy_request_buffering off` allaqachon sozlangan). `kind="uploaded"`,
@@ -225,7 +225,7 @@ async def upload_backup(
 # ------------------------------------------------------------------ bitta zaxira
 @router.get("/{backup_id}", response_model=BackupItem)
 async def get_backup(
-    backup_id: str, session: AsyncSession = Depends(get_session), user: User = Depends(require_admin),
+    backup_id: str, session: AsyncSession = Depends(get_session), user: User = Depends(require_access),
 ) -> BackupItem:
     backup = await get_tenant_scoped_or_404(
         session, Backup, str(user.tenant_id), backup_id, not_found_message="Zaxira topilmadi",
@@ -249,7 +249,7 @@ async def _delete_one_copy(session: AsyncSession, backups_dir: Path, backup_cfg:
 
 @router.delete("/{backup_id}", status_code=204, response_model=None)
 async def delete_backup(
-    backup_id: str, session: AsyncSession = Depends(get_session), user: User = Depends(require_admin),
+    backup_id: str, session: AsyncSession = Depends(get_session), user: User = Depends(require_access),
 ) -> Response:
     """Barcha nusxalar (lokal + masofaviy) o'chiriladi — `pre_restore` ham eng so'nggi
     bo'lsa ham o'chirilishi mumkin (m4b-contract.md §2)."""
@@ -270,7 +270,7 @@ async def delete_backup(
 
 @router.get("/{backup_id}/download")
 async def download_backup(
-    backup_id: str, session: AsyncSession = Depends(get_session), user: User = Depends(require_admin),
+    backup_id: str, session: AsyncSession = Depends(get_session), user: User = Depends(require_access),
 ) -> FileResponse:
     backup = await get_tenant_scoped_or_404(
         session, Backup, str(user.tenant_id), backup_id, not_found_message="Zaxira topilmadi")
@@ -316,7 +316,7 @@ def _upsert_local_copy(session: AsyncSession, backup: Backup, local_path: Path, 
 
 @router.post("/{backup_id}/fetch", response_model=BackupItem)
 async def fetch_backup_copy(
-    backup_id: str, session: AsyncSession = Depends(get_session), user: User = Depends(require_admin),
+    backup_id: str, session: AsyncSession = Depends(get_session), user: User = Depends(require_access),
 ) -> BackupItem:
     """Lokal nusxa retentsiya bilan o'chirilgan bo'lsa — masofaviy nishondan qayta
     tortib oladi (allaqachon lokalda bo'lsa — hech narsa qilmay qaytaradi, idempotent)."""
@@ -350,7 +350,7 @@ async def fetch_backup_copy(
 @router.post("/{backup_id}/inspect", response_model=InspectBackupResult)
 async def inspect_backup(
     backup_id: str, payload: InspectBackupPayload, session: AsyncSession = Depends(get_session),
-    user: User = Depends(require_admin),
+    user: User = Depends(require_access),
 ) -> InspectBackupResult:
     tenant_id = str(user.tenant_id)
     backup = await get_tenant_scoped_or_404(
@@ -379,7 +379,7 @@ async def inspect_backup(
 @router.post("/{backup_id}/restore", status_code=202, response_model=BackupJobResponse)
 async def restore_backup(
     backup_id: str, payload: RestoreBackupPayload, session: AsyncSession = Depends(get_session),
-    user: User = Depends(require_admin), ami=Depends(get_ami),
+    user: User = Depends(require_access), ami=Depends(get_ami),
 ) -> BackupJobResponse:
     tenant_id = str(user.tenant_id)
     backup = await get_tenant_scoped_or_404(

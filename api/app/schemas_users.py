@@ -1,5 +1,6 @@
 """§3 (Foydalanuvchilar) va §4 (Operator portali /me) Pydantic sxemalari —
-manba: `replica/m2b-contract.md`, frontend `web/src/api/types.ts` (`ManagedUser`,
+manba: `replica/m2b-contract.md`, `replica/m7-roles-contract.md` §3 (rol — endi
+istalgan mavjud rol NOMI), frontend `web/src/api/types.ts` (`ManagedUser`,
 `CreateUserPayload`, `UpdateUserPayload`, `ChangePasswordPayload`, `MeOverview`,
 `MeExtensionOverview`, `MeQueueOverview`, `PatchMeExtensionPayload`) bilan AYNAN
 mos bo'lishi SHART. Asosiy `app/schemas.py`dan ALOHIDA — u yerdagi `UserOut`
@@ -11,7 +12,11 @@ from datetime import datetime
 
 from pydantic import BaseModel, Field
 
-from app.schemas import ExtensionRef, Lang, Role
+from app.schemas import ExtensionRef, Lang
+
+# m7-roles-contract.md §3: `role` — Literal['admin','operator'] EMAS, istalgan
+# mavjud rol nomi (1-40 belgi); noma'lum nom bo'lsa `users.py::_role_for` 422
+# `validation_error` ko'taradi (bu yerda faqat uzunlik tekshiriladi).
 
 
 class ManagedUserOut(BaseModel):
@@ -21,7 +26,7 @@ class ManagedUserOut(BaseModel):
     username: str
     full_name: str
     email: str | None
-    role: Role
+    role: str
     extension: ExtensionRef | None
     is_active: bool
     language: Lang
@@ -34,7 +39,7 @@ class CreateUserPayload(BaseModel):
     username: str = Field(min_length=1, max_length=64)
     full_name: str = Field(min_length=1, max_length=128)
     email: str | None = None
-    role: Role
+    role: str = Field(min_length=1, max_length=40)
     extension_id: str | None = None
     password: str
     language: Lang | None = None
@@ -47,7 +52,7 @@ class UpdateUserPayload(BaseModel):
     username: str | None = Field(default=None, min_length=1, max_length=64)
     full_name: str | None = Field(default=None, min_length=1, max_length=128)
     email: str | None = None
-    role: Role | None = None
+    role: str | None = Field(default=None, min_length=1, max_length=40)
     extension_id: str | None = None
     language: Lang | None = None
     is_active: bool | None = None
@@ -62,6 +67,37 @@ class UserMutated(BaseModel):
 class ChangePasswordPayload(BaseModel):
     current: str
     new: str
+
+
+# --------------------------------------------------------------------- §2 — /roles (m7)
+class RoleOut(BaseModel):
+    id: str
+    name: str
+    permissions: list[str]
+    is_system: bool
+    user_count: int
+    updated_at: datetime
+
+
+class RolesListOut(BaseModel):
+    items: list[RoleOut]
+
+
+class CreateRolePayload(BaseModel):
+    name: str = Field(min_length=1, max_length=40)
+    permissions: list[str]
+
+
+class UpdateRolePayload(BaseModel):
+    """Ikkisi ham ixtiyoriy — berilmagan = o'zgarmaydi (`UpdateMohClassPayload`
+    naqshi); tizim rolida (`is_system`) ikkisi ham taqiqlanadi (409 `system_role`)."""
+    name: str | None = Field(default=None, min_length=1, max_length=40)
+    permissions: list[str] | None = None
+    updated_at: datetime
+
+
+class RoleMutated(BaseModel):
+    item: RoleOut
 
 
 # --------------------------------------------------------------------- §4 — /me

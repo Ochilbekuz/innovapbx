@@ -12,7 +12,7 @@ import {
 } from '@/api/queries';
 import { isApiError } from '@/api/errors';
 import type { CreateExtensionPayload, Extension, SipCredentials, UpdateExtensionPayload } from '@/api/types';
-import { usePermission } from '@/auth/permissions';
+import { useCanEdit } from '@/auth/permissions';
 import { applyToast } from '@/lib/applyToast';
 import { AppShellPage } from '@/shell/AppShellPage';
 import { CreateDeviceModal, DeviceStatusBadge } from '@/screens/devices/DevicesTab';
@@ -270,7 +270,7 @@ function ChangePasswordSection({ ext, onChanged }: { ext: Extension; onChanged: 
 export function ExtensionsPage() {
   const { t } = useTranslation('extensions');
   const { data, isLoading, isError, refetch } = useExtensions({ page: 1, size: 200 });
-  const canManage = usePermission('pbx.manage');
+  const canManage = useCanEdit('extensions');
   const toast = useToast();
 
   const [createOpen, setCreateOpen] = useState(false);
@@ -676,7 +676,7 @@ function VoicemailSection({ ext }: { ext: Extension }) {
 /** Ichki raqamga biriktirilgan apparatlar (M4a) — roʻyxat shu yerda, toʻliq boshqarish `/devices`da. */
 function DevicesSection({ ext }: { ext: Extension }) {
   const { t } = useTranslation('extensions');
-  const canManageDevices = usePermission('system.manage');
+  const canManageDevices = useCanEdit('extensions');
   const { data } = useDevices({ extension_id: ext.id });
   const [addOpen, setAddOpen] = useState(false);
   const items = data?.items ?? [];

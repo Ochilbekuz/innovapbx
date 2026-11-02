@@ -11,7 +11,7 @@ from fastapi import APIRouter, Depends
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_session, require_admin
+from app.api.deps import get_session, require_access
 from app.core.errors import ApiError
 from app.db.models import MigrationJob, SystemSettings, User
 from app.db.session import SessionLocal
@@ -80,7 +80,7 @@ async def _job_out(session: AsyncSession, job: MigrationJob) -> JobOut:
 
 
 @router.post("/test", response_model=SshTestResult)
-async def ssh_test(payload: SshAuthPayload, user: User = Depends(require_admin)) -> SshTestResult:
+async def ssh_test(payload: SshAuthPayload, user: User = Depends(require_access)) -> SshTestResult:
     ok, host_key_fp, error = await test_connection(payload.to_credentials())
     return SshTestResult(ok=ok, host_key_fp=host_key_fp, error=error)
 
@@ -88,7 +88,7 @@ async def ssh_test(payload: SshAuthPayload, user: User = Depends(require_admin))
 @router.post("/fetch", status_code=202, response_model=JobItem)
 async def ssh_fetch(
     payload: SshFetchPayload, session: AsyncSession = Depends(get_session),
-    user: User = Depends(require_admin),
+    user: User = Depends(require_access),
 ) -> JobItem:
     """Tezkor (sinxron) ulanish+parol+host-kalit tekshiruvi — xato bo'lsa ish
     YARATILMAYDI (422). Muvaffaqiyatda ish darhol `fetching`/`step=ssh_fetch` bilan

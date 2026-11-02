@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy import Text, cast, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_session, require_admin
+from app.api.deps import get_session, require_access
 from app.db.models import AuditLog, User
 from app.schemas import AuditEntryOut, AuditUserRef
 
@@ -57,7 +57,7 @@ async def list_audit(
     date_from: datetime | None = Query(default=None, alias="from"),
     date_to: datetime | None = Query(default=None, alias="to"), q: str | None = None,
     page: int = Query(default=1, ge=1), size: int = Query(default=50, ge=1, le=200),
-    session: AsyncSession = Depends(get_session), user: User = Depends(require_admin),
+    session: AsyncSession = Depends(get_session), user: User = Depends(require_access),
 ) -> dict:
     tenant_id = str(user.tenant_id)
     base = _apply_filters(select(AuditLog), tenant_id, entity=entity, user_id=user_id, action=action,

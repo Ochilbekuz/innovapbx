@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_session, require_admin
+from app.api.deps import get_session, require_access
 from app.db.models import AlertLog, User
 from app.schemas_security import AlertLogList, AlertLogOut
 
@@ -16,7 +16,7 @@ router = APIRouter(prefix="/alerts", tags=["alerts"])
 @router.get("", response_model=AlertLogList)
 async def list_alerts(
     limit: int = Query(default=50, ge=1, le=500), kind: str | None = None,
-    session: AsyncSession = Depends(get_session), user: User = Depends(require_admin),
+    session: AsyncSession = Depends(get_session), user: User = Depends(require_access),
 ) -> AlertLogList:
     stmt = (
         select(AlertLog).where(AlertLog.tenant_id == user.tenant_id)

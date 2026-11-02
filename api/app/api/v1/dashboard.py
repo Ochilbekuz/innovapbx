@@ -11,7 +11,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_ami, get_session, require_admin
+from app.api.deps import get_ami, get_session, require_access
 from app.db.models import Cdr, ConfigRevision, OutboundRoute, Queue, Trunk, TrunkHealth, User
 from app.schemas import (
     DashboardHealthOut,
@@ -106,7 +106,7 @@ async def _last_revision_rolled_back(session: AsyncSession, tenant_id: str) -> b
 
 @router.get("/dashboard", response_model=DashboardOut)
 async def get_dashboard(
-    session: AsyncSession = Depends(get_session), user: User = Depends(require_admin), ami=Depends(get_ami),
+    session: AsyncSession = Depends(get_session), user: User = Depends(require_access), ami=Depends(get_ami),
 ) -> DashboardOut:
     tenant_id = str(user.tenant_id)
     tenant = user.tenant

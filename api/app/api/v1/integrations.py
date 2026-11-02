@@ -13,7 +13,7 @@ from fastapi import APIRouter, Depends, Query, Response
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_session, require_admin
+from app.api.deps import get_session, require_access
 from app.core.errors import ApiError
 from app.core.lookups import get_tenant_scoped_or_404
 from app.core.optimistic import check_not_stale
@@ -97,7 +97,7 @@ async def _audit(session: AsyncSession, user: User, action: str, entity: str, en
 
 # ------------------------------------------------------------ webhook'lar
 @router.get("/webhooks")
-async def list_webhooks(session: AsyncSession = Depends(get_session), user: User = Depends(require_admin)) -> dict:
+async def list_webhooks(session: AsyncSession = Depends(get_session), user: User = Depends(require_access)) -> dict:
     rows = (await session.execute(select(IntegrationSubscription).where(
         IntegrationSubscription.tenant_id == str(user.tenant_id), IntegrationSubscription.kind == "webhook",
     ).order_by(IntegrationSubscription.created_at))).scalars().all()
@@ -106,7 +106,7 @@ async def list_webhooks(session: AsyncSession = Depends(get_session), user: User
 
 @router.post("/webhooks", response_model=WebhookCreated, status_code=201)
 async def create_webhook(payload: CreateWebhookPayload, session: AsyncSession = Depends(get_session),
-                         user: User = Depends(require_admin)) -> WebhookCreated:
+                         user: User = Depends(require_access)) -> WebhookCreated:
     url = await check_webhook_url(payload.url)
     secret = new_webhook_secret()
     sub = IntegrationSubscription(
@@ -145,7 +145,7 @@ def _apply_webhook_changes(sub: IntegrationSubscription, changes: dict) -> None:
 
 @router.patch("/webhooks/{webhook_id}", response_model=WebhookMutated)
 async def update_webhook(webhook_id: str, payload: UpdateWebhookPayload, session: AsyncSession = Depends(get_session),
-                         user: User = Depends(require_admin)) -> WebhookMutated:
+                         user: User = Depends(require_access)) -> WebhookMutated:
     sub = await _get_webhook(session, str(user.tenant_id), webhook_id)
     check_not_stale(sub.updated_at, payload.updated_at)
     changes = await _webhook_changes(sub, payload)
@@ -159,7 +159,7 @@ async def update_webhook(webhook_id: str, payload: UpdateWebhookPayload, session
 
 @router.delete("/webhooks/{webhook_id}", status_code=204, response_model=None)
 async def delete_webhook(webhook_id: str, session: AsyncSession = Depends(get_session),
-                         user: User = Depends(require_admin)) -> Response:
+                         user: User = Depends(require_access)) -> Response:
     sub = await _get_webhook(session, str(user.tenant_id), webhook_id)
     await _audit(session, user, "webhook.delete", "webhook", str(sub.id), {"name": sub.name})
     await session.delete(sub)
@@ -169,7 +169,7 @@ async def delete_webhook(webhook_id: str, session: AsyncSession = Depends(get_se
 
 @router.post("/webhooks/{webhook_id}/rotate-secret", response_model=WebhookSecret)
 async def rotate_webhook_secret(webhook_id: str, session: AsyncSession = Depends(get_session),
-                                user: User = Depends(require_admin)) -> WebhookSecret:
+                                user: User = Depends(require_access)) -> WebhookSecret:
     sub = await _get_webhook(session, str(user.tenant_id), webhook_id)
     secret = new_webhook_secret()
     sub.secret_enc = await encrypt_secret(session, secret)
@@ -180,7 +180,7 @@ async def rotate_webhook_secret(webhook_id: str, session: AsyncSession = Depends
 
 @router.post("/webhooks/{webhook_id}/test", response_model=WebhookTestResult)
 async def test_webhook(webhook_id: str, session: AsyncSession = Depends(get_session),
-                       user: User = Depends(require_admin)) -> WebhookTestResult:
+                       user: User = Depends(require_access)) -> WebhookTestResult:
     sub = await _get_webhook(session, str(user.tenant_id), webhook_id)
     event = await outbox.enqueue_test_ping(session, sub)
     delivery_id = (await session.execute(select(IntegrationDelivery.id).where(
@@ -192,7 +192,7 @@ async def test_webhook(webhook_id: str, session: AsyncSession = Depends(get_sess
 @router.get("/webhooks/{webhook_id}/deliveries")
 async def list_deliveries(
     webhook_id: str, status: str | None = None, limit: int = Query(default=50, ge=1, le=DELIVERY_LIMIT),
-    session: AsyncSession = Depends(get_session), user: User = Depends(require_admin),
+    session: AsyncSession = Depends(get_session), user: User = Depends(require_access),
 ) -> dict:
     sub = await _get_webhook(session, str(user.tenant_id), webhook_id)
     stmt = (select(IntegrationDelivery, IntegrationEvent.type)
@@ -206,7 +206,7 @@ async def list_deliveries(
 
 @router.post("/deliveries/{delivery_id}/replay", response_model=DeliveryOut)
 async def replay_delivery(delivery_id: str, session: AsyncSession = Depends(get_session),
-                          user: User = Depends(require_admin)) -> DeliveryOut:
+                          user: User = Depends(require_access)) -> DeliveryOut:
     row = await get_tenant_scoped_or_404(session, IntegrationDelivery, str(user.tenant_id), delivery_id,
                                          not_found_message="Yetkazish topilmadi")
     outbox.reset_for_replay(row, datetime.now(timezone.utc))
@@ -219,7 +219,7 @@ async def replay_delivery(delivery_id: str, session: AsyncSession = Depends(get_
 
 # ------------------------------------------------------------ API kalitlar
 @router.get("/api-keys")
-async def list_api_keys(session: AsyncSession = Depends(get_session), user: User = Depends(require_admin)) -> dict:
+async def list_api_keys(session: AsyncSession = Depends(get_session), user: User = Depends(require_access)) -> dict:
     rows = (await session.execute(select(ApiKey).where(ApiKey.tenant_id == str(user.tenant_id))
                                   .order_by(ApiKey.created_at.desc()))).scalars().all()
     return {"items": [api_key_out(r) for r in rows]}
@@ -227,7 +227,7 @@ async def list_api_keys(session: AsyncSession = Depends(get_session), user: User
 
 @router.post("/api-keys", response_model=ApiKeyCreated, status_code=201)
 async def create_api_key(payload: CreateApiKeyPayload, session: AsyncSession = Depends(get_session),
-                         user: User = Depends(require_admin)) -> ApiKeyCreated:
+                         user: User = Depends(require_access)) -> ApiKeyCreated:
     try:
         scopes = api_keys.validate_scopes(list(payload.scopes))
     except ValueError as exc:
@@ -248,7 +248,7 @@ async def create_api_key(payload: CreateApiKeyPayload, session: AsyncSession = D
 
 @router.delete("/api-keys/{key_id}", status_code=204, response_model=None)
 async def revoke_api_key(key_id: str, session: AsyncSession = Depends(get_session),
-                         user: User = Depends(require_admin)) -> Response:
+                         user: User = Depends(require_access)) -> Response:
     row = await get_tenant_scoped_or_404(session, ApiKey, str(user.tenant_id), key_id,
                                          not_found_message="API kalit topilmadi")
     if row.revoked_at is None:

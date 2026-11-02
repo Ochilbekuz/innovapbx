@@ -2,12 +2,20 @@ import { useEffect, type ReactNode } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { useSession } from '@/api';
 import { syncLanguageFromUser } from '@/lib/i18n';
-import { OPERATOR_VISIBLE_IDS } from '@/shell/screens';
+import { firstVisibleScreen, isScreenVisible, SCREENS } from '@/shell/screens';
+import { hasPermission } from './permissions';
 import { useAuthBootstrap } from './useAuthBootstrap';
 
-/** Rolga mos boshlang'ich sahifa — operator uchun `/me`, admin uchun `/dashboard`. */
-export function homeFor(role: 'admin' | 'operator' | undefined): string {
-  return role === 'operator' ? '/me' : '/dashboard';
+/**
+ * Bosh sahifa qoidasi (M7 §4): `*` yoki `monitor:view` bo'lsa — `/dashboard`; aks holda birinchi
+ * ko'rinadigan ekran; hech biri ko'rinmasa — `/me` (har kim uchun ochiq shaxsiy kabinet).
+ */
+export function homeFor(permissions: string[] | undefined): string {
+  if (hasPermission(permissions, '*') || hasPermission(permissions, 'monitor:view') || hasPermission(permissions, 'monitor:edit')) {
+    return '/dashboard';
+  }
+  const screen = firstVisibleScreen(permissions);
+  return screen ? screen.path : '/me';
 }
 
 function FullScreenLoader() {
@@ -36,10 +44,11 @@ export function RequireAuth({ children }: { children: ReactNode }) {
   return <>{children}</>;
 }
 
-/** Faqat `screenId` operator uchun ham ko'rinadigan bo'lsa ruxsat beradi — aks holda `/me`ga qaytaradi (M2b §4). */
+/** Faqat `screenId` joriy `permissions` bilan ko'rinadigan bo'lsa ruxsat beradi — aks holda `/me`ga qaytaradi (M7 §4). */
 export function RequireFullAccess({ screenId, children }: { screenId: string; children: ReactNode }) {
-  const role = useSession((s) => s.user?.role);
-  if (role === 'operator' && !OPERATOR_VISIBLE_IDS.includes(screenId)) return <Navigate to="/me" replace />;
+  const permissions = useSession((s) => s.user?.permissions);
+  const screen = SCREENS.find((s) => s.id === screenId);
+  if (screen && !isScreenVisible(screen, permissions)) return <Navigate to="/me" replace />;
   return <>{children}</>;
 }
 
@@ -57,6 +66,6 @@ export function RedirectIfSetupDone({ children }: { children: ReactNode }) {
 
 export function RedirectIfAuthed({ children }: { children: ReactNode }) {
   const { user } = useSession();
-  const target = (setupNeeded: boolean) => (setupNeeded ? '/setup' : user ? homeFor(user.role) : null);
+  const target = (setupNeeded: boolean) => (setupNeeded ? '/setup' : user ? homeFor(user.permissions) : null);
   return <BootstrapGate redirectTo={target}>{children}</BootstrapGate>;
 }

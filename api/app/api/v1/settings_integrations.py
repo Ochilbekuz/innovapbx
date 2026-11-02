@@ -8,7 +8,7 @@ from urllib.parse import urlsplit
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_session, require_admin
+from app.api.deps import get_session, require_access
 from app.api.v1.settings import get_settings_row
 from app.core.errors import ApiError
 from app.core.optimistic import check_not_stale
@@ -60,14 +60,14 @@ async def _save(session: AsyncSession, user: User, row: SystemSettings, action: 
 
 @router.get("/integrations", response_model=IntegrationSettingsOut)
 async def get_integration_settings(session: AsyncSession = Depends(get_session),
-                                   user: User = Depends(require_admin)) -> IntegrationSettingsOut:
+                                   user: User = Depends(require_access)) -> IntegrationSettingsOut:
     return integration_settings_out(await get_settings_row(session, str(user.tenant_id)))
 
 
 @router.patch("/integrations", response_model=IntegrationSettingsOut)
 async def update_integration_settings(payload: UpdateIntegrationSettingsPayload,
                                       session: AsyncSession = Depends(get_session),
-                                      user: User = Depends(require_admin)) -> IntegrationSettingsOut:
+                                      user: User = Depends(require_access)) -> IntegrationSettingsOut:
     row = await get_settings_row(session, str(user.tenant_id))
     check_not_stale(row.updated_at, payload.updated_at)
     changes: dict = {}
@@ -83,14 +83,14 @@ async def update_integration_settings(payload: UpdateIntegrationSettingsPayload,
 
 @router.get("/recording", response_model=RecordingSettingsOut)
 async def get_recording_settings(session: AsyncSession = Depends(get_session),
-                                 user: User = Depends(require_admin)) -> RecordingSettingsOut:
+                                 user: User = Depends(require_access)) -> RecordingSettingsOut:
     return recording_settings_out(await get_settings_row(session, str(user.tenant_id)))
 
 
 @router.patch("/recording", response_model=RecordingSettingsOut)
 async def update_recording_settings(payload: UpdateRecordingSettingsPayload,
                                     session: AsyncSession = Depends(get_session),
-                                    user: User = Depends(require_admin)) -> RecordingSettingsOut:
+                                    user: User = Depends(require_access)) -> RecordingSettingsOut:
     row = await get_settings_row(session, str(user.tenant_id))
     check_not_stale(row.updated_at, payload.updated_at)
     changes: dict = {}

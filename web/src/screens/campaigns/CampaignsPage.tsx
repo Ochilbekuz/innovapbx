@@ -4,7 +4,7 @@ import { Pause, Pencil, Play, Plus, ShieldAlert, Trash2 } from 'lucide-react';
 import { apiErrorMessage } from '@/api/errors';
 import { useCampaigns, useCreateCampaign, useDeleteCampaign, useUpdateCampaign } from '@/api/queries';
 import type { Campaign } from '@/api/types';
-import { usePermission } from '@/auth/permissions';
+import { useCanEdit } from '@/auth/permissions';
 import {
   campaignActions, campaignProgress, canEditCampaign, formatDays, formToPayload, formToUpdate, hhmm, type CampaignForm as FormState,
 } from '@/domain/campaigns';
@@ -158,7 +158,7 @@ function EditorSlot({ editing, submitter }: { editing: Campaign | 'new' | null; 
 export function CampaignsPage() {
   const { t } = useTranslation('campaigns');
   const { data, isLoading, isError, refetch } = useCampaigns();
-  const canManage = usePermission('pbx.manage');
+  const canManage = useCanEdit('apps');
   const [editing, setEditing] = useState<Campaign | 'new' | null>(null);
   const [openId, setOpenId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState<Campaign | null>(null);

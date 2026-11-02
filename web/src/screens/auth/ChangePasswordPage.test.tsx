@@ -36,6 +36,7 @@ function renderWithRoutes(initialPath: string) {
           <Route path="/change-password" element={<RequireAuth><ChangePasswordPage /></RequireAuth>} />
           <Route path="/me" element={<RequireAuth><div>Mening kabinetim</div></RequireAuth>} />
           <Route path="/dashboard" element={<RequireAuth><div>Boshqaruv paneli</div></RequireAuth>} />
+          <Route path="/cdr" element={<RequireAuth><div>Qoʻngʻiroqlar tarixi</div></RequireAuth>} />
         </Routes>
       </MemoryRouter>
     </QueryClientProvider>,
@@ -74,8 +75,9 @@ describe('ChangePasswordPage — majburiy parol almashtirish', () => {
     await user.type(screen.getByLabelText(/^Yangi parol/), 'YangiParol123!');
     await user.click(screen.getByRole('button', { name: 'Parolni oʻzgartirish va davom etish' }));
 
-    // "yangi" — operator, uning boshlangʻich sahifasi /me.
-    expect(await screen.findByText('Mening kabinetim')).toBeTruthy();
+    // "yangi" — operator (`calls:read:own`); M7dan keyin boshlangʻich sahifa — birinchi koʻrinadigan
+    // ekran, bu operator uchun /cdr (qarang ../../../replica/m7-roles-contract.md §4, `homeFor`).
+    expect(await screen.findByText('Qoʻngʻiroqlar tarixi')).toBeTruthy();
     expect(useSession.getState().user?.must_change_password).toBe(false);
   });
 
@@ -89,7 +91,7 @@ describe('ChangePasswordPage — majburiy parol almashtirish', () => {
     await user.type(screen.getByLabelText(/^Yangi parol/), 'YangiParol123!');
     await user.click(screen.getByRole('button', { name: 'Parolni oʻzgartirish va davom etish' }));
 
-    expect(await screen.findByText('Mening kabinetim')).toBeTruthy();
+    expect(await screen.findByText('Qoʻngʻiroqlar tarixi')).toBeTruthy();
     const { refresh } = useSession.getState();
     expect(refresh).toBeTruthy();
     expect(refresh).not.toBe(oldRefresh);

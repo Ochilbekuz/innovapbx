@@ -27,7 +27,7 @@ export function ChangePasswordPage() {
       // Server eski refresh tokenlarni bekor qildi — yangisini saqlamasak, keyingi yangilashda chiqib ketardi.
       setTokens(tokens.access, tokens.refresh);
       if (user) setUser({ ...user, must_change_password: false });
-      navigate(homeFor(user?.role), { replace: true });
+      navigate(homeFor(user?.permissions), { replace: true });
     },
   });
 

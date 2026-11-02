@@ -9,7 +9,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_session, require_admin
+from app.api.deps import get_session, require_access
 from app.api.v1.settings import get_settings_row
 from app.core.errors import ApiError
 from app.core.optimistic import check_not_stale
@@ -92,14 +92,14 @@ async def _save(session: AsyncSession, user: User, row: SystemSettings, raw: dic
 
 @router.get("", response_model=ProvisioningOut)
 async def get_provisioning(request: Request, session: AsyncSession = Depends(get_session),
-                           user: User = Depends(require_admin)) -> ProvisioningOut:
+                           user: User = Depends(require_access)) -> ProvisioningOut:
     return provisioning_out(await get_settings_row(session, str(user.tenant_id)), request)
 
 
 @router.patch("", response_model=ProvisioningOut)
 async def update_provisioning(payload: UpdateProvisioningPayload, request: Request,
                               session: AsyncSession = Depends(get_session),
-                              user: User = Depends(require_admin)) -> ProvisioningOut:
+                              user: User = Depends(require_access)) -> ProvisioningOut:
     row = await get_settings_row(session, str(user.tenant_id))
     check_not_stale(row.updated_at, payload.updated_at)
     current = ps.ProvSettings.from_raw(row.provisioning)
@@ -121,7 +121,7 @@ async def update_provisioning(payload: UpdateProvisioningPayload, request: Reque
 @router.post("/rotate-token", response_model=ProvisioningOut)
 async def rotate_token(request: Request, payload: RotateTokenPayload | None = None,
                        session: AsyncSession = Depends(get_session),
-                       user: User = Depends(require_admin)) -> ProvisioningOut:
+                       user: User = Depends(require_access)) -> ProvisioningOut:
     row = await get_settings_row(session, str(user.tenant_id))
     if payload is not None and payload.updated_at is not None:
         check_not_stale(row.updated_at, payload.updated_at)

@@ -12,7 +12,7 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_ami, get_session, require_admin
+from app.api.deps import get_ami, get_session, require_access
 from app.core.errors import ApiError
 from app.db.models import IpBan, SecurityEvent, SipAttackStat, SystemSettings, User
 from app.schemas_security import (
@@ -51,7 +51,7 @@ def _parse_ip(raw: str) -> str:
 
 @router.get("/bans", response_model=IpBanList)
 async def list_ip_bans(
-    session: AsyncSession = Depends(get_session), user: User = Depends(require_admin),
+    session: AsyncSession = Depends(get_session), user: User = Depends(require_access),
 ) -> IpBanList:
     rows = (await session.execute(
         select(IpBan).where(IpBan.tenant_id == user.tenant_id, IpBan.lifted_at.is_(None))
@@ -63,7 +63,7 @@ async def list_ip_bans(
 @router.post("/bans", response_model=CreateIpBanResult, status_code=201)
 async def create_ip_ban(
     payload: CreateIpBanPayload, session: AsyncSession = Depends(get_session),
-    user: User = Depends(require_admin), ami=Depends(get_ami),
+    user: User = Depends(require_access), ami=Depends(get_ami),
 ) -> CreateIpBanResult:
     tenant_id = str(user.tenant_id)
     ip = _parse_ip(payload.ip)
@@ -92,7 +92,7 @@ async def create_ip_ban(
 @router.delete("/bans/{ban_id}", response_model=DeleteIpBanResult)
 async def delete_ip_ban(
     ban_id: str, session: AsyncSession = Depends(get_session),
-    user: User = Depends(require_admin), ami=Depends(get_ami),
+    user: User = Depends(require_access), ami=Depends(get_ami),
 ) -> DeleteIpBanResult:
     tenant_id = str(user.tenant_id)
     row = (await session.execute(
@@ -127,7 +127,7 @@ def _fill_hours(rows: dict[datetime, tuple[int, int]], hours: int, now: datetime
 @router.get("/stats", response_model=SecurityStatsOut)
 async def get_security_stats(
     hours: int = Query(default=24, ge=1, le=168),
-    session: AsyncSession = Depends(get_session), user: User = Depends(require_admin),
+    session: AsyncSession = Depends(get_session), user: User = Depends(require_access),
 ) -> SecurityStatsOut:
     tenant_id = str(user.tenant_id)
     now = datetime.now(timezone.utc)

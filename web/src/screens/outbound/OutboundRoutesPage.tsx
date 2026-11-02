@@ -7,7 +7,7 @@ import {
 } from '@/api/queries';
 import { isApiError } from '@/api/errors';
 import type { CreateOutboundRoutePayload, OutboundExtensionRef, OutboundPattern, OutboundRoute, OutboundSimulateResult, Trunk } from '@/api/types';
-import { usePermission } from '@/auth/permissions';
+import { useCanEdit } from '@/auth/permissions';
 import { applyToast } from '@/lib/applyToast';
 import { usagesOf } from '@/lib/usageError';
 import { STEP_TEXT, validateOutboundForm } from '@/domain/outbound';
@@ -39,7 +39,7 @@ export function OutboundRoutesPage() {
   const { data, isLoading, isError, refetch } = useOutboundRoutes();
   const { data: trunksData } = useTrunks();
   const { data: extensionsData } = useExtensions({ size: 200 });
-  const canManage = usePermission('routes.manage');
+  const canManage = useCanEdit('connect');
   const toast = useToast();
   const [editing, setEditing] = useState<OutboundRoute | 'new' | null>(null);
   const [deleting, setDeleting] = useState<OutboundRoute | null>(null);

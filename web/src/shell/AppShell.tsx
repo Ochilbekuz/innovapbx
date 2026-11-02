@@ -7,6 +7,7 @@ import { cn } from '@/lib/cn';
 import { LANGS, persistLanguage, type Lang } from '@/lib/i18n';
 import { useTheme } from '@/lib/theme';
 import { apiClient, useSession } from '@/api';
+import { hasPermission } from '@/auth/permissions';
 import { Kbd } from '@/ui/Button';
 import { Segmented } from '@/ui/Field';
 import { HealthStrip, type HealthItem } from '@/ui/Health';
@@ -148,11 +149,11 @@ export function AppShell({ active, title, crumbs = [], health, revision, system,
   const { theme, toggle } = useTheme();
   const [navOpen, setNavOpen] = useState(false);
   const location = useLocation();
-  const role = useSession((s) => s.user?.role);
+  const permissions = useSession((s) => s.user?.permissions);
   const ownExt = useSession((s) => s.user?.extension);
   const initSoftphone = useSoftphoneStore((s) => s.init);
-  // Tizim holati/reviziya — faqat admin (operatorga 403); /design namunasida doim ko'rinadi.
-  const showSystem = embedded || role === 'admin';
+  // Tizim holati/reviziya — faqat `*` (operatorga 403); /design namunasida doim ko'rinadi.
+  const showSystem = embedded || hasPermission(permissions, '*');
   const activeId = active ?? SCREENS.find((s) => location.pathname === s.path || location.pathname.startsWith(`${s.path}/`))?.id;
 
   // Idempotent: sahifalar o'rtasida AppShell qayta mount bo'lsa ham bir marta ulanadi; logout `teardown()` chaqiradi.
@@ -174,7 +175,7 @@ export function AppShell({ active, title, crumbs = [], health, revision, system,
         </div>
         <nav className="flex-1 overflow-y-auto px-2 py-3">
           {GROUP_ORDER.map((g) => {
-            const items = byGroup(g, role);
+            const items = byGroup(g, permissions);
             if (items.length === 0) return null;
             return (
             <div key={g} className="mb-3">

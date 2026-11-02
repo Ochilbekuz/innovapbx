@@ -51,6 +51,8 @@ import type {
   // M6 — qarang ../../replica/m6-contract.md
   Campaign, CampaignAction, CampaignContact, CreateCampaignPayload, ImportCampaignContactsPayload,
   ImportCampaignContactsResult, ListCampaignContactsParams, UpdateCampaignPayload,
+  // M7 — qarang ../../replica/m7-roles-contract.md
+  CreateRolePayload, RoleOut, UpdateRolePayload,
 } from './types';
 import type { ApplyResult } from './types';
 
@@ -223,6 +225,12 @@ export const realClient: ApiClient = {
   updateUser: (id: string, payload: UpdateUserPayload) => request<{ item: ManagedUser }>(`/users/${id}`, { method: 'PATCH', body: payload }),
   deleteUser: (id: string) => request<void>(`/users/${id}`, { method: 'DELETE' }),
   changePassword: (payload: ChangePasswordPayload) => request<{ access: string; refresh: string }>('/auth/change-password', { method: 'POST', body: payload }),
+
+  // M7 — rollar muharriri (qarang ../../replica/m7-roles-contract.md §2)
+  listRoles: () => request<{ items: RoleOut[] }>('/roles'),
+  createRole: (payload: CreateRolePayload) => request<{ item: RoleOut }>('/roles', { method: 'POST', body: payload }),
+  updateRole: (id: string, payload: UpdateRolePayload) => request<{ item: RoleOut }>(`/roles/${id}`, { method: 'PATCH', body: payload }),
+  deleteRole: (id: string) => request<void>(`/roles/${id}`, { method: 'DELETE' }),
 
   // M2b §4 — mening kabinetim (S30)
   meOverview: () => request<MeOverview>('/me/overview'),

@@ -5,7 +5,7 @@ import { ArrowLeftRight, PhoneIncoming, PhoneMissed, PhoneOutgoing, ShieldOff } 
 import { useCalls, useCreateBlacklistEntry } from '@/api/queries';
 import { isApiError } from '@/api/errors';
 import type { Call, CallDirection } from '@/api/types';
-import { usePermission } from '@/auth/permissions';
+import { useCanEdit } from '@/auth/permissions';
 import { RecordingList } from '@/pbx/RecordingList';
 import { AppShellPage } from '@/shell/AppShellPage';
 import { ClickToCallButton } from '@/softphone/ClickToCallButton';
@@ -26,8 +26,8 @@ export function CallsPage() {
   const [to, setTo] = useState(isoDate(new Date()));
   const [direction, setDirection] = useState<'all' | CallDirection>('all');
   const [blocking, setBlocking] = useState<Call | null>(null);
-  const canManage = usePermission('pbx.manage');
-  const canManageRecordings = usePermission('system.manage');
+  const canManage = useCanEdit('apps');
+  const canManageRecordings = useCanEdit('reports');
 
   const { data, isLoading, isError, refetch } = useCalls({
     from: `${from}T00:00:00.000Z`,

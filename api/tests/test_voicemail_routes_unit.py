@@ -101,6 +101,10 @@ def _owner(monkeypatch, ext):
 # ------------------------------------------------------------ _resolve_owner (1.0.4 §2: umumiy
 # quti raqami ext/navbat/guruh/IVR raqami bilan to'qnashmasin — `numbers.ensure_number_free`
 # BIR XIL umumiy yordamchi orqali, va teskarisi).
+async def _not_taken(session, tenant_id, number):
+    return False
+
+
 async def test_resolve_owner_shared_mailbox_checks_common_number_helper(monkeypatch):
     calls: list = []
 
@@ -108,6 +112,7 @@ async def test_resolve_owner_shared_mailbox_checks_common_number_helper(monkeypa
         calls.append((tenant_id, number, field))
 
     monkeypatch.setattr(vb, "ensure_number_free", fake_ensure)
+    monkeypatch.setattr(vb, "_box_exists", _not_taken)
     ext, mailbox = await vb._resolve_owner(_Session(), "t1", CreateVoicemailBoxPayload(mailbox="601", pin="1234"))
     assert ext is None and mailbox == "601"
     assert calls == [("t1", "601", "mailbox")]
@@ -118,9 +123,24 @@ async def test_resolve_owner_shared_mailbox_taken_by_other_entity_is_409(monkeyp
         raise ApiError(409, "number_taken", "Bu raqam band", field=field)
 
     monkeypatch.setattr(vb, "ensure_number_free", fake_ensure)
+    monkeypatch.setattr(vb, "_box_exists", _not_taken)
     with pytest.raises(ApiError) as exc:
         await vb._resolve_owner(_Session(), "t1", CreateVoicemailBoxPayload(mailbox="601", pin="1234"))
     assert (exc.value.status_code, exc.value.code, exc.value.field) == (409, "number_taken", "mailbox")
+
+
+async def test_resolve_owner_duplicate_shared_mailbox_is_mailbox_taken(monkeypatch):
+    async def taken(session, tenant_id, number):
+        return True
+
+    async def fake_ensure(*a, **kw):
+        raise AssertionError("umumiy raqam tekshiruvigacha yetib bormasligi kerak")
+
+    monkeypatch.setattr(vb, "_box_exists", taken)
+    monkeypatch.setattr(vb, "ensure_number_free", fake_ensure)
+    with pytest.raises(ApiError) as exc:
+        await vb._resolve_owner(_Session(), "t1", CreateVoicemailBoxPayload(mailbox="601", pin="1234"))
+    assert (exc.value.status_code, exc.value.code, exc.value.field) == (409, "mailbox_taken", "mailbox")
 
 
 async def test_resolve_owner_by_extension_skips_number_check(monkeypatch):

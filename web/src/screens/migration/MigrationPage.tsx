@@ -150,7 +150,7 @@ function HistoryTable({ jobs, loading, error, canManage }: { jobs: MigrationJob[
 /** S36 — /settings/migration: FreePBX'dan ko'chirish (M5a). Faqat `system.manage` huquqi bilan to'liq boshqariladi. */
 export function MigrationPage() {
   const { t } = useTranslation('migration');
-  const canManage = usePermission('system.manage');
+  const canManage = usePermission('*');
   const jobsQ = useMigrationJobs();
   const jobs = jobsQ.data?.items ?? [];
   const latestJob = jobs[0] ?? null;

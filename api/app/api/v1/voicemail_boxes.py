@@ -20,7 +20,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_ami, get_session, require_admin
+from app.api.deps import get_ami, get_session, require_access
 from app.core.errors import ApiError
 from app.core.lookups import get_tenant_code, get_tenant_scoped_or_404
 from app.core.optimistic import check_not_stale
@@ -107,6 +107,12 @@ async def apply_dialplan_and_voicemail(session: AsyncSession, tenant_id: str, us
     return ApplyResult(**apply_result.to_dict())
 
 
+async def _box_exists(session: AsyncSession, tenant_id: str, mailbox: str) -> bool:
+    return (await session.execute(
+        select(VoicemailBox.id).where(VoicemailBox.tenant_id == tenant_id, VoicemailBox.mailbox == mailbox)
+    )).first() is not None
+
+
 async def _resolve_owner(session: AsyncSession, tenant_id: str,
                          payload: CreateVoicemailBoxPayload) -> tuple[Extension | None, str]:
     """(ext, mailbox). Umumiy quti raqami mavjud ichki raqam/navbat/guruh/IVR/vaqt sharti/
@@ -116,6 +122,9 @@ async def _resolve_owner(session: AsyncSession, tenant_id: str,
         ext = await get_tenant_scoped_or_404(session, Extension, tenant_id, payload.extension_id,
                                              not_found_message="Ichki raqam topilmadi", field="extension_id")
         return ext, ext.number
+    # Mavjud quti (umumiy yoki ext'niki) bilan to'qnashuv — aniqroq `mailbox_taken` (m1c §2), keyin umumiy raqamlar.
+    if await _box_exists(session, tenant_id, payload.mailbox):
+        raise _mailbox_taken("mailbox")
     await ensure_number_free(session, tenant_id, payload.mailbox, field="mailbox")
     return None, payload.mailbox
 
@@ -123,7 +132,7 @@ async def _resolve_owner(session: AsyncSession, tenant_id: str,
 @router.get("")
 async def list_boxes(
     extension_id: str | None = None, session: AsyncSession = Depends(get_session),
-    user: User = Depends(require_admin),
+    user: User = Depends(require_access),
 ) -> dict:
     tenant_id = str(user.tenant_id)
     stmt = select(VoicemailBox).where(VoicemailBox.tenant_id == tenant_id).order_by(VoicemailBox.mailbox)
@@ -139,7 +148,7 @@ async def list_boxes(
 @router.post("", response_model=VoicemailBoxMutated, status_code=201)
 async def create_box(
     payload: CreateVoicemailBoxPayload, session: AsyncSession = Depends(get_session),
-    user: User = Depends(require_admin), ami=Depends(get_ami),
+    user: User = Depends(require_access), ami=Depends(get_ami),
 ) -> VoicemailBoxMutated:
     tenant_id = str(user.tenant_id)
     ext, mailbox = await _resolve_owner(session, tenant_id, payload)
@@ -173,7 +182,7 @@ async def create_box(
 @router.patch("/{box_id}", response_model=VoicemailBoxMutated)
 async def update_box(
     box_id: str, payload: UpdateVoicemailBoxPayload, session: AsyncSession = Depends(get_session),
-    user: User = Depends(require_admin), ami=Depends(get_ami),
+    user: User = Depends(require_access), ami=Depends(get_ami),
 ) -> VoicemailBoxMutated:
     tenant_id = str(user.tenant_id)
     box = await _get_box_or_404(session, tenant_id, box_id)
@@ -221,7 +230,7 @@ async def delete_box_and_target(session: AsyncSession, tenant_id: str, box: Voic
 
 @router.delete("/{box_id}", status_code=204, response_model=None)
 async def delete_box(
-    box_id: str, session: AsyncSession = Depends(get_session), user: User = Depends(require_admin),
+    box_id: str, session: AsyncSession = Depends(get_session), user: User = Depends(require_access),
     ami=Depends(get_ami),
 ) -> None:
     tenant_id = str(user.tenant_id)
@@ -253,7 +262,7 @@ async def _message_or_404(session: AsyncSession, user: User, box_id: str,
 
 @router.get("/{box_id}/messages")
 async def list_box_messages(
-    box_id: str, session: AsyncSession = Depends(get_session), user: User = Depends(require_admin),
+    box_id: str, session: AsyncSession = Depends(get_session), user: User = Depends(require_access),
 ) -> dict:
     box, code = await _box_spool(session, user, box_id)
     items = vm.list_messages(vm.box_dir(code, box.mailbox))
@@ -262,7 +271,7 @@ async def list_box_messages(
 
 @router.get("/{box_id}/messages/{msg:path}/audio")
 async def message_audio(
-    box_id: str, msg: str, session: AsyncSession = Depends(get_session), user: User = Depends(require_admin),
+    box_id: str, msg: str, session: AsyncSession = Depends(get_session), user: User = Depends(require_access),
 ) -> FileResponse:
     box, _, paths = await _message_or_404(session, user, box_id, msg)
     if not paths.wav.is_file():
@@ -279,7 +288,7 @@ async def _ami_or_502(coro) -> None:
 
 @router.post("/{box_id}/messages/{msg:path}/heard", status_code=204, response_model=None)
 async def mark_heard(
-    box_id: str, msg: str, session: AsyncSession = Depends(get_session), user: User = Depends(require_admin),
+    box_id: str, msg: str, session: AsyncSession = Depends(get_session), user: User = Depends(require_access),
     ami=Depends(get_ami),
 ) -> None:
     box, code, paths = await _message_or_404(session, user, box_id, msg)
@@ -289,7 +298,7 @@ async def mark_heard(
 
 @router.delete("/{box_id}/messages/{msg:path}", status_code=204, response_model=None)
 async def delete_message(
-    box_id: str, msg: str, session: AsyncSession = Depends(get_session), user: User = Depends(require_admin),
+    box_id: str, msg: str, session: AsyncSession = Depends(get_session), user: User = Depends(require_access),
     ami=Depends(get_ami),
 ) -> None:
     box, code, paths = await _message_or_404(session, user, box_id, msg)

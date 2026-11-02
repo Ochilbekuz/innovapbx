@@ -8,7 +8,7 @@ import {
 } from '@/api/queries';
 import { isApiError } from '@/api/errors';
 import type { Call, CallDirection, MeExtensionOverview, MeQueueOverview } from '@/api/types';
-import { usePermission } from '@/auth/permissions';
+import { useCanEdit } from '@/auth/permissions';
 import { daysAgo, formatDateTimeShort, formatDurationSec, isoDate } from '@/lib/time';
 import { AppShellPage } from '@/shell/AppShellPage';
 import { ClickToCallButton } from '@/softphone/ClickToCallButton';
@@ -211,7 +211,7 @@ function QueuesCard({ queues }: { queues: MeQueueOverview[] }) {
 function RecentCallsCard() {
   const { t } = useTranslation(['me', 'calls']);
   const { data, isLoading, isError } = useMeCalls({ from: `${daysAgo(1)}T00:00:00.000Z`, to: `${isoDate(new Date())}T23:59:59.999Z`, page: 1, size: 20 });
-  const canManageRecordings = usePermission('system.manage');
+  const canManageRecordings = useCanEdit('reports');
 
   const columns: Column<Call>[] = [
     { key: 'started_at', header: t('me:recentCalls.column.time'), cell: (r) => <span className="num text-sm">{formatDateTimeShort(r.started_at)}</span> },

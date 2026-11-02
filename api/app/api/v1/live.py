@@ -6,7 +6,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_ami, get_session, require_admin
+from app.api.deps import get_ami, get_session, require_access
 from app.core.errors import ApiError
 from app.db.models import Extension, User
 from app.schemas import LiveSpyOut, LiveSpyPayload, LiveStatusOut
@@ -21,7 +21,7 @@ _SPY_FLAGS = {"listen": "q", "whisper": "qw", "barge": "qB"}
 
 @router.get("", response_model=LiveStatusOut)
 async def get_live(
-    session: AsyncSession = Depends(get_session), user: User = Depends(require_admin), ami=Depends(get_ami),
+    session: AsyncSession = Depends(get_session), user: User = Depends(require_access), ami=Depends(get_ami),
 ) -> LiveStatusOut:
     tenant = user.tenant
     data = await build_live_status(
@@ -51,7 +51,7 @@ async def _originate_spy(ami, *, tenant_code: str, number: str, target_channel: 
 @router.post("/spy", response_model=LiveSpyOut)
 async def spy(
     payload: LiveSpyPayload, session: AsyncSession = Depends(get_session),
-    user: User = Depends(require_admin), ami=Depends(get_ami),
+    user: User = Depends(require_access), ami=Depends(get_ami),
 ) -> LiveSpyOut:
     if not user.extension_id:
         raise ApiError(409, "no_extension", "Sizga ichki raqam biriktirilmagan")

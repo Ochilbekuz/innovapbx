@@ -4,7 +4,7 @@ import { Link2Off, Pencil, Plus, Route as RouteIcon, ShieldAlert, Trash2 } from 
 import { useCreateInboundRoute, useDeleteInboundRoute, useFlow, useInboundRoutes, useTargets, useUpdateInboundRoute } from '@/api/queries';
 import { isApiError } from '@/api/errors';
 import type { InboundRoute } from '@/api/types';
-import { usePermission } from '@/auth/permissions';
+import { useCanEdit } from '@/auth/permissions';
 import { applyToast } from '@/lib/applyToast';
 import { resolveDestination, type Catalog, type Destination } from '@/domain/destination';
 import { fromApiFlow } from '@/domain/flow';
@@ -43,7 +43,7 @@ export function InboundRoutesPage() {
   const { t } = useTranslation('routes');
   const { data, isLoading, isError, refetch } = useInboundRoutes();
   const { data: targets } = useTargets({ kind: M1A_KINDS.join(',') });
-  const canManage = usePermission('routes.manage');
+  const canManage = useCanEdit('connect');
   const toast = useToast();
   const [editing, setEditing] = useState<InboundRoute | 'new' | null>(null);
   const [deleting, setDeleting] = useState<InboundRoute | null>(null);

@@ -1,28 +1,50 @@
-// Xatti-harakat testi — `byGroup` operator uchun faqat `/me` va qoʻngʻiroqlar tarixini (`cdr`) qoldiradi;
-// admin uchun filtrlamaydi (M2b §4, sidebar). Qarang ../../replica/m2b-contract.md §4.
+// Xatti-harakat testi — `isScreenVisible`/`byGroup` ekranlarni `permissions`ga ko'ra filtrlaydi
+// (M7 kontrakti §1/§4). Qarang ../../replica/m7-roles-contract.md.
 import { describe, expect, it } from 'vitest';
-import { byGroup, OPERATOR_VISIBLE_IDS, SCREENS } from './screens';
+import { byGroup, isScreenVisible, OPERATOR_VISIBLE_IDS, SCREENS } from './screens';
 
-describe('byGroup — operator sidebar koʻrinishi', () => {
-  it('operator roli faqat "portal" (/me) va "cdr" (qoʻngʻiroqlar tarixi) ekranlarini koʻradi', () => {
-    const visible = SCREENS.filter((s) => byGroup(s.group, 'operator').some((v) => v.id === s.id));
+const OPERATOR_PERMISSIONS = ['calls:read:own'];
+
+describe('isScreenVisible / byGroup — ruxsat boʻyicha koʻrinish', () => {
+  it('"*" bor foydalanuvchiga HAMMA ekran koʻrinadi (tizim guruhi ham)', () => {
+    const visible = SCREENS.filter((s) => isScreenVisible(s, ['*']));
+    expect(visible).toEqual(SCREENS);
+  });
+
+  it('`calls:read:own` bilan faqat "portal" va "cdr" koʻrinadi (operatorning haqiqiy ruxsati)', () => {
+    const visible = SCREENS.filter((s) => isScreenVisible(s, OPERATOR_PERMISSIONS));
     expect(visible.map((s) => s.id).sort()).toEqual([...OPERATOR_VISIBLE_IDS].sort());
   });
 
-  it('"users" guruhida operator uchun faqat "portal" qoladi (extensions/devices yashirin)', () => {
-    const items = byGroup('users', 'operator');
+  it('"users" guruhida `calls:read:own` bilan faqat "portal" qoladi (extensions/devices yashirin)', () => {
+    const items = byGroup('users', OPERATOR_PERMISSIONS);
     expect(items.map((s) => s.id)).toEqual(['portal']);
   });
 
-  it('"overview" guruhida operator uchun hech narsa koʻrinmaydi (dashboard va live yashirin)', () => {
-    expect(byGroup('overview', 'operator')).toEqual([]);
+  it('"overview" guruhida `calls:read:own` bilan hech narsa koʻrinmaydi (dashboard va live yashirin)', () => {
+    expect(byGroup('overview', OPERATOR_PERMISSIONS)).toEqual([]);
   });
 
-  it('admin rolida (va role berilmaganda) filtrlanmaydi — guruhdagi hamma ekran qaytadi', () => {
-    const forAdmin = byGroup('users', 'admin');
-    const forUndefined = byGroup('users', undefined);
-    const all = SCREENS.filter((s) => s.group === 'users');
-    expect(forAdmin).toEqual(all);
-    expect(forUndefined).toEqual(all);
+  it('`system` guruhi faqat "*" bilan koʻrinadi — hudud ruxsatlari (hammasi birga) yetarli emas', () => {
+    const allHududs = ['monitor:edit', 'extensions:edit', 'connect:edit', 'routing:edit', 'apps:edit', 'reports:edit'];
+    expect(byGroup('system', allHududs)).toEqual([]);
+  });
+
+  it('ruxsat berilmagan (undefined) boʻlsa — faqat "portal" koʻrinadi', () => {
+    expect(SCREENS.filter((s) => isScreenVisible(s, undefined)).map((s) => s.id)).toEqual(['portal']);
+  });
+
+  it('`monitor:view` bilan "dashboard"/"live" koʻrinadi, boshqa hududlar koʻrinmaydi', () => {
+    const items = byGroup('overview', ['monitor:view']);
+    expect(items.map((s) => s.id).sort()).toEqual(['dashboard', 'live']);
+    expect(byGroup('connect', ['monitor:view'])).toEqual([]);
+  });
+
+  it('`<hudud>:edit` `<hudud>:view`ni ham qamraydi (edit ⇒ view)', () => {
+    expect(isScreenVisible({ id: 'trunks', group: 'connect' }, ['connect:edit'])).toBe(true);
+  });
+
+  it('`reports:view` bilan "cdr" koʻrinadi (hammaning qoʻngʻiroqlari)', () => {
+    expect(isScreenVisible({ id: 'cdr', group: 'reports' }, ['reports:view'])).toBe(true);
   });
 });

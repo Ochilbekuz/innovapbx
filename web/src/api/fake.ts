@@ -9,9 +9,12 @@ import { createCampaignStore } from './fakeCampaigns';
 import { seedCampaigns } from './fakeCampaignSeed';
 import { ApiError } from './errors';
 import { toneWav } from '../lib/wav';
+import { HUDUD_LIST } from '@/shell/screens';
 import {
-  SEED_ADMIN, SEED_ADMIN_PASSWORD, SEED_CONFERENCE_ADMIN_PIN, SEED_CONFERENCE_PIN, SEED_OPERATOR,
+  SEED_ADMIN, SEED_ADMIN_PASSWORD, SEED_CONFERENCE_ADMIN_PIN, SEED_CONFERENCE_PIN,
+  SEED_CUSTOM_USER, SEED_CUSTOM_USER_PASSWORD, SEED_OPERATOR,
   SEED_OPERATOR_PASSWORD, SEED_VOICEMAIL_PIN, SIM_ROLLBACK_MARK,
+  type FakeRoleSeed, seedRoles,
   SYS_BUSY_TARGET, SYS_HANGUP_TARGET, seedAlertLog, seedAlertSettings, seedAudio, seedAuditLog, seedBlacklist,
   seedCalls, seedConferences,
   seedExtensions, seedFeatureCodes, seedHolidays,
@@ -65,7 +68,7 @@ import type {
   RecordingPolicy,
   ReportRangeParams, ReportsAgentRow, ReportsDailyRow, ReportsHourlyRow, ReportsQueueRow, ReportsSummary,
   RestartAsteriskResult, RestoreRevisionResult, RevisionDetail, RevisionDiff,
-  RevisionDiffAgainst, Role,
+  RevisionDiffAgainst, Role, RoleOut, CreateRolePayload, UpdateRolePayload,
   RingGroup, SecurityEvent, SecuritySettings, SecurityStats, SecurityStatsParams, SecurityStatsTopIp,
   SelfSignedTlsPayload, SetupPayload,
   SipCredentials, SipSettings, SipTls, SoftphoneInfo, SystemHealth, Target,
@@ -305,8 +308,13 @@ export function createFakeClient(): ApiClient {
 
   // ─────────────────────── M2b — qarang ../../replica/m2b-contract.md ───────────────────────
   let users = seedUsers(extensions);
-  const userPasswords = new Map<string, string>([[SEED_ADMIN.id, SEED_ADMIN_PASSWORD], [SEED_OPERATOR.id, SEED_OPERATOR_PASSWORD]]);
+  const userPasswords = new Map<string, string>([
+    [SEED_ADMIN.id, SEED_ADMIN_PASSWORD], [SEED_OPERATOR.id, SEED_OPERATOR_PASSWORD],
+    [SEED_CUSTOM_USER.id, SEED_CUSTOM_USER_PASSWORD],
+  ]);
   const liveCalls = seedLiveCalls();
+  // ─────────────────────── M7 — rollar (qarang ../../replica/m7-roles-contract.md §2) ───────────────────────
+  let roles: FakeRoleSeed[] = seedRoles();
 
   // ─────────────────────── M2c — qarang ../../replica/m2c-contract.md ───────────────────────
   let securitySettings = seedSecuritySettings();
@@ -404,19 +412,67 @@ export function createFakeClient(): ApiClient {
     return { status: 'applied', revision: revisionNumber, message };
   }
 
+  /** `*` — toʻliq admin ruxsati, qolgan barcha legacy `requireManage*` tekshiruvlarini aylanib oʻtadi (M7 §1). */
   function requireManage(perm: string) {
-    if (currentUser && !currentUser.permissions.includes(perm)) err(403, 'forbidden', 'Bu amal uchun ruxsatingiz yoʻq.');
+    if (currentUser && !currentUser.permissions.includes('*') && !currentUser.permissions.includes(perm)) {
+      err(403, 'forbidden', 'Bu amal uchun ruxsatingiz yoʻq.');
+    }
   }
 
   function requireManageAny(perms: string[]) {
-    if (currentUser && !perms.some((p) => currentUser!.permissions.includes(p))) err(403, 'forbidden', 'Bu amal uchun ruxsatingiz yoʻq.');
+    if (currentUser && !currentUser.permissions.includes('*') && !perms.some((p) => currentUser!.permissions.includes(p))) {
+      err(403, 'forbidden', 'Bu amal uchun ruxsatingiz yoʻq.');
+    }
   }
 
   // ─────────────────────── M2b — qarang ../../replica/m2b-contract.md ───────────────────────
 
-  /** Rol boʻyicha ruxsatlar — M0 seediga mos (`users` massividagi profil parol/holatini saqlaydi, ruxsatlarni emas). */
+  /** Rol boʻyicha ruxsatlar — endi dinamik `roles` jadvalidan olinadi (M7 §1/§2). */
   function permissionsForRole(role: Role): string[] {
-    return role === 'admin' ? SEED_ADMIN.permissions : SEED_OPERATOR.permissions;
+    return roles.find((r) => r.name === role)?.permissions ?? [];
+  }
+
+  // ─────────────────────── M7 — rollar (qarang ../../replica/m7-roles-contract.md §1/§2) ───────────────────────
+  const RESERVED_ROLE_NAMES = ['admin', 'operator'];
+  const LITERAL_PERMISSIONS = new Set(['*', 'calls:read:own', 'me:*']);
+
+  function isValidPermissionKey(p: string): boolean {
+    if (LITERAL_PERMISSIONS.has(p)) return true;
+    const m = /^([a-z]+):(view|edit)$/.exec(p);
+    return !!m && (HUDUD_LIST as string[]).includes(m[1]!);
+  }
+
+  /** Takrorlarni olib tashlaydi, `X:edit` bor boʻlsa `X:view`ni ham qoldirmaydi (faqat eng yuqori daraja) — §2. */
+  function normalizeRolePermissions(raw: string[]): string[] {
+    const set = new Set<string>();
+    for (const p of raw) {
+      if (!isValidPermissionKey(p)) err(422, 'validation_error', `Notoʻgʻri ruxsat: «${p}».`, { field: 'permissions' });
+      set.add(p);
+    }
+    if (set.has('*')) return ['*'];
+    for (const hudud of HUDUD_LIST) if (set.has(`${hudud}:edit`)) set.delete(`${hudud}:view`);
+    return [...set];
+  }
+
+  function roleToOut(r: FakeRoleSeed): RoleOut {
+    return { id: r.id, name: r.name, permissions: r.permissions, is_system: r.is_system, user_count: users.filter((u) => u.role === r.name).length, updated_at: r.updated_at };
+  }
+
+  /** Tartib: tizim rollari avval (admin, operator), keyin maxsus rollar nom boʻyicha — §2. */
+  function sortedRoles(): FakeRoleSeed[] {
+    const systemOrder = ['admin', 'operator'];
+    const system = roles.filter((r) => r.is_system).sort((a, b) => systemOrder.indexOf(a.name) - systemOrder.indexOf(b.name));
+    const custom = roles.filter((r) => !r.is_system).sort((a, b) => a.name.localeCompare(b.name, 'uz'));
+    return [...system, ...custom];
+  }
+
+  function validateRoleName(name: string, excludeId?: string): string {
+    const trimmed = name.trim();
+    if (!trimmed || trimmed.length > 40) err(422, 'validation_error', 'Rol nomi 1–40 belgidan iborat boʻlishi kerak.', { field: 'name' });
+    const taken = RESERVED_ROLE_NAMES.includes(trimmed.toLowerCase())
+      || roles.some((r) => r.id !== excludeId && r.name.toLowerCase() === trimmed.toLowerCase());
+    if (taken) err(409, 'role_name_taken', `«${trimmed}» nomli rol allaqachon bor.`, { field: 'name' });
+    return trimmed;
   }
 
   function toSessionUser(mu: ManagedUser): User {
@@ -2610,6 +2666,7 @@ export function createFakeClient(): ApiClient {
       if (!username) err(422, 'bad_username', 'Login kiritilishi shart.', { field: 'username' });
       if (users.some((u) => u.username === username)) err(409, 'username_taken', `«${username}» login band.`, { field: 'username' });
       if (payload.password.length < 10) err(422, 'weak_password', 'Parol kamida 10 belgidan iborat boʻlishi kerak.', { field: 'password' });
+      if (!roles.some((r) => r.name === payload.role)) err(422, 'validation_error', 'Bunday rol topilmadi.', { field: 'role' });
       let extRef: ManagedUser['extension'] = null;
       if (payload.extension_id) {
         const e = extensions.find((x) => x.id === payload.extension_id);
@@ -2637,6 +2694,9 @@ export function createFakeClient(): ApiClient {
       if (payload.updated_at !== mu.updated_at) err(409, 'stale', 'Bu foydalanuvchi boshqa joyda oʻzgartirilgan. Sahifani yangilang.');
       const nextIsActive = payload.is_active ?? mu.is_active;
       const nextRole = payload.role ?? mu.role;
+      if (payload.role !== undefined && !roles.some((r) => r.name === payload.role)) {
+        err(422, 'validation_error', 'Bunday rol topilmadi.', { field: 'role' });
+      }
       checkSelfLockout(id, nextIsActive, nextRole);
       checkLastAdmin(id, nextIsActive, nextRole);
       if (payload.password !== undefined && payload.password.length < 10) err(422, 'weak_password', 'Parol kamida 10 belgidan iborat boʻlishi kerak.', { field: 'password' });
@@ -2686,6 +2746,58 @@ export function createFakeClient(): ApiClient {
       currentUser = { ...currentUser, must_change_password: false };
       auditAdd('update', 'user', currentUser.id, currentUser.login, { password: ['***', '***'] });
       return issueTokens(currentUser);
+    },
+
+    // ─────────────────────── M7 §2 — rollar (qarang ../../replica/m7-roles-contract.md) ───────────────────────
+
+    async listRoles(): Promise<{ items: RoleOut[] }> {
+      await delay();
+      requireManage('system.manage');
+      return { items: sortedRoles().map(roleToOut) };
+    },
+
+    async createRole(payload: CreateRolePayload): Promise<{ item: RoleOut }> {
+      await delay();
+      requireManage('system.manage');
+      const name = validateRoleName(payload.name);
+      const permissions = normalizeRolePermissions(payload.permissions);
+      const now = new Date().toISOString();
+      const item: FakeRoleSeed = { id: randomId('role'), name, permissions, is_system: false, updated_at: now };
+      roles = [...roles, item];
+      auditAdd('create', 'role', item.id, item.name, { name: [null, item.name] });
+      return { item: roleToOut(item) };
+    },
+
+    async updateRole(id: string, payload: UpdateRolePayload): Promise<{ item: RoleOut }> {
+      await delay();
+      requireManage('system.manage');
+      const cur = roles.find((r) => r.id === id);
+      if (!cur) err(404, 'not_found', 'Rol topilmadi.');
+      if (cur.is_system) err(409, 'system_role', 'Tizim roli oʻzgartirilmaydi.');
+      if (payload.updated_at !== cur.updated_at) err(409, 'stale', 'Bu rol boshqa joyda oʻzgartirilgan. Sahifani yangilang.');
+      const name = payload.name !== undefined ? validateRoleName(payload.name, id) : cur.name;
+      const permissions = payload.permissions !== undefined ? normalizeRolePermissions(payload.permissions) : cur.permissions;
+      const now = new Date().toISOString();
+      const item: FakeRoleSeed = { ...cur, name, permissions, updated_at: now };
+      roles = roles.map((r) => (r.id === id ? item : r));
+      if (name !== cur.name) users = users.map((u) => (u.role === cur.name ? { ...u, role: name, updated_at: now } : u));
+      if (currentUser && currentUser.role === cur.name) currentUser = { ...currentUser, role: name, permissions: permissionsForRole(name) };
+      auditAdd('update', 'role', id, item.name, { name: [cur.name, item.name] });
+      return { item: roleToOut(item) };
+    },
+
+    async deleteRole(id: string) {
+      await delay();
+      requireManage('system.manage');
+      const cur = roles.find((r) => r.id === id);
+      if (!cur) err(404, 'not_found', 'Rol topilmadi.');
+      if (cur.is_system) err(409, 'system_role', 'Tizim rolini oʻchirib boʻlmaydi.');
+      const userCount = users.filter((u) => u.role === cur.name).length;
+      if (userCount > 0) {
+        err(409, 'role_in_use', 'Bu rolga foydalanuvchilar bogʻlangan — avval ularni boshqa rolga oʻtkazing.', { details: { user_count: userCount } });
+      }
+      roles = roles.filter((r) => r.id !== id);
+      auditAdd('delete', 'role', id, cur.name, { name: [cur.name, null] });
     },
 
     // ─────────────────────── M2b §4 — mening kabinetim (S30) ───────────────────────

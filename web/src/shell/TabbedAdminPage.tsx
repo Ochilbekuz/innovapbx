@@ -19,7 +19,7 @@ export function TabbedAdminPage({
   tabs: (ctx: AdminTabsContext) => TabItem[];
 }) {
   const { t } = useTranslation(ns);
-  const canManage = usePermission('system.manage');
+  const canManage = usePermission('*');
   const [tab, setTab] = useState(defaultTab);
   return (
     <AppShellPage title={t('title')}>

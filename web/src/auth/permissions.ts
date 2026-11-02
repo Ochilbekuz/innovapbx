@@ -1,4 +1,5 @@
 import { useSession } from '@/api/session';
+import type { Hudud } from '@/shell/screens';
 
 const ALL = '*';
 
@@ -21,4 +22,27 @@ export function hasPermission(permissions: string[] | undefined, perm: string): 
 /** Joriy foydalanuvchida berilgan ruxsat bor-yoʻqligi. Faqat UI uchun — server baribir oʻzi tekshiradi (403). */
 export function usePermission(perm: string): boolean {
   return useSession((s) => hasPermission(s.user?.permissions, perm));
+}
+
+/** M7 §1: `<hudud>:edit` (yoki `*`) bo'lsa tahrirlash mumkin. */
+export function canEditHudud(permissions: string[] | undefined, hudud: Hudud): boolean {
+  return hasPermission(permissions, `${hudud}:edit`);
+}
+
+/** M7 §1: `<hudud>:view` YOKI `:edit` (edit ⇒ view) bo'lsa ko'rish mumkin. */
+export function canViewHudud(permissions: string[] | undefined, hudud: Hudud): boolean {
+  return hasPermission(permissions, `${hudud}:view`) || hasPermission(permissions, `${hudud}:edit`);
+}
+
+/**
+ * Hudud sahifalarida «Yangi …»/tahrir/o'chirish tugmalarini ko'rsatish-yoʻq qilish uchun markaziy hook
+ * (M7 §4). `*` ham edit hisoblanadi (`hasPermission` ichida).
+ */
+export function useCanEdit(hudud: Hudud): boolean {
+  return useSession((s) => canEditHudud(s.user?.permissions, hudud));
+}
+
+/** Hudud ma'lumotini o'qish mumkinmi (masalan bosh sahifadagi park vidjeti `apps:view` talab qiladi). */
+export function useCanView(hudud: Hudud): boolean {
+  return useSession((s) => canViewHudud(s.user?.permissions, hudud));
 }

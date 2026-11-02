@@ -4,7 +4,7 @@ import { ChevronDown, Pencil, Plus, ShieldAlert, Trash2 } from 'lucide-react';
 import { useCreateQueue, useDeleteQueue, useExtensions, useMohClasses, useQueues, useTargets, useUpdateQueue } from '@/api/queries';
 import { isApiError } from '@/api/errors';
 import type { MohClass, Queue, QueueStrategy } from '@/api/types';
-import { usePermission } from '@/auth/permissions';
+import { useCanEdit } from '@/auth/permissions';
 import { cn } from '@/lib/cn';
 import { applyToast } from '@/lib/applyToast';
 import { usagesOf } from '@/lib/usageError';
@@ -33,7 +33,7 @@ export function QueuesPage() {
   const { data: extensions } = useExtensions({ size: 200 });
   const { data: targets } = useTargets({ kind: M1A_TARGETS.join(',') });
   const { data: mohClasses } = useMohClasses();
-  const canManage = usePermission('routes.manage');
+  const canManage = useCanEdit('routing');
   const toast = useToast();
   const [editing, setEditing] = useState<Queue | 'new' | null>(null);
   const [deleting, setDeleting] = useState<Queue | null>(null);

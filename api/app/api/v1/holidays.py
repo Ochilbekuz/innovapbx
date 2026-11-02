@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_session, require_admin
+from app.api.deps import get_session, require_access
 from app.core.lookups import get_tenant_scoped_or_404
 from app.db.models import Holiday, User
 from app.schemas import (
@@ -44,7 +44,7 @@ def _holiday_out(h: Holiday) -> HolidayOut:
 
 @router.get("")
 async def list_holidays(
-    session: AsyncSession = Depends(get_session), user: User = Depends(require_admin),
+    session: AsyncSession = Depends(get_session), user: User = Depends(require_access),
 ) -> dict:
     items = (await session.execute(
         select(Holiday).where(Holiday.tenant_id == user.tenant_id).order_by(Holiday.day)
@@ -55,7 +55,7 @@ async def list_holidays(
 @router.post("", response_model=HolidayOut, status_code=201)
 async def create_holiday(
     payload: CreateHolidayPayload, session: AsyncSession = Depends(get_session),
-    user: User = Depends(require_admin),
+    user: User = Depends(require_access),
 ) -> HolidayOut:
     holiday = Holiday(tenant_id=user.tenant_id, name=payload.name, day=date.fromisoformat(payload.day),
                        recurring_yearly=payload.recurring_yearly)
@@ -70,7 +70,7 @@ async def create_holiday(
 
 @router.delete("/{holiday_id}", status_code=204, response_model=None)
 async def delete_holiday(
-    holiday_id: str, session: AsyncSession = Depends(get_session), user: User = Depends(require_admin),
+    holiday_id: str, session: AsyncSession = Depends(get_session), user: User = Depends(require_access),
 ) -> None:
     holiday = await get_tenant_scoped_or_404(
         session, Holiday, str(user.tenant_id), holiday_id, not_found_message="Bayram topilmadi",
@@ -103,7 +103,7 @@ def _lunar_candidates(year: int) -> tuple[list[tuple[str, date]], list[str]]:
 @router.post("/import-uz", response_model=ImportUzHolidaysResult)
 async def import_uz_holidays(
     payload: ImportUzHolidaysPayload, session: AsyncSession = Depends(get_session),
-    user: User = Depends(require_admin),
+    user: User = Depends(require_access),
 ) -> ImportUzHolidaysResult:
     tenant_id = str(user.tenant_id)
     existing_days = await _existing_days(session, tenant_id)

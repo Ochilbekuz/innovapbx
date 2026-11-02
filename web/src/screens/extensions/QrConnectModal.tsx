@@ -97,7 +97,7 @@ export function QrConnectModal({ target, number, open, onOpenChange }: {
 
 function QrError({ error }: { error: unknown }) {
   const { t } = useTranslation('followme');
-  const canSettings = usePermission('system.manage');
+  const canSettings = usePermission('*');
   const needsHost = isApiError(error) && error.code === 'public_host_not_configured';
   return (
     <div className="flex flex-col gap-3 rounded-md border border-danger/30 bg-danger-soft px-3 py-3 text-sm text-on-danger-soft" role="alert" data-testid="qr-error">
