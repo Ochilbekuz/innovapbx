@@ -55,6 +55,24 @@ class _FakeConn:
         return None
 
 
+def _fake_connect_checking_pin(conn, key_data: bytes):
+    """Haqiqiy `asyncssh.connect`ning pin bilan bog'liq MUHIM qismini taqlid
+    qiladi: `client_factory` berilgan bo'lsa (pin rejimi, `expected_host_key_fp`
+    berilganda), uning `validate_host_public_key`sini chaqiradi — `False`
+    qaytarsa HAQIQIY asyncssh kabi `HostKeyNotVerifiable` ko'taradi
+    (AUTENTIFIKATSIYAGA — parol/kalit yuborilishiga — YETMASDAN)."""
+    import asyncssh
+
+    async def fake_connect(**kwargs):
+        client_factory = kwargs.get("client_factory")
+        if client_factory is not None:
+            client = client_factory()
+            if not client.validate_host_public_key("h", "h", 22, _FakeKey(key_data)):
+                raise asyncssh.HostKeyNotVerifiable("host key mismatch")
+        return conn
+    return fake_connect
+
+
 @pytest.mark.asyncio
 async def test_connect_kwargs_uses_password_or_key(monkeypatch):
     import asyncssh
@@ -162,10 +180,9 @@ def _ok_credentials() -> sf.SshCredentials:
 async def test_fetch_bundle_host_key_mismatch(monkeypatch):
     import asyncssh
 
-    async def fake_connect(**_kwargs):
-        return _FakeConn(b"actual-key")
-
-    monkeypatch.setattr(asyncssh, "connect", fake_connect)
+    monkeypatch.setattr(
+        asyncssh, "connect", _fake_connect_checking_pin(_FakeConn(b"actual-key"), b"actual-key"),
+    )
     with pytest.raises(sf.SshFetchError) as exc:
         await sf.fetch_bundle(_ok_credentials(), "SHA256:not-the-real-fp", "/tmp/out.tar.gz", max_bytes=10**9)
     assert exc.value.code == "host_key_mismatch"
@@ -178,10 +195,7 @@ async def test_fetch_bundle_export_failed_nonzero_exit(monkeypatch, tmp_path):
     store: dict = {}
     conn = _FakeFetchConn(store, [SimpleNamespace(exit_status=1, stdout="", stderr="mysql ulanmadi")])
 
-    async def fake_connect(**_kwargs):
-        return conn
-
-    monkeypatch.setattr(asyncssh, "connect", fake_connect)
+    monkeypatch.setattr(asyncssh, "connect", _fake_connect_checking_pin(conn, b"real-host-key"))
     expected_fp = sf.host_key_fingerprint(b"real-host-key")
     with pytest.raises(sf.SshFetchError) as exc:
         await sf.fetch_bundle(_ok_credentials(), expected_fp, tmp_path / "out.tar.gz", max_bytes=10**9)
@@ -198,10 +212,7 @@ async def test_fetch_bundle_success_downloads_and_cleans_up(monkeypatch, tmp_pat
         exit_status=0, stdout="Tayyor: /tmp/innova-fpbx-export-x/fpbx-export-h.tar.gz (1K)\n", stderr="",
     )])
 
-    async def fake_connect(**_kwargs):
-        return conn
-
-    monkeypatch.setattr(asyncssh, "connect", fake_connect)
+    monkeypatch.setattr(asyncssh, "connect", _fake_connect_checking_pin(conn, b"real-host-key"))
     expected_fp = sf.host_key_fingerprint(b"real-host-key")
     dest = tmp_path / "out.tar.gz"
     await sf.fetch_bundle(_ok_credentials(), expected_fp, dest, max_bytes=10**9)
@@ -221,10 +232,7 @@ async def test_fetch_bundle_too_large_rejected(monkeypatch, tmp_path):
         exit_status=0, stdout="Tayyor: /tmp/x/fpbx-export-h.tar.gz (999G)\n", stderr="",
     )])
 
-    async def fake_connect(**_kwargs):
-        return conn
-
-    monkeypatch.setattr(asyncssh, "connect", fake_connect)
+    monkeypatch.setattr(asyncssh, "connect", _fake_connect_checking_pin(conn, b"real-host-key"))
     expected_fp = sf.host_key_fingerprint(b"real-host-key")
     with pytest.raises(sf.SshFetchError) as exc:
         await sf.fetch_bundle(_ok_credentials(), expected_fp, tmp_path / "out.tar.gz", max_bytes=10)
@@ -384,7 +392,7 @@ async def test_ssh_test_endpoint_returns_result(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_ssh_fetch_endpoint_creates_job_and_schedules_task(monkeypatch, env):
-    async def fake_test_connection(_creds):
+    async def fake_test_connection(_creds, _expected_fp=None):
         return True, "SHA256:abc", None
 
     monkeypatch.setattr(mg_ssh, "test_connection", fake_test_connection)
@@ -403,8 +411,14 @@ async def test_ssh_fetch_endpoint_creates_job_and_schedules_task(monkeypatch, en
 
 @pytest.mark.asyncio
 async def test_ssh_fetch_endpoint_host_key_mismatch_422(monkeypatch, env):
-    async def fake_test_connection(_creds):
-        return True, "SHA256:observed", None
+    """Endi `test_connection`ning O'ZI (`_connect`/`pinned_client_factory` orqali)
+    nomuvofiqlikni AUTENTIFIKATSIYADAN OLDIN aniqlaydi — router endi o'zi qayta
+    solishtirmaydi (avvalgi ortiqcha/o'lik mantiq olib tashlandi)."""
+
+    async def fake_test_connection(_creds, expected_fp=None):
+        if expected_fp != "SHA256:observed":
+            return False, None, "host_key_mismatch"
+        return True, expected_fp, None
 
     monkeypatch.setattr(mg_ssh, "test_connection", fake_test_connection)
     payload = mg_ssh.SshFetchPayload(host="h", port=22, username="root", password="p",
@@ -419,7 +433,7 @@ async def test_ssh_fetch_endpoint_host_key_mismatch_422(monkeypatch, env):
 
 @pytest.mark.asyncio
 async def test_ssh_fetch_endpoint_auth_failed_422_no_job(monkeypatch, env):
-    async def fake_test_connection(_creds):
+    async def fake_test_connection(_creds, _expected_fp=None):
         return False, None, "ssh_auth_failed"
 
     monkeypatch.setattr(mg_ssh, "test_connection", fake_test_connection)

@@ -346,6 +346,37 @@ async def test_update_existing_row_checks_stale_only_when_given(audit, fake_encr
     assert exc.value.status_code == 409 and row.smtp_port == 2525
 
 
+async def test_update_validates_telegram_api_base_against_ssrf(audit, fake_encrypt, monkeypatch):
+    """Saqlashda `telegram_api_base` `ssrf.check_webhook_url` orqali tekshiriladi
+    (bot tokeni attacker manziliga chiqib ketishining oldi SAQLASHDA olinadi;
+    yuborishda esa `vm_notify.send_telegram` ikkinchi marta tekshiradi)."""
+    checked: list = []
+
+    async def fake_check(url, field="url"):
+        checked.append((url, field))
+        return url
+
+    monkeypatch.setattr(ns, "check_webhook_url", fake_check)
+    s = _Session()
+    await ns.update_notify_settings(UpdateNotifySettingsPayload(telegram_api_base="https://good.example"), s, USER)
+    assert checked == [("https://good.example", "telegram_api_base")]
+    (row,) = s.added
+    assert row.telegram_api_base == "https://good.example"
+
+
+async def test_update_rejects_ssrf_forbidden_telegram_api_base(audit, fake_encrypt, monkeypatch):
+    async def fake_check(url, field="url"):
+        raise ApiError(422, "url_forbidden", "URL ruxsat etilmagan: address", field=field)
+
+    monkeypatch.setattr(ns, "check_webhook_url", fake_check)
+    s = _Session()
+    with pytest.raises(ApiError) as exc:
+        await ns.update_notify_settings(
+            UpdateNotifySettingsPayload(telegram_api_base="http://169.254.169.254/"), s, USER)
+    assert exc.value.status_code == 422 and exc.value.code == "url_forbidden"
+    assert s.commits == 0  # taqiqlangan bo'lsa commit qilinmaydi (flush/commitgacha yetilmaydi)
+
+
 async def test_get_without_row_returns_defaults():
     out = await ns.get_notify_settings(_Session(), USER)
     assert (out.smtp_port, out.smtp_tls, out.telegram_api_base, out.updated_at) == (

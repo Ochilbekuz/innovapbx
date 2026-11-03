@@ -16,6 +16,8 @@ import re
 from dataclasses import dataclass, field
 from typing import Literal
 
+from app.netd.safety import assert_renderable
+
 BodyKind = Literal["address", "gateway", "mtu", "netmask", "route_up", "route_down", "other"]
 
 _IFACE_RE = re.compile(r"^iface\s+(\S+)\s+(\S+)\s+(\S+)\s*$")
@@ -193,11 +195,20 @@ def parse(text: str) -> IfupdownFile:
 
 
 def render(file: IfupdownFile) -> str:
+    """So'nggi himoya chizig'i: har bir qator (eski ham, `build_target`
+    yangi quygan ham) `/etc/network/interfaces`ga yozilishidan OLDIN
+    tekshiriladi — birortasida `\\r`/`\\n`/NUL bo'lsa (masalan manzil/shlyuz/
+    MTU/marshrut maydoniga in'eksiya qilingan bo'lsa) `render` ishlamay
+    qoladi, fayl HECH QACHON yarim in'eksiya qilingan holda yozilmaydi."""
     parts: list[str] = []
     for entry in file.entries:
         if isinstance(entry, Line):
+            assert_renderable(entry.raw)
             parts.append(entry.raw)
         else:
+            assert_renderable(entry.header_raw)
+            for line in entry.body:
+                assert_renderable(line.raw)
             parts.append(entry.header_raw)
             parts.extend(line.raw for line in entry.body)
     text = "\n".join(parts)

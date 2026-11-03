@@ -267,29 +267,49 @@ def _awaitable_connect(conn):
     return _connect
 
 
+def _awaitable_connect_checking_pin(conn):
+    """`_awaitable_connect` kabi, LEKIN haqiqiy asyncssh'ning pin bilan bog'liq
+    MUHIM qismini ham taqlid qiladi: `client_factory` berilgan bo'lsa (pin rejimi,
+    `_sftp_connect` endi doim shunday chaqiradi), uning `validate_host_public_key`sini
+    chaqiradi — `False` qaytarsa HAQIQIY asyncssh kabi `HostKeyNotVerifiable` ko'taradi
+    (AUTENTIFIKATSIYAGA YETMASDAN — `conn` hech qachon qaytarilmaydi)."""
+    import asyncssh
+
+    async def _connect(*args, **kwargs):
+        client_factory = kwargs.get("client_factory")
+        if client_factory is not None:
+            client = client_factory()
+            if not client.validate_host_public_key("h", "h", 22, conn.get_server_host_key()):
+                raise asyncssh.HostKeyNotVerifiable("host key mismatch")
+        return conn
+    return _connect
+
+
 # ------------------------------------------------------------------ _sftp_connect (host kaliti pin)
 @pytest.mark.asyncio
 async def test_sftp_connect_rejects_untrusted_host_key(monkeypatch):
     """m4b-contract.md §4.3: «SFTP barmoq izi tasdiqlanmasa zaxira `partial`» — host kaliti
-    hali `trust` qilinmagan (`host_key_fp` yo'q) bo'lsa ham jim ulanib qolish MITM eshigi."""
+    hali `trust` qilinmagan (`host_key_fp` yo'q) bo'lsa ham jim ulanib qolish MITM eshigi.
+    Endi tekshiruv AUTENTIFIKATSIYADAN OLDIN sodir bo'ladi — `conn` hech qachon
+    qaytarilmaydi, shu sabab `conn.closed`ni tekshirish ENDI mazmunsiz (olib tashlandi)."""
     import asyncssh
     conn = _FakeSshConn(host_key=b"server-key")
-    monkeypatch.setattr(asyncssh, "connect", _awaitable_connect(conn))
+    monkeypatch.setattr(asyncssh, "connect", _awaitable_connect_checking_pin(conn))
     with pytest.raises(bt.BackupTargetError, match="host_key_not_trusted"):
         await bt._sftp_connect(_sftptarget())
-    assert conn.closed is True
 
 
 @pytest.mark.asyncio
 async def test_sftp_connect_rejects_mismatched_host_key(monkeypatch):
-    """m4b-contract.md §0: «mos kelmasa `host_key_mismatch`, jim qabul YO'Q»."""
+    """m4b-contract.md §0: «mos kelmasa `host_key_mismatch`, jim qabul YO'Q». Endi
+    nomuvofiqlik AUTENTIFIKATSIYADAN OLDIN (parol/kalit yuborilishidan OLDIN)
+    aniqlanadi — `conn` hech qachon qaytarilmaydi."""
     import asyncssh
     conn = _FakeSshConn(host_key=b"server-key-changed")
-    monkeypatch.setattr(asyncssh, "connect", _awaitable_connect(conn))
+    monkeypatch.setattr(asyncssh, "connect", _awaitable_connect_checking_pin(conn))
     target = _sftptarget(host_key_fp="SHA256:wrong")
     with pytest.raises(bt.BackupTargetError, match="host_key_mismatch"):
         await bt._sftp_connect(target)
-    assert conn.closed is True
 
 
 @pytest.mark.asyncio
@@ -297,11 +317,30 @@ async def test_sftp_connect_accepts_trusted_host_key(monkeypatch):
     import asyncssh
     conn = _FakeSshConn(host_key=b"server-key-ok")
     expected = bt.host_key_fingerprint(b"server-key-ok")
-    monkeypatch.setattr(asyncssh, "connect", _awaitable_connect(conn))
+    monkeypatch.setattr(asyncssh, "connect", _awaitable_connect_checking_pin(conn))
     target = _sftptarget(host_key_fp=expected)
     result = await bt._sftp_connect(target)
     assert result is conn
     assert conn.closed is False
+
+
+# ------------------------------------------------------------------ pinned_client_factory (sof funksiya)
+def test_pinned_client_factory_accepts_matching_fingerprint():
+    expected = bt.host_key_fingerprint(b"server-key-ok")
+    client = bt.pinned_client_factory(expected)()
+    assert client.validate_host_public_key("h", "h", 22, _FakeHostKey(b"server-key-ok")) is True
+
+
+def test_pinned_client_factory_rejects_mismatched_fingerprint():
+    client = bt.pinned_client_factory("SHA256:wrong")()
+    assert client.validate_host_public_key("h", "h", 22, _FakeHostKey(b"server-key-ok")) is False
+
+
+def test_pinned_client_factory_rejects_when_no_expected_fp():
+    """Hali `trust` qilinmagan (`expected_fp=None`) — HECH QANDAY kalit qabul
+    qilinmasligi kerak (jim ulanib qolish MITM eshigi, m4b-contract.md §4.3)."""
+    client = bt.pinned_client_factory(None)()
+    assert client.validate_host_public_key("h", "h", 22, _FakeHostKey(b"server-key-ok")) is False
 
 
 @pytest.mark.asyncio

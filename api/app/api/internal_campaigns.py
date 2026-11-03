@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_session
-from app.core.config import settings
+from app.core.security import check_internal_api_token
 from app.services.campaign_dialer import record_key, record_result
 
 router = APIRouter(prefix="/internal/campaigns", tags=["internal"])
@@ -18,7 +18,7 @@ def _text(body: str) -> Response:
 
 
 def _attempt_id(token: str, attempt: str) -> int | None:
-    if not settings.internal_api_token or token != settings.internal_api_token or not attempt.isdigit():
+    if not check_internal_api_token(token) or not attempt.isdigit():
         return None
     return int(attempt)
 

@@ -8,7 +8,10 @@ import httpx
 import pytest
 
 from app.services import vm_notify as vn
+from app.services.integrations import ssrf
 from app.services.vm_notify import NotifyConfig, PendingMessage, build_email, channels_for, telegram_caption
+
+_NO_SSRF = lambda url: None  # noqa: E731 — testlarda haqiqiy DNS so'rovisiz, faqat HTTP qatlamini sinaydi
 
 _CFG = NotifyConfig(smtp_host="mail", smtp_port=1025, smtp_tls="none", smtp_user=None, smtp_password=None,
                     from_email="pbx@innova.uz", telegram_token="123:ABC", telegram_api_base="http://tg:8080")
@@ -81,7 +84,7 @@ def _tg_transport(calls: list, status: int = 200, body: dict | None = None) -> h
 async def test_telegram_send_audio_multipart(tmp_path):
     calls: list[httpx.Request] = []
     await vn.send_telegram(_CFG, "42", telegram_caption(_msg(tmp_path)), _msg(tmp_path).wav,
-                           transport=_tg_transport(calls))
+                           transport=_tg_transport(calls), url_check=_NO_SSRF)
     assert len(calls) == 1
     req = calls[0]
     assert str(req.url) == "http://tg:8080/bot123:ABC/sendAudio"
@@ -93,22 +96,67 @@ async def test_telegram_send_audio_multipart(tmp_path):
 
 async def test_telegram_send_message_without_audio(tmp_path):
     calls: list[httpx.Request] = []
-    await vn.send_telegram(_CFG, "42", "salom", None, transport=_tg_transport(calls))
+    await vn.send_telegram(_CFG, "42", "salom", None, transport=_tg_transport(calls), url_check=_NO_SSRF)
     assert str(calls[0].url) == "http://tg:8080/bot123:ABC/sendMessage"
     assert json.loads(calls[0].content) == {"chat_id": "42", "text": "salom"}
 
 
-async def test_telegram_error_raises_with_description(tmp_path):
+async def test_telegram_error_raises_without_leaking_remote_response_body(tmp_path):
+    """Avvalgi xato: Telegram javobidagi `description`/matn to'g'ridan-to'g'ri
+    adminga ko'rsatilardi — bu attacker nazoratidagi (SSRF) manzilning javobini
+    ko'rsatish bo'lardi. Endi faqat status-kod bilan umumiy xabar."""
     calls: list = []
-    with pytest.raises(vn.NotifyError, match="chat not found"):
+    with pytest.raises(vn.NotifyError) as exc:
         await vn.send_telegram(_CFG, "42", "x", None,
-                               transport=_tg_transport(calls, 400, {"ok": False, "description": "chat not found"}))
+                               transport=_tg_transport(calls, 400, {"ok": False, "description": "SECRET internal-data 10.0.0.1"}),
+                               url_check=_NO_SSRF)
+    assert "SECRET" not in str(exc.value)
+    assert "10.0.0.1" not in str(exc.value)
+    assert str(exc.value) == "Telegram javobi muvaffaqiyatsiz (status=400)"
+
+
+async def test_telegram_known_error_reason_is_our_constant_phrase(tmp_path):
+    """Ma'lum Telegram xatosi (masalan noto'g'ri chat) — sabab ko'rsatiladi, lekin
+    masofaviy matn emas, ro'yxatdagi doimiy ibora (qolgan matn tashlanadi)."""
+    calls: list = []
+    with pytest.raises(vn.NotifyError) as exc:
+        await vn.send_telegram(_CFG, "42", "x", None,
+                               transport=_tg_transport(calls, 400, {"ok": False, "description": "Bad Request: chat not found <leak>"}),
+                               url_check=_NO_SSRF)
+    assert str(exc.value) == "Telegram javobi muvaffaqiyatsiz (status=400): chat not found"
+
+
+async def test_telegram_non_json_error_body(tmp_path):
+    transport = httpx.MockTransport(lambda req: httpx.Response(502, text="<html>gw</html>"))
+    with pytest.raises(vn.NotifyError) as exc:
+        await vn.send_telegram(_CFG, "42", "x", None, transport=transport, url_check=_NO_SSRF)
+    assert str(exc.value) == "Telegram javobi muvaffaqiyatsiz (status=502)"
 
 
 async def test_telegram_without_token_raises():
     cfg = NotifyConfig(**{**_CFG.__dict__, "telegram_token": None})
     with pytest.raises(vn.NotifyError, match="token"):
         await vn.send_telegram(cfg, "42", "x", None)
+
+
+async def test_telegram_rejects_ssrf_forbidden_base_without_http_call(tmp_path):
+    """`telegram_api_base` SSRF tomonidan rad etilsa — HTTP so'rov UMUMAN
+    yuborilmaydi (bot tokeni attacker manziliga chiqmaydi)."""
+    calls: list = []
+
+    def forbidden(url: str) -> None:
+        raise ssrf.UrlForbidden("address")
+
+    with pytest.raises(vn.NotifyError, match="ruxsat etilmagan"):
+        await vn.send_telegram(_CFG, "42", "x", None, transport=_tg_transport(calls), url_check=forbidden)
+    assert calls == []
+
+
+async def test_telegram_uses_ssrf_check_url_default_by_default():
+    """Parametr berilmasa — standart `ssrf.check_url_default` ishlatiladi
+    (webhook/amocrm/bitrix24 providerlaridagi BIR XIL qolip)."""
+    import inspect
+    assert inspect.signature(vn.send_telegram).parameters["url_check"].default is ssrf.check_url_default
 
 
 # ------------------------------------------------------------ SMTP

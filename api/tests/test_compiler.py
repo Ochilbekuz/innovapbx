@@ -1,6 +1,8 @@
 """Kompilyator — sof funksiya, bazasiz test qilinadi (ub-mode: TDD, mutator nishoni)."""
 from __future__ import annotations
 
+import re
+
 import pytest
 
 from app.services.compiler import (
@@ -81,8 +83,11 @@ def test_catchall_route_uses_dot_pattern():
 
 
 def test_callerid_pattern_adds_conditional_match():
+    """(LOW tuzatish) `CALLERID(num)` endi `FILTER(0-9+,...)` bilan tor
+    belgi to'plamiga qisqartiriladi (qo'shtirnoq/operator in'ektsiyasidan
+    himoya) — solishtiruvning o'zi o'zgarmagan, faqat chap tomon o'ralgan."""
     text = compile_dialplan(_snapshot(inbound_routes=[_route(cid="+99890*")]))
-    assert 'CALLERID(num)}"="+99890*"' in text
+    assert '${FILTER(0-9+,${CALLERID(num)})}"="+99890*"' in text
     assert "(matched)" in text
 
 
@@ -546,3 +551,72 @@ def test_dial_numbers_route_from_internal_before_catchall():
     # mavjud bo'lmagan kontekstga Goto qilardi — CDR FAILED, chaqiruvchi 603.
     assert "[t1-dest-rg-1]" in text
     assert _rg_sets(text.split("[t1-dest-rg-1]")[1]) == [["PJSIP/101", "PJSIP/102"]]
+
+
+# --------------------------------------------------------------------------- dialplan injection (CONFIRMED HIGH)
+# Render vaqtidagi IKKINCHI himoya chizig'i (`app/services/dialplan_safety.py`):
+# CSV import/FreePBX migratsiyasi `app/schemas.py` Pydantic validatsiyasini chetlab
+# o'tishi mumkin, shu sabab `DialplanSnapshot`ga TO'G'RIDAN-TO'G'RI (schema'siz)
+# tushgan xavfli qiymat ham kompilyatorda to'xtatilishi/zararsizlanishi SHART.
+
+def _no_injected_line(text: str) -> bool:
+    """Haqiqiy yangi dialplan qatori (qator boshida `exten =>`/`same =>`)
+    HOSIL BO'LMAGANINI tekshiradi — in'ektsiya qilingan matnning qoldiq
+    bo'laklari (masalan, ajratuvchi vergul olib tashlangandan keyingi
+    harflar) zararsiz, chunki ular qator boshida EMAS."""
+    return not re.search(r"(?m)^\s*(exten|same) => 999\b", text)
+
+
+def test_extension_name_crlf_is_sanitized_not_injected():
+    """Erkin matn (`name`) — qator ko'chirish/boshqaruv belgilar olib tashlanadi
+    VA `(`/`)`/`,` kabi ilova-chegara belgilari olib tashlanadi, shu sabab
+    in'ektsiya qilingan `System(...)` qatori chaqirilMAYDI, yangi haqiqiy
+    `exten =>` qatori HOSIL BO'LMAYDI."""
+    evil_name = "Dilnoza\nexten => 999,1,System(rm -rf /)"
+    evil_ext = ExtensionSnapshot(id="e1", number="101", name=evil_name, ring_seconds=25, target_id="ext-101")
+    text = compile_dialplan(_snapshot(extensions=[evil_ext]))
+    assert "System(rm -rf /)" not in text
+    assert _no_injected_line(text)
+
+
+def test_inbound_route_did_with_bad_chars_raises_compile_error():
+    """Raqam maydoni (`did`) — faqat tor belgi to'plamiga ruxsat; `$`/`{`/`}`
+    kabi o'zgaruvchi almashtirish belgilari KIRITILSA `CompileError` (422)."""
+    snap = _snapshot(inbound_routes=[
+        InboundRouteSnapshot(id="r1", did="${SHELL(id)}", callerid_pattern="", target_id="ext-101"),
+    ])
+    with pytest.raises(CompileError) as exc_info:
+        compile_dialplan(snap)
+    assert exc_info.value.code == "bad_dialplan_value"
+
+
+def test_inbound_route_cid_name_prefix_crlf_is_sanitized():
+    snap = _snapshot(inbound_routes=[
+        InboundRouteSnapshot(id="r1", did="712000000", callerid_pattern="", target_id="ext-101",
+                              cid_name_prefix="X\nexten => 999,1,System(rm -rf /)"),
+    ])
+    text = compile_dialplan(snap)
+    assert "System(rm -rf /)" not in text
+    assert _no_injected_line(text)
+
+
+def test_inbound_route_alert_info_valid_value_is_rendered():
+    snap = _snapshot(inbound_routes=[
+        InboundRouteSnapshot(id="r1", did="712000000", callerid_pattern="", target_id="ext-101",
+                              alert_info="Ringtone=1"),
+    ])
+    text = compile_dialplan(snap)
+    assert "Set(__INNOVA_ALERT_INFO=Ringtone=1)" in text
+
+
+def test_inbound_route_alert_info_injection_raises_compile_error():
+    """`alert_info` — `app/schemas.py`da `pattern=_ALERT_INFO_PATTERN` bilan
+    tekshiriladi, LEKIN `DialplanSnapshot`ga schema'siz (CSV/FreePBX) kelsa
+    ham render vaqtida `CompileError` berilishi SHART (ikkinchi himoya chizig'i)."""
+    snap = _snapshot(inbound_routes=[
+        InboundRouteSnapshot(id="r1", did="712000000", callerid_pattern="", target_id="ext-101",
+                              alert_info='x","evil")'),
+    ])
+    with pytest.raises(CompileError) as exc_info:
+        compile_dialplan(snap)
+    assert exc_info.value.code == "bad_dialplan_value"

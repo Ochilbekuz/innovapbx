@@ -212,9 +212,13 @@ check "$( [[ "$UNKNOWN_KEY_CODE" == "404" ]]; echo $?)" "A1: noma'lum kalit -> 4
 JS=$(curl -s "$API_ROOT/widget/$PUBLIC_KEY.js")
 check "$(grep -q "innova-callback-widget" <<<"$JS"; echo $?)" "A1: /widget/{key}.js -> JS tanasi (innova-callback-widget)"
 
-CFG_OK=$(curl -s -w '\n%{http_code}' "$API_ROOT/api/public/widget/$PUBLIC_KEY/config")
+# 1.0.12: domenlar cheklangan vidjetda Origin'siz so'rov ham rad etiladi (brauzer
+# cross-origin fetch'da Origin'ni doim yuboradi; yo'q bo'lsa — skript/bot).
+CFG_NO_ORIGIN=$(curl -s -w '\n%{http_code}' "$API_ROOT/api/public/widget/$PUBLIC_KEY/config")
+check "$(err_is "$CFG_NO_ORIGIN" 403 origin_not_allowed; echo $?)" "A1: GET config (Origin'siz, domen cheklangan) -> 403" "$CFG_NO_ORIGIN"
+CFG_OK=$(curl -s -w '\n%{http_code}' -H 'Origin: https://good.example' "$API_ROOT/api/public/widget/$PUBLIC_KEY/config")
 check "$( [[ "$(jcode "$CFG_OK")" == "200" && "$(jget "$(jbody "$CFG_OK")" name)" == "M10aWidget" ]]; echo $?)" \
-  "A1: GET config (Origin'siz) -> 200, name" "$CFG_OK"
+  "A1: GET config (ruxsatli Origin) -> 200, name" "$CFG_OK"
 CFG_BAD_ORIGIN=$(curl -s -w '\n%{http_code}' -H 'Origin: https://evil.example' "$API_ROOT/api/public/widget/$PUBLIC_KEY/config")
 check "$(err_is "$CFG_BAD_ORIGIN" 403 origin_not_allowed; echo $?)" "A1: GET config (yot Origin) -> 403 origin_not_allowed" "$CFG_BAD_ORIGIN"
 CFG_GOOD_ORIGIN=$(curl -s -w '\n%{http_code}' -H 'Origin: https://good.example' "$API_ROOT/api/public/widget/$PUBLIC_KEY/config")

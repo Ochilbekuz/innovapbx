@@ -3,10 +3,14 @@ frontend `web/src/api/types.ts` shu bilan mos bo'lishi SHART)."""
 from __future__ import annotations
 
 import ipaddress
+import re
 from datetime import datetime
 from typing import Any, Literal
 
 from pydantic import AliasChoices, BaseModel, Field, field_validator, model_validator
+
+from app.netd.validate import is_valid_hostname
+from app.services.dialplan_safety import has_control_chars, is_dialplan_number
 
 Lang = Literal["uz", "ru", "en"]
 # m7-roles-contract.md §3: endi istalgan mavjud rol NOMI (maxsus rollar ham
@@ -40,6 +44,30 @@ AuditAction = Literal[
     "create", "update", "delete", "login", "login_failed", "restore", "restart", "override",
 ]
 RevisionStatus = Literal["compiled", "applied", "failed", "rolled_back"]
+
+
+# ----------------------------------------------- dialplan injection himoyasi (kirish validatsiyasi)
+# CONFIRMED HIGH tuzatish: ism/DID/CID/callerid/`add_prefix` kabi matn/raqam
+# maydonlari generatsiya qilinadigan Asterisk dialplan'ga TO'G'RIDAN-TO'G'RI
+# tushadi (`app/services/compiler.py`). Bu yerda — BIRINCHI himoya chizig'i
+# (yaxshi UX, aniq 422 xabar); `app/services/dialplan_safety.py` — render
+# vaqtidagi IKKINCHI chiziq (CSV import/FreePBX migratsiyasi Pydantic'ni
+# chetlab o'tishi mumkin, shu sabab ikkalasi ham SHART).
+def _check_no_control_chars(value: str | None) -> str | None:
+    if has_control_chars(value):
+        raise ValueError("boshqaruv belgilar (shu jumladan qator ko'chirish \\r\\n) ruxsat etilmagan")
+    return value
+
+
+def _check_dialplan_number_opt(value: str | None) -> str | None:
+    """Bo'sh/`None` — ruxsat (DID/CID/callerid filtrsiz/qiymatsiz bo'lishi
+    mumkin); aks holda faqat Asterisk dialplan uchun xavfsiz belgi to'plami
+    (raqam, `+ * # _ X N Z . ! [ ] -`, 1-40 ta)."""
+    if not value:
+        return value
+    if not is_dialplan_number(value):
+        raise ValueError("faqat raqam va + * # _ X N Z . ! [ ] - belgilari (1-40 ta) ruxsat etilgan")
+    return value
 
 
 class ApplyResult(BaseModel):
@@ -182,6 +210,9 @@ class CreateExtensionPayload(BaseModel):
     pickup_group: str | None = None
     call_waiting: bool | None = None
 
+    _check_name = field_validator("name")(_check_no_control_chars)
+    _check_outbound_callerid = field_validator("outbound_callerid")(_check_dialplan_number_opt)
+
 
 class UpdateExtensionPayload(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=128)
@@ -202,6 +233,9 @@ class UpdateExtensionPayload(BaseModel):
     recording_out: RecordingPolicy | None = None
     call_waiting: bool | None = None
     updated_at: datetime
+
+    _check_name = field_validator("name")(_check_no_control_chars)
+    _check_outbound_callerid = field_validator("outbound_callerid")(_check_dialplan_number_opt)
 
 
 class ExtensionCreated(BaseModel):
@@ -272,6 +306,9 @@ class CreateTrunkPayload(BaseModel):
     from_domain: str | None = None
     outbound_callerid: str | None = None
 
+    _check_name = field_validator("name")(_check_no_control_chars)
+    _check_outbound_callerid = field_validator("outbound_callerid")(_check_dialplan_number_opt)
+
 
 class UpdateTrunkPayload(BaseModel):
     name: str | None = None
@@ -288,6 +325,9 @@ class UpdateTrunkPayload(BaseModel):
     from_domain: str | None = None
     outbound_callerid: str | None = None
     updated_at: datetime
+
+    _check_name = field_validator("name")(_check_no_control_chars)
+    _check_outbound_callerid = field_validator("outbound_callerid")(_check_dialplan_number_opt)
 
 
 class TrunkMutated(BaseModel):
@@ -350,6 +390,11 @@ class CreateInboundRoutePayload(BaseModel):
     alert_info: str | None = Field(default=None, pattern=_ALERT_INFO_PATTERN)
     cid_lookup_source_id: str | None = None
 
+    _check_name = field_validator("name")(_check_no_control_chars)
+    _check_cid_name_prefix = field_validator("cid_name_prefix")(_check_no_control_chars)
+    _check_did = field_validator("did")(_check_dialplan_number_opt)
+    _check_cid = field_validator("cid")(_check_dialplan_number_opt)
+
 
 class UpdateInboundRoutePayload(BaseModel):
     name: str | None = None
@@ -364,6 +409,11 @@ class UpdateInboundRoutePayload(BaseModel):
     alert_info_clear: bool = False
     cid_lookup_source_clear: bool = False
     updated_at: datetime
+
+    _check_name = field_validator("name")(_check_no_control_chars)
+    _check_cid_name_prefix = field_validator("cid_name_prefix")(_check_no_control_chars)
+    _check_did = field_validator("did")(_check_dialplan_number_opt)
+    _check_cid = field_validator("cid")(_check_dialplan_number_opt)
 
 
 class InboundRouteMutated(BaseModel):
@@ -955,6 +1005,9 @@ class OutboundPatternIn(BaseModel):
     add_prefix: str = Field(default="", max_length=20)
     callerid_match: str = Field(default="", max_length=40)
 
+    _check_pattern = field_validator("pattern")(_check_dialplan_number_opt)
+    _check_add_prefix = field_validator("add_prefix")(_check_dialplan_number_opt)
+
 
 class OutboundPatternOut(OutboundPatternIn):
     pass
@@ -1012,6 +1065,9 @@ class CreateOutboundRoutePayload(BaseModel):
     extension_ids: Literal["all"] | list[str] = "all"
     pin_set_id: str | None = None
 
+    _check_name = field_validator("name")(_check_no_control_chars)
+    _check_callerid = field_validator("callerid")(_check_dialplan_number_opt)
+
 
 class UpdateOutboundRoutePayload(BaseModel):
     name: str | None = None
@@ -1027,6 +1083,9 @@ class UpdateOutboundRoutePayload(BaseModel):
     pin_set_id: str | None = None
     pin_set_id_clear: bool = False
     updated_at: datetime
+
+    _check_name = field_validator("name")(_check_no_control_chars)
+    _check_callerid = field_validator("callerid")(_check_dialplan_number_opt)
 
 
 class OutboundRouteMutated(BaseModel):
@@ -1304,25 +1363,49 @@ class MohClassMutated(BaseModel):
 # (shartnoma); IP/interfeys maydonlari bu yerda HAM tekshiriladi (chegara
 # intizomi: `ipaddress`/regex — birinchi himoya chizig'i), to'liq biznes
 # qoidalari (subnet/shlyuz mosligi va h.k.) `app/netd/validate.py`da.
+#
+# FAQAT IPv4: konfiguratsiya yozuvchi tomon (`netd/ifupdown.py`, klassik
+# `address`/`netmask`) IPv6ga mo'ljallanmagan — `live_ipv6` faqat O'QISH
+# uchun (joriy holatni ko'rsatish). IPv6ning scope-id qismi
+# (`fe80::1%zone`) ichida bo'sh joy/qator ko'chirish TAQIQLANMAGAN —
+# `ipaddress.ip_interface`/`ip_address` buni QABUL QILADI va xom satrni
+# o'zgartirmay saqlaydi; shu orqali netd yozadigan
+# `/etc/network/interfaces`ga `pre-up`/`up` qatori in'eksiya qilinishi
+# mumkin edi (admin -> root RCE). IPv4-only + `ValueError` o'rniga KANONIK
+# `str(...)` qaytarish bu yo'lni butunlay yopadi.
 _IFACE_NAME_RE = r"^[a-zA-Z0-9_.:-]{1,15}$"
+_UNSAFE_CHARS_RE = re.compile(r"[\s%\x00-\x1f\x7f]")
 NetworkMode = Literal["dhcp", "static"]
 
 
+def _reject_unsafe_chars(value: str) -> None:
+    if _UNSAFE_CHARS_RE.search(value):
+        raise ValueError("maydonda bo'sh joy, boshqaruv belgisi yoki '%' ruxsat etilmagan")
+
+
 def _check_ip_or_none(value: str | None) -> str | None:
-    if value is not None:
-        try:
-            ipaddress.ip_address(value)
-        except ValueError as exc:
-            raise ValueError("yaroqsiz IP manzil") from exc
-    return value
+    if value is None:
+        return None
+    _reject_unsafe_chars(value)
+    try:
+        return str(ipaddress.IPv4Address(value))
+    except ValueError as exc:
+        raise ValueError("yaroqsiz IPv4 manzil") from exc
 
 
 def _check_cidr_or_none(value: str | None) -> str | None:
-    if value is not None:
-        try:
-            ipaddress.ip_interface(value)
-        except ValueError as exc:
-            raise ValueError("yaroqsiz CIDR manzil (masalan 10.0.0.5/24)") from exc
+    if value is None:
+        return None
+    _reject_unsafe_chars(value)
+    try:
+        return str(ipaddress.IPv4Interface(value))
+    except ValueError as exc:
+        raise ValueError("yaroqsiz IPv4 CIDR manzil (masalan 10.0.0.5/24)") from exc
+
+
+def _check_hostname(value: str) -> str:
+    if not is_valid_hostname(value):
+        raise ValueError("Mezbon nomi RFC1123 talablariga mos emas")
     return value
 
 
@@ -1354,8 +1437,14 @@ class NetworkDnsIn(BaseModel):
     @field_validator("servers")
     @classmethod
     def _check_servers(cls, value: list[str]) -> list[str]:
-        for server in value:
-            _check_ip_or_none(server)
+        return [_check_ip_or_none(server) for server in value]
+
+    @field_validator("search")
+    @classmethod
+    def _check_search(cls, value: list[str]) -> list[str]:
+        for domain in value:
+            if not isinstance(domain, str) or not is_valid_hostname(domain):
+                raise ValueError("yaroqsiz domen nomi (RFC1123, <=253 belgi)")
         return value
 
 
@@ -1365,6 +1454,8 @@ class NetworkConfigIn(BaseModel):
     routes: list[NetworkRouteIn] = Field(default_factory=list)
     dns: NetworkDnsIn = Field(default_factory=NetworkDnsIn)
     timeout_s: int = Field(default=180, ge=60, le=600)
+
+    _check_hostname = field_validator("hostname")(classmethod(lambda cls, v: _check_hostname(v)))
 
 
 class NetworkPendingActionIn(BaseModel):

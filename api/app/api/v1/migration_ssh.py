@@ -92,12 +92,15 @@ async def ssh_fetch(
 ) -> JobItem:
     """Tezkor (sinxron) ulanish+parol+host-kalit tekshiruvi — xato bo'lsa ish
     YARATILMAYDI (422). Muvaffaqiyatda ish darhol `fetching`/`step=ssh_fetch` bilan
-    yaratiladi, 202 qaytariladi, haqiqiy eksport+olish fon vazifasida davom etadi."""
-    ok, observed_fp, error = await test_connection(payload.to_credentials())
+    yaratiladi, 202 qaytariladi, haqiqiy eksport+olish fon vazifasida davom etadi.
+
+    `payload.host_key_fp` ENDI `test_connection`ga uzatiladi — host kaliti
+    AUTENTIFIKATSIYADAN OLDIN tekshiriladi (avvalgi xato: avval to'liq ulanib
+    (parol/kalit yuborilib) KEYIN `observed_fp != payload.host_key_fp`
+    solishtirilardi — MITM parolni allaqachon olib bo'lgan bo'lardi)."""
+    ok, _observed_fp, error = await test_connection(payload.to_credentials(), payload.host_key_fp)
     if not ok:
         raise ApiError(422, error or "ssh_unreachable", "SSH ulanishi muvaffaqiyatsiz")
-    if observed_fp != payload.host_key_fp:
-        raise ApiError(422, "host_key_mismatch", "Host kaliti mos kelmadi — qayta tekshiring")
 
     tenant_id = str(user.tenant_id)
     job = MigrationJob(tenant_id=tenant_id, source="ssh", status="fetching", step="ssh_fetch", progress=0,

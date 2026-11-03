@@ -113,6 +113,10 @@ _WIDGET_JS = """\
 
 
 def _origin_allowed(widget: CallbackWidget, origin: str | None) -> bool:
+    """`allowed_origins` BO'SH -- cheklov yo'q (har qanday `origin`, shu jumladan
+    YO'Q, ruxsat). BO'SH BO'LMASA -- `origin` ro'yxatda bo'lishi SHART; YO'Q
+    (brauzer emas, server-server so'rov) bo'lsa HAM rad etiladi (`origin in
+    widget.allowed_origins` -- `None` ro'yxatda bo'lmaydi, `False` qaytadi)."""
     return not widget.allowed_origins or origin in widget.allowed_origins
 
 
@@ -128,6 +132,17 @@ def _client_ip(request: Request) -> str:
     return request.client.host if request.client else "unknown"
 
 
+def _require_allowed_origin(widget: CallbackWidget, request: Request) -> None:
+    """`allowed_origins` BO'SH BO'LMAGANDA Origin sarlavhasi YO'Q so'rov (brauzer
+    emas -- server-server/skript) HAM rad etilishi SHART; avvalgi kod `if origin
+    and not _origin_allowed(...)` edi -- `origin` yo'q bo'lsa `and` qisqa
+    tutashuv bilan tekshiruvni BUTUNLAY o'tkazib yuborardi (cheklov aylanib
+    o'tilardi, chunki hujumchi shunchaki Origin sarlavhasini yubormasa bo'ladi)."""
+    origin = request.headers.get("origin")
+    if not _origin_allowed(widget, origin):
+        raise ApiError(403, "origin_not_allowed", "Bu sayt uchun vidjet ruxsat etilmagan")
+
+
 @router.get("/widget/{public_key}.js")
 async def widget_script(public_key: str, session: AsyncSession = Depends(get_session)) -> Response:
     await _widget_or_404(session, public_key)
@@ -139,20 +154,23 @@ async def widget_script(public_key: str, session: AsyncSession = Depends(get_ses
 async def widget_config(public_key: str, request: Request,
                         session: AsyncSession = Depends(get_session)) -> PublicWidgetConfig:
     widget = await _widget_or_404(session, public_key)
-    origin = request.headers.get("origin")
-    if origin and not _origin_allowed(widget, origin):
-        raise ApiError(403, "origin_not_allowed", "Bu sayt uchun vidjet ruxsat etilmagan")
+    _require_allowed_origin(widget, request)
     return PublicWidgetConfig(name=widget.name, appearance=widget.appearance,
                               allow_international=widget.allow_international)
 
 
 async def _validated_phone(raw: str, *, allow_international: bool) -> str:
+    """Xalqaro/qora ro'yxat tekshiruvi AMI'ga YUBORILADIGAN aynan shu raqam
+    ustida ishlaydi — `originate.normalize_formatting()` BITTA manba (`validate_to`
+    ichida ham ishlatiladi); `+`/`00` prefiksi (xalqaro belgisi) ataylab
+    SAQLANADI (`validate_to`ning o'zi buni keyin olib tashlaydi — AMI uchun),
+    aks holda `(00)447...` kabi yozilish (qavs tufayli) blokdan o'tib ketardi."""
     try:
         dialed = originate.validate_to(raw)
     except originate.InvalidNumber as exc:
         raise ApiError(422, "invalid_number", "Telefon raqami formati noto'g'ri", field="phone") from exc
-    check = raw.strip().replace(" ", "").replace("-", "")
-    if international_blocked(check, international=allow_international):
+    normalized = originate.normalize_formatting(raw)
+    if international_blocked(normalized, international=allow_international):
         raise ApiError(422, "international_blocked", "Xalqaro raqamlarga xizmat ko'rsatilmaydi", field="phone")
     return dialed
 
@@ -174,9 +192,7 @@ async def widget_callback(
     session: AsyncSession = Depends(get_session),
 ) -> PublicCallbackAccepted:
     widget = await _widget_or_404(session, public_key)
-    origin = request.headers.get("origin")
-    if origin and not _origin_allowed(widget, origin):
-        raise ApiError(403, "origin_not_allowed", "Bu sayt uchun vidjet ruxsat etilmagan")
+    _require_allowed_origin(widget, request)
 
     if payload.hp.strip():  # honeypot — botga jim "muvaffaqiyat"
         return _result(True, "Qabul qilindi, tez orada bog'lanamiz")

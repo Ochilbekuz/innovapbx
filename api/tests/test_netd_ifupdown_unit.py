@@ -2,6 +2,8 @@
 render (dhcp->static, marshrut qo'shish/o'chirish), noma'lum qatorlar saqlanadi."""
 from __future__ import annotations
 
+import pytest
+
 from app.netd.ifupdown import (
     DesiredInterface,
     RouteSpec,
@@ -10,6 +12,7 @@ from app.netd.ifupdown import (
     plan_transition,
     render,
 )
+from app.netd.safety import UnsafeRenderError
 
 DEBIAN_DEFAULT = """\
 source /etc/network/interfaces.d/*
@@ -156,3 +159,41 @@ def test_plan_transition_is_symmetric_for_rollback():
     forward = plan_transition(old, new)
     backward = plan_transition(new, old)
     assert forward.restart_ifaces == backward.restart_ifaces == ["enp1s0"]
+
+
+# --------------------------------------------------------------------------
+# So'nggi himoya chizig'i (`render`): `validate.py` biror narsani o'tkazib
+# yuborsa ham, qatorlar in'eksiyasi FAYLGA yetib bormasligi kerak (admin ->
+# root RCE, m8-network-contract.md xavfsizlik eslatmasi).
+INJECTED_ADDRESS = "fe80::1%eth0\n    pre-up touch /tmp/pwned #/64"
+
+
+def test_render_rejects_injected_newline_in_address():
+    old = parse(DEBIAN_DEFAULT)
+    desired = [DesiredInterface("enp1s0", "static", INJECTED_ADDRESS, None, None)]
+    with pytest.raises(UnsafeRenderError):
+        render(build_target(old, desired))
+
+
+def test_render_rejects_injected_newline_in_gateway():
+    old = parse(DEBIAN_DEFAULT)
+    desired = [DesiredInterface("enp1s0", "static", "10.0.0.5/24", "10.0.0.1\n    pre-up touch /tmp/pwned #", None)]
+    with pytest.raises(UnsafeRenderError):
+        render(build_target(old, desired))
+
+
+def test_render_rejects_injected_newline_in_route_metric():
+    old = parse(DEBIAN_DEFAULT)
+    route = RouteSpec("10.9.0.0/24", "192.168.1.1", "enp1s0", "0\n    pre-up touch /tmp/pwned #")
+    desired = [DesiredInterface("enp1s0", "static", "192.168.1.10/24", "192.168.1.1", None, [route])]
+    with pytest.raises(UnsafeRenderError):
+        render(build_target(old, desired))
+
+
+def test_render_accepts_clean_values():
+    """Guard faqat xavfli qatorlarni to'xtatadi — oddiy qiymatlar odatdagidek
+    o'tadi (regressiyasiz)."""
+    old = parse(DEBIAN_DEFAULT)
+    desired = [DesiredInterface("enp1s0", "static", "192.168.1.10/24", "192.168.1.1", 1500)]
+    new_text = render(build_target(old, desired))
+    assert "address 192.168.1.10/24" in new_text

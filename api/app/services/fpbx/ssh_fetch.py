@@ -20,7 +20,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from app.core.config import settings
 from app.db.models import MigrationJob
-from app.services.backup_targets import host_key_fingerprint
+from app.services.backup_targets import host_key_fingerprint, pinned_client_factory
 from app.services.fpbx import bundle as bundle_mod
 from app.services.fpbx import intake
 
@@ -59,27 +59,42 @@ def _timeout_s() -> float:
     return settings.backup_target_timeout_s
 
 
-def _connect_kwargs(creds: SshCredentials) -> dict:
+def _connect_kwargs(creds: SshCredentials, expected_host_key_fp: str | None) -> dict:
+    """`expected_host_key_fp=None` — TOFU kashf qilish (`/ssh/test` birinchi
+    chaqiruv, hali pin yo'q, inherent birinchi-aloqa xavfi). Berilgan bo'lsa —
+    `backup_targets.py::pinned_client_factory` BILAN BIR XIL qolip: host kaliti
+    AUTENTIFIKATSIYADAN OLDIN tekshiriladi."""
     import asyncssh
 
-    return {
+    kwargs = {
         "host": creds.host, "port": creds.port, "username": creds.username,
         "password": creds.password or None,
         "client_keys": [asyncssh.import_private_key(creds.private_key)] if creds.private_key else None,
-        "known_hosts": None, "connect_timeout": _timeout_s(), "login_timeout": _timeout_s(),
+        "connect_timeout": _timeout_s(), "login_timeout": _timeout_s(),
     }
+    if expected_host_key_fp is None:
+        kwargs["known_hosts"] = None
+    else:
+        kwargs["known_hosts"] = ([], [], [])
+        kwargs["client_factory"] = pinned_client_factory(expected_host_key_fp)
+    return kwargs
 
 
-async def _connect(creds: SshCredentials):
+async def _connect(creds: SshCredentials, expected_host_key_fp: str | None = None):
     """`backup_targets.py::_sftp_connect` uslubidagi ingichka qobiq: muvaffaqiyatli
     ulanish -> `(conn, host_key_fp)`; xato -> `SshFetchError` (`ssh_auth_failed`/
-    `ssh_unreachable`)."""
+    `ssh_unreachable`/`host_key_mismatch`). `expected_host_key_fp` berilganda mos
+    kelmasa ulanish AUTENTIFIKATSIYAGA YETMASDAN rad etiladi (MITM'ga parol/kalit
+    hech qachon chiqmaydi — avvalgi xato: `fetch_bundle` avval to'liq ulanib,
+    KEYIN solishtirardi)."""
     import asyncio
 
     import asyncssh
 
     try:
-        conn = await asyncssh.connect(**_connect_kwargs(creds))
+        conn = await asyncssh.connect(**_connect_kwargs(creds, expected_host_key_fp))
+    except asyncssh.HostKeyNotVerifiable as exc:
+        raise SshFetchError("host_key_mismatch", str(exc)) from exc
     except asyncssh.PermissionDenied as exc:
         raise SshFetchError("ssh_auth_failed", str(exc)) from exc
     except (asyncssh.Error, OSError, asyncio.TimeoutError) as exc:
@@ -88,11 +103,15 @@ async def _connect(creds: SshCredentials):
     return conn, fp
 
 
-async def test_connection(creds: SshCredentials) -> tuple[bool, str | None, str | None]:
-    """`POST /ssh/test` — ulanib (haqiqiy auth bilan) host kalitini qaytaradi. Xato bo'lsa
-    `(False, None, <kod>)`; muvaffaqiyat `(True, <fp>, None)`."""
+async def test_connection(
+    creds: SshCredentials, expected_host_key_fp: str | None = None,
+) -> tuple[bool, str | None, str | None]:
+    """`POST /ssh/test` — ulanib (haqiqiy auth bilan) host kalitini qaytaradi (pin
+    hali yo'q, TOFU). `expected_host_key_fp` berilsa (`/ssh/fetch` yo'li) — pin
+    AUTENTIFIKATSIYADAN OLDIN tekshiriladi. Xato bo'lsa `(False, None, <kod>)`;
+    muvaffaqiyat `(True, <fp>, None)`."""
     try:
-        conn, fp = await _connect(creds)
+        conn, fp = await _connect(creds, expected_host_key_fp)
     except SshFetchError as exc:
         return False, None, exc.code
     conn.close()
@@ -162,15 +181,11 @@ async def _cleanup_remote(conn, remote_dir: str) -> None:
 
 
 async def fetch_bundle(creds: SshCredentials, expected_host_key_fp: str, dest_path: Path, *, max_bytes: int) -> None:
-    """To'liq oqim: ulanish (fp tekshiruvi bilan) -> skriptni yuklab ishga tushirish ->
-    arxivni SFTP bilan `dest_path`ga olish -> masofadagi vaqtinchalik narsalarni
-    o'chirish (`finally`). Xato -> `SshFetchError`."""
-    conn, observed_fp = await _connect(creds)
-    if observed_fp != expected_host_key_fp:
-        conn.close()
-        await conn.wait_closed()
-        raise SshFetchError("host_key_mismatch", "Host kaliti mos kelmadi")
-
+    """To'liq oqim: ulanish (fp AUTENTIFIKATSIYADAN OLDIN tekshiriladi, `_connect`
+    ichida) -> skriptni yuklab ishga tushirish -> arxivni SFTP bilan `dest_path`ga
+    olish -> masofadagi vaqtinchalik narsalarni o'chirish (`finally`). Xato ->
+    `SshFetchError`."""
+    conn, _observed_fp = await _connect(creds, expected_host_key_fp)
     remote_dir = f"{_REMOTE_DIR_PREFIX}{uuid.uuid4().hex}"
     try:
         remote_archive = await _run_export(conn, remote_dir)

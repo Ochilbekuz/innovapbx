@@ -10,8 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_session
 from app.api.internal import _ALLOW, _DENY
-from app.core.config import settings
-from app.core.security import verify_password
+from app.core.security import check_internal_api_token, verify_password
 from app.db.models import Tenant, VoicemailBox
 
 router = APIRouter(prefix="/internal/voicemail", tags=["internal"])
@@ -22,7 +21,7 @@ async def voicemail_pin_check(
     token: str, context: str = "", mailbox: str = "", pin: str = "",
     session: AsyncSession = Depends(get_session),
 ) -> Response:
-    if not settings.internal_api_token or token != settings.internal_api_token:
+    if not check_internal_api_token(token):
         return _DENY
     if not (mailbox.isdigit() and pin.isdigit() and context):
         return _DENY

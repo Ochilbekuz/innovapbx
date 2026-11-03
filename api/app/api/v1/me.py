@@ -24,6 +24,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.api.deps import get_ami, get_current_user, get_session
+from app.api.v1.auth import _is_locked, _register_failed_login
 from app.api.v1.calls import _build_calls_query, _filter_own_calls, paginate_with_recordings
 from app.api.v1.extensions import apply_call_field_patch
 from app.api.v1.qa import _evaluation_out
@@ -56,6 +57,7 @@ from app.services.cdr_grouping import calls_from_rows
 from app.services.crypto import decrypt_secret, encrypt_secret
 from app.services.dashboard import today_bounds_utc
 from app.services.numbers import dial_number_for_target
+from app.services.tokens import revoke_refresh_tokens
 from app.services.totp import generate_recovery_codes, generate_secret, otpauth_uri, verify as totp_verify
 from app.services.totp_auth import hash_recovery_codes, verify_user_code
 
@@ -64,6 +66,8 @@ router = APIRouter(prefix="/me", tags=["me"])
 _NOT_ENABLED = ApiError(409, "not_enabled", "2FA yoqilmagan")
 _SETUP_REQUIRED = ApiError(409, "setup_required", "Avval /me/2fa/setup chaqiring")
 _INVALID_2FA_CODE = ApiError(401, "invalid_code", "Kod noto'g'ri")
+_ALREADY_ENABLED = ApiError(409, "already_enabled", "2FA allaqachon yoqilgan — avval o'chiring")
+_LOCKED = ApiError(423, "locked", "Hisob vaqtincha bloklangan — keyinroq urining")
 
 _NO_EXTENSION_MSG = "Sizda ichki raqam yo'q"
 
@@ -277,12 +281,33 @@ async def my_evaluations(
 
 
 # --------------------------------------------------------------------- B2: 2fa
+async def _verify_2fa_code_or_raise(session: AsyncSession, user: User, code: str) -> None:
+    """`disable`/`recovery-codes` uchun — `/auth/login/totp` bilan BIR XIL himoya
+    (`auth.py._is_locked`/`_register_failed_login` qayta ishlatiladi, ikkinchi
+    mustaqil hisoblagich YO'Q): qulflangan hisob rad etiladi, noto'g'ri kod HAR
+    DOIM muvaffaqiyatsiz login sifatida hisoblanadi — aks holda sessiyasi
+    o'g'irlangan (lekin parolni bilmaydigan) hujumchi TOTP/tiklash kodini
+    cheksiz tera olardi."""
+    if _is_locked(user):
+        raise _LOCKED
+    if not await verify_user_code(session, user, code):
+        await _register_failed_login(session, user)
+        await session.commit()
+        raise _INVALID_2FA_CODE
+
+
 @router.post("/2fa/setup", response_model=TotpSetupOut)
 async def setup_2fa(
     session: AsyncSession = Depends(get_session), user: User = Depends(get_current_user),
 ) -> TotpSetupOut:
     """Yangi (hali YOQILMAGAN) sekret — qayta chaqirilsa eskisi bekor bo'ladi
-    (faqat `/me/2fa/enable` muvaffaqiyatli bo'lgani kuchda qoladi)."""
+    (faqat `/me/2fa/enable` muvaffaqiyatli bo'lgani kuchda qoladi). 2FA
+    ALLAQACHON yoqilgan bo'lsa rad etiladi (409) — aks holda joriy sessiyani
+    (access token) o'g'irlagan hujumchi o'ZINING sekretini yozib qo'yib,
+    egasi hali bilmay turib hisobni to'liq egallab olardi (`enable`da kod
+    tekshiruvi bor, lekin sekret SHU YERDA, kodsiz, almashtirilardi)."""
+    if user.totp_enabled_at is not None:
+        raise _ALREADY_ENABLED
     secret = generate_secret()
     user.totp_secret_enc = await encrypt_secret(session, secret)
     await session.commit()
@@ -306,6 +331,10 @@ async def enable_2fa(
     user.totp_last_step = step
     user.totp_enabled_at = datetime.now(timezone.utc)
     user.totp_recovery_hashes = hash_recovery_codes(codes)
+    # 2FA endi majburiy — boshqa joydagi (masalan o'g'irlangan) sessiyalar
+    # qayta kirishga majburlansin (m2b-contract.md §3 bilan BIR XIL qoida:
+    # xavfsizlik holati o'zgarsa — refresh tokenlar bekor).
+    await revoke_refresh_tokens(session, str(user.id))
     await record_audit(session, tenant_id=str(user.tenant_id), user_id=str(user.id),
                         action="user.update", entity="user", entity_id=str(user.id), diff={"totp_enabled": True})
     await session.commit()
@@ -319,13 +348,13 @@ async def disable_2fa(
 ) -> None:
     if user.totp_enabled_at is None:
         raise _NOT_ENABLED
-    if not await verify_user_code(session, user, payload.code):
-        raise _INVALID_2FA_CODE
+    await _verify_2fa_code_or_raise(session, user, payload.code)
 
     user.totp_secret_enc = None
     user.totp_enabled_at = None
     user.totp_recovery_hashes = []
     user.totp_last_step = None
+    await revoke_refresh_tokens(session, str(user.id))
     await record_audit(session, tenant_id=str(user.tenant_id), user_id=str(user.id),
                         action="user.update", entity="user", entity_id=str(user.id), diff={"totp_enabled": False})
     await session.commit()
@@ -341,8 +370,7 @@ async def regenerate_recovery_codes(
     tiklash kodi) talab qilinadi (`disable` bilan BIR XIL tekshiruv)."""
     if user.totp_enabled_at is None:
         raise _NOT_ENABLED
-    if not await verify_user_code(session, user, payload.code):
-        raise _INVALID_2FA_CODE
+    await _verify_2fa_code_or_raise(session, user, payload.code)
 
     codes = generate_recovery_codes()
     user.totp_recovery_hashes = hash_recovery_codes(codes)

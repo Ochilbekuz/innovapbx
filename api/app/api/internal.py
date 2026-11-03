@@ -12,8 +12,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_session
-from app.core.config import settings
-from app.core.security import verify_password
+from app.core.security import check_internal_api_token, verify_password
 from app.db.models import OutboundRoute
 
 router = APIRouter(prefix="/internal/outbound-routes", tags=["internal"])
@@ -29,7 +28,7 @@ async def pin_check(
     """Doim 200 qaytaradi (tanasi `"0"`/`"1"`) — Asterisk `CURL()` HTTP status
     kodini emas, tana matnini o'qiydi; xato holatlarida ham rad ("0") bilan
     javob beramiz, aks holda chaqiruvchi tomon vaqt tugashi bilan osilib qoladi."""
-    if not settings.internal_api_token or token != settings.internal_api_token:
+    if not check_internal_api_token(token):
         return _DENY
     route = (await session.execute(
         select(OutboundRoute).where(OutboundRoute.id == route_id)

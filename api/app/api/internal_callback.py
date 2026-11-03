@@ -9,7 +9,7 @@ from fastapi import APIRouter, Depends, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_session
-from app.core.config import settings
+from app.core.security import check_internal_api_token
 from app.services import callback_dialer
 
 router = APIRouter(prefix="/internal/callback", tags=["internal"])
@@ -20,7 +20,7 @@ def _text(body: str) -> Response:
 
 
 def _check_token(token: str) -> bool:
-    return bool(settings.internal_api_token) and token == settings.internal_api_token
+    return check_internal_api_token(token)
 
 
 @router.get("/result")

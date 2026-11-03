@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from app.netd.executor import Executor
+from app.netd.safety import assert_renderable
 
 RESOLV_PATH = "/etc/resolv.conf"
 
@@ -29,6 +30,8 @@ def render_resolv_conf(servers: list[str], search: list[str]) -> str:
     lines = [f"nameserver {s}" for s in servers]
     if search:
         lines.append("search " + " ".join(search))
+    for line in lines:
+        assert_renderable(line)
     return ("\n".join(lines) + "\n") if lines else ""
 
 

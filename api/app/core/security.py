@@ -1,6 +1,6 @@
 """Parol hashlash va JWT tokenlar.
 
-Manba: callcenter/backend/app/core/security.py (bcrypt + python-jose,
+Manba: callcenter/backend/app/core/security.py (bcrypt + PyJWT (1.0.12: python-jose CVE-2024-33663 tufayli almashtirildi),
 passlib ishlatilmaydi). Moslashtirish: user_id — UUID (str), "typ" maydoni
 access/refresh ni ajratadi, `jti` refresh tokenni bazada bitta marta ishlatish
 uchun ham kerak bo'ladi (rotatsiya).
@@ -8,6 +8,7 @@ uchun ham kerak bo'ladi (rotatsiya).
 from __future__ import annotations
 
 import hashlib
+import hmac
 import re
 import secrets
 import string
@@ -15,7 +16,8 @@ import uuid
 from datetime import datetime, timedelta, timezone
 
 import bcrypt
-from jose import JWTError, jwt
+import jwt
+from jwt import PyJWTError as JWTError
 
 from app.core.config import settings
 
@@ -111,6 +113,19 @@ def create_refresh_token(*, user_id: str) -> tuple[str, str]:
 
 def hash_token(token: str) -> str:
     return hashlib.sha256(token.encode("utf-8")).hexdigest()
+
+
+def check_internal_api_token(token: str) -> bool:
+    """`internal*.py` (dialplan -> API, JWT yo'q) BARCHA yo'llari uchun YAGONA
+    tekshiruv — AWWAL `!=` ishlatilardi (vaqt asosidagi taqqoslash tomonlama
+    kanal orqali tokenni belgi-belgilab topishga imkon beradi), ENDI
+    `hmac.compare_digest` (doimiy vaqt). `INTERNAL_API_TOKEN` sozlanmagan
+    bo'lsa (bo'sh) — fail-closed, doim `False`."""
+    expected = settings.internal_api_token
+    if not expected:
+        return False
+    # bytes: `str` uchun compare_digest ASCII bo'lmagan belgida TypeError (500) beradi.
+    return hmac.compare_digest(token.encode("utf-8"), expected.encode("utf-8"))
 
 
 def decode_token(token: str, *, expected_type: str = "access") -> dict | None:

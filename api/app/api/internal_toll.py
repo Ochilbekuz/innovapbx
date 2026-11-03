@@ -17,7 +17,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_session
-from app.core.config import settings
+from app.core.security import check_internal_api_token
 from app.db.models import Extension, SystemSettings, Tenant
 from app.services.security_config import parse_toll_fraud
 from app.services.toll_fraud import check_outbound, record_concurrent_limit
@@ -41,7 +41,7 @@ async def toll_check(
     """Doim 200 (tana `"0"`/`"1"`). Token/tenant/ichki raqam topilmasa yoki
     funksiya o'chiq bo'lsa — RUXSAT (xato holatlarida ochiq, blok FAQAT
     haqiqiy limit oshganda) — token noto'g'ri bo'lsagina RAD (fail-closed)."""
-    if not settings.internal_api_token or token != settings.internal_api_token:
+    if not check_internal_api_token(token):
         return _DENY
     tenant_id = await _tenant_id(session, tenant)
     if tenant_id is None:
@@ -69,7 +69,7 @@ async def toll_event(
     shu sabab har doim `"0"` qaytaradi, lekin yozish ishi best-effort amalga
     oshiriladi (xatolar bu yerda yutiladi — CURL chaqiruvchi tomonni to'xtatib
     qo'ymasligi uchun)."""
-    if not settings.internal_api_token or token != settings.internal_api_token:
+    if not check_internal_api_token(token):
         return _DENY
     tenant_id = await _tenant_id(session, tenant)
     if tenant_id is None or kind != "concurrent_limit":

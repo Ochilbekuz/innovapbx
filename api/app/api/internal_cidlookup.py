@@ -11,7 +11,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_session
-from app.core.config import settings
+from app.core.security import check_internal_api_token
 from app.db.models import CidLookupSource
 from app.services.cid_lookup import lookup_name
 
@@ -26,7 +26,7 @@ async def cid_lookup(
 ) -> Response:
     """Doim 200 qaytaradi (tanasi ism yoki bo'sh satr) — xato/topilmadi
     holatlarida ham bo'sh satr (fail-closed FAQAT token uchun)."""
-    if not settings.internal_api_token or token != settings.internal_api_token:
+    if not check_internal_api_token(token):
         return _EMPTY
     if not num:
         return _EMPTY

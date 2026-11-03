@@ -80,6 +80,20 @@ def test_row_changes_invalid_max_contacts_raises():
         ex_csv._row_changes({"max_contacts": "abc"})
 
 
+# ------------------------------------------- dialplan injection (CONFIRMED HIGH)
+# CSV import `app/schemas.py` Pydantic validatsiyasini chetlab o'tadi — shu sabab
+# `name`/`outbound_cid` bu yerda ALOHIDA tekshiriladi (`app/services/dialplan_safety.py`).
+
+def test_row_changes_rejects_crlf_in_name():
+    with pytest.raises(ValueError):
+        ex_csv._row_changes({"name": "Ali\nexten => 999,1,System(rm -rf /)"})
+
+
+def test_row_changes_rejects_bad_outbound_cid():
+    with pytest.raises(ValueError):
+        ex_csv._row_changes({"outbound_cid": "${SHELL(id)}"})
+
+
 # ---------------------------------------------------------------- _plan_row (async, no real DB writes)
 
 @pytest.mark.asyncio

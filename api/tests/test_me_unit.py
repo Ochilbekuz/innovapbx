@@ -374,3 +374,138 @@ async def test_my_voicemail_delete_delegates_with_own_box(monkeypatch):
     monkeypatch.setattr(me, "delete_message", fake_delete)
     await me.my_voicemail_delete("msg0001", session=_Session(), user=_user(extension=_ext()), ami=object())
     assert seen["args"] == ("box1", "msg0001")
+
+
+# --------------------------------------------------------------- B2: 2fa (xavfsizlik)
+def _totp_user(**kw) -> SimpleNamespace:
+    base = dict(totp_enabled_at=None, totp_secret_enc=None, totp_recovery_hashes=[], totp_last_step=None)
+    base.update(kw)
+    return _user(**base)
+
+
+@pytest.fixture
+def revoke(monkeypatch):
+    calls: list = []
+
+    async def fake_revoke(session, user_id):
+        calls.append(user_id)
+
+    monkeypatch.setattr(me, "revoke_refresh_tokens", fake_revoke)
+    return calls
+
+
+@pytest.mark.asyncio
+async def test_setup_2fa_rejects_when_already_enabled(monkeypatch):
+    """CVE-style takeover: hisobni egallab olgan sessiya (masalan o'g'irlangan
+    access token) `/me/2fa/setup`ni qayta chaqirib o'z sekretini yozib qo'ya
+    olmasligi kerak — buni faqat 2FA'ni avval O'CHIRGAN (kod talab qiladi)
+    foydalanuvchi qila oladi."""
+
+    async def boom(*_a, **_kw):  # pragma: no cover -- chaqirilmasligi SHART
+        raise AssertionError("sekret 2FA yoqilganida yozilmasligi kerak")
+
+    monkeypatch.setattr(me, "encrypt_secret", boom)
+    user = _totp_user(totp_enabled_at=NOW)
+    with pytest.raises(ApiError) as exc:
+        await me.setup_2fa(session=_Session(), user=user)
+    assert exc.value.status_code == 409 and exc.value.code == "already_enabled"
+
+
+@pytest.mark.asyncio
+async def test_setup_2fa_allows_when_not_enabled(monkeypatch):
+    monkeypatch.setattr(me, "encrypt_secret", lambda session, secret: _coro("enc-secret"))
+    monkeypatch.setattr(me, "generate_secret", lambda: "raw-secret")
+    user = _totp_user(username="aziz")
+    out = await me.setup_2fa(session=_Session(), user=user)
+    assert user.totp_secret_enc == "enc-secret"
+    assert out.secret == "raw-secret"
+
+
+def _coro(value):
+    async def _inner():
+        return value
+    return _inner()
+
+
+@pytest.mark.asyncio
+async def test_verify_2fa_code_or_raise_locked_rejects_without_checking_code(monkeypatch):
+    async def boom(*_a, **_kw):  # pragma: no cover -- chaqirilmasligi SHART
+        raise AssertionError("qulflangan hisobda kod tekshirilmasligi kerak")
+
+    monkeypatch.setattr(me, "_is_locked", lambda user: True)
+    monkeypatch.setattr(me, "verify_user_code", boom)
+    with pytest.raises(ApiError) as exc:
+        await me._verify_2fa_code_or_raise(_Session(), _totp_user(), "000000")
+    assert exc.value.status_code == 423 and exc.value.code == "locked"
+
+
+@pytest.mark.asyncio
+async def test_verify_2fa_code_or_raise_wrong_code_registers_failed_login(monkeypatch):
+    """Login TOTP bosqichi bilan BIR XIL himoya qayta ishlatiladi — noto'g'ri
+    kod `_register_failed_login` orqali hisoblanadi, cheksiz urinish YO'Q."""
+    registered: list = []
+
+    async def fake_register(session, user):
+        registered.append(user)
+
+    monkeypatch.setattr(me, "_is_locked", lambda user: False)
+    monkeypatch.setattr(me, "verify_user_code", lambda *a, **kw: _coro(False))
+    monkeypatch.setattr(me, "_register_failed_login", fake_register)
+    user = _totp_user()
+    with pytest.raises(ApiError) as exc:
+        await me._verify_2fa_code_or_raise(_Session(), user, "000000")
+    assert exc.value.status_code == 401 and exc.value.code == "invalid_code"
+    assert registered == [user]
+
+
+@pytest.mark.asyncio
+async def test_verify_2fa_code_or_raise_correct_code_passes(monkeypatch):
+    monkeypatch.setattr(me, "_is_locked", lambda user: False)
+    monkeypatch.setattr(me, "verify_user_code", lambda *a, **kw: _coro(True))
+    await me._verify_2fa_code_or_raise(_Session(), _totp_user(), "123456")  # raise bo'lmasligi -- bu test
+
+
+@pytest.mark.asyncio
+async def test_enable_2fa_revokes_refresh_tokens_on_success(audit, revoke, monkeypatch):
+    monkeypatch.setattr(me, "decrypt_secret", lambda session, enc: _coro("raw-secret"))
+    monkeypatch.setattr(me, "totp_verify", lambda secret, code, now, last_step: 42)
+    monkeypatch.setattr(me, "generate_recovery_codes", lambda: ["a-b", "c-d"])
+    monkeypatch.setattr(me, "hash_recovery_codes", lambda codes: [f"h({c})" for c in codes])
+    from app.schemas_2fa import TotpEnablePayload
+    user = _totp_user(totp_secret_enc="enc-secret", id="u1")
+    out = await me.enable_2fa(TotpEnablePayload(code="123456"), session=_Session(), user=user)
+    assert out.recovery_codes == ["a-b", "c-d"]
+    assert user.totp_enabled_at is not None
+    assert revoke == ["u1"]
+
+
+@pytest.mark.asyncio
+async def test_disable_2fa_blocked_when_locked(monkeypatch):
+    monkeypatch.setattr(me, "_is_locked", lambda user: True)
+    from app.schemas_2fa import TotpDisablePayload
+    user = _totp_user(totp_enabled_at=NOW)
+    with pytest.raises(ApiError) as exc:
+        await me.disable_2fa(TotpDisablePayload(code="000000"), session=_Session(), user=user)
+    assert exc.value.status_code == 423 and exc.value.code == "locked"
+    assert user.totp_enabled_at == NOW  # hech narsa o'chirilmagan
+
+
+@pytest.mark.asyncio
+async def test_disable_2fa_clears_secret_and_revokes_tokens_on_success(audit, revoke, monkeypatch):
+    monkeypatch.setattr(me, "_is_locked", lambda user: False)
+    monkeypatch.setattr(me, "verify_user_code", lambda *a, **kw: _coro(True))
+    from app.schemas_2fa import TotpDisablePayload
+    user = _totp_user(totp_enabled_at=NOW, totp_secret_enc="enc", totp_recovery_hashes=["h"], id="u1")
+    await me.disable_2fa(TotpDisablePayload(code="123456"), session=_Session(), user=user)
+    assert user.totp_enabled_at is None and user.totp_secret_enc is None and user.totp_recovery_hashes == []
+    assert revoke == ["u1"]
+
+
+@pytest.mark.asyncio
+async def test_regenerate_recovery_codes_blocked_when_locked(monkeypatch):
+    monkeypatch.setattr(me, "_is_locked", lambda user: True)
+    from app.schemas_2fa import TotpDisablePayload
+    user = _totp_user(totp_enabled_at=NOW)
+    with pytest.raises(ApiError) as exc:
+        await me.regenerate_recovery_codes(TotpDisablePayload(code="000000"), session=_Session(), user=user)
+    assert exc.value.status_code == 423 and exc.value.code == "locked"

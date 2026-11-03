@@ -79,6 +79,25 @@ def test_trailing_garbage_after_final_block_is_corrupt():
         _read_all(data)
 
 
+def test_oversized_scrypt_n_log2_in_header_is_rejected_before_derive():
+    """Sarlavhadagi `n_log2` hujumchi nazorat qiladigan 1 bayt (0-255) — cheklovsiz
+    `Scrypt().derive()` chaqirilsa N=2**255 bilan abadiy CPU/xotira band bo'lardi
+    (DoS). Chegaradan tashqari qiymat `derive_key()`ga YETMASDAN rad etilishi kerak."""
+    data = bytearray(_write_archive([b"x"]))
+    n_log2_offset = len(b"INNOVABK1") + 1 + 16  # magic + versiya + tuz
+    data[n_log2_offset] = 200
+    with pytest.raises(BackupCorruptError):
+        _read_all(bytes(data))
+
+
+def test_zero_scrypt_r_in_header_is_rejected():
+    data = bytearray(_write_archive([b"x"]))
+    r_offset = len(b"INNOVABK1") + 1 + 16 + 1
+    data[r_offset] = 0
+    with pytest.raises(BackupCorruptError):
+        _read_all(bytes(data))
+
+
 def test_normal_archive_ends_cleanly_without_raising():
     # Haqiqiy oxirga yetgach, generator tinch holda tugashi kerak (xatosiz).
     data = _write_archive([b"ok"])

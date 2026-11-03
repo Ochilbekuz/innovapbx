@@ -26,6 +26,22 @@ from collections.abc import Callable
 from dataclasses import dataclass
 
 from app.services.dialplan_recording import recorded_dial_lines
+from app.services.dialplan_safety import is_dialplan_number, sanitize_dialplan_text
+
+_dp_text = sanitize_dialplan_text
+
+
+def _dp_num(value: str | None, *, field: str) -> str:
+    """`compiler.py::_dp_num` BILAN BIR XIL qoida (dublikat EMAS — bu yerda
+    `CompileError`ni import qilish aylanma bog'liqlik keltirib chiqaradi,
+    shuning uchun lokal `ValueError` — chaqiruvchi (`compiler.py`) buni
+    `CompileError`ga aylantirishi SHART EMAS, chunki bu modul funksiyalari
+    ham bevosita `compiler.py`dan chaqiriladi va `ValueError` baribir
+    kompilyatsiyani to'xtatadi)."""
+    value = value or ""
+    if not is_dialplan_number(value):
+        raise ValueError(f"{field}: Asterisk dialplan uchun yaroqsiz qiymat: {value!r}")
+    return value
 
 EXT_STATE_FAMILY = "ext_state"
 BLACKLIST_FAMILY = "blacklist"  # m2a-contract.md §5 — faqat o'qish (API yozadi).
@@ -88,8 +104,9 @@ def realtime_read(_code: str, number_expr: str, column: str) -> str:
 def ext_entry_lines(code: str, number: str, name: str, ring_seconds: int,
                     noans_dest: str | None, dnd_dest: str | None) -> list[str]:
     """Snapshot'dagi ichki raqam: parametrlar -> umumiy oqim."""
+    number = _dp_num(number, field="extension.number")
     return [
-        f"exten => {number},1,NoOp(Innova: {name} <{number}>)",
+        f"exten => {number},1,NoOp(Innova: {_dp_text(name)} <{number}>)",
         f" same => n,Set(INNOVA_RING={ring_seconds})",
         f" same => n,Set(INNOVA_NOANS={noans_dest or ''})",
         f" same => n,Set(INNOVA_DNDDEST={dnd_dest or ''})",
@@ -263,7 +280,8 @@ def ring_group_set_lines(code: str, idx: int, members: list[tuple[str, bool]], r
     """Bitta `Dial()` to'plami runtime'da yig'iladi: DND yoqilgan ichki a'zo
     tashlab ketiladi, tashqi a'zo (`Local/...@<code>-outbound-rg`) doim kiradi."""
     lines = [" same => n,Set(INNOVA_RG=)"]
-    for number, is_external in members:
+    for raw_number, is_external in members:
+        number = _dp_num(raw_number, field="ring_group_member.extension_number")
         if is_external:
             lines.append(f" same => n,Set(INNOVA_RG=${{INNOVA_RG}}&Local/{number}@{code}-outbound-rg)")
             continue
@@ -532,7 +550,8 @@ def park_lines(code: str, settings: ParkingSettingsData | None = None) -> list[s
     aynan shu bo'yicha park deb taniydi. Sloti oraliq — qaytarib olish."""
     s = settings or ParkingSettingsData()
     lot = park_lot_name(code)
-    lines = [f"exten => {s.lot_number},1,Park({lot})", " same => n,Hangup()"]
+    lot_number = _dp_num(s.lot_number, field="parking_settings.lot_number")
+    lines = [f"exten => {lot_number},1,Park({lot})", " same => n,Hangup()"]
     for slot in range(s.first_slot, s.last_slot + 1):
         lines.append(f"exten => {slot},1,ParkedCall({lot},{slot})")
         lines.append(" same => n,Hangup()")
@@ -618,7 +637,9 @@ def page_group_lines(number: str, member_numbers: tuple[str, ...], *,
         opts += "s"
     if not beep:
         opts += "q"
-    targets = "&".join(f"PJSIP/{m}" for m in member_numbers)
+    number = _dp_num(number, field="page_group.number")
+    members = [_dp_num(m, field="page_group.member_number") for m in member_numbers]
+    targets = "&".join(f"PJSIP/{m}" for m in members)
     return [
         f"exten => {number},1,NoOp(Innova: paging {number})",
         " same => n,Answer()",

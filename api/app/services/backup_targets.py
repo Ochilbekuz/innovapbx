@@ -69,6 +69,22 @@ def host_key_fingerprint(public_data: bytes) -> str:
     return "SHA256:" + base64.b64encode(digest).decode("ascii").rstrip("=")
 
 
+def pinned_client_factory(expected_fp: str | None):
+    """`asyncssh.connect(known_hosts=([], [], []), client_factory=...)` bilan
+    ishlatiladi — shunda asyncssh AUTENTIFIKATSIYADAN OLDIN (parol/xususiy kalit
+    yuborilishidan OLDIN) shu klassning `validate_host_public_key`sini chaqiradi.
+    Avvalgi xato: `known_hosts=None` bilan ulanib, parol/kalit YUBORILGANDAN KEYIN
+    barmoq izi solishtirilardi — MITM parolni allaqachon olib bo'lgan bo'lardi.
+    `backup_targets.py` VA `ssh_fetch.py` BIR XIL qolip (DRY)."""
+    import asyncssh
+
+    class _PinnedHostKeyClient(asyncssh.SSHClient):
+        def validate_host_public_key(self, host: str, addr: str, port: int, key) -> bool:
+            return expected_fp is not None and host_key_fingerprint(key.public_data) == expected_fp
+
+    return _PinnedHostKeyClient
+
+
 def retention_items_from_names(names: dict[str, datetime]) -> list[RetentionItem]:
     """`{fayl_nomi: created_at}` — faqat o'ziniki bo'lganlarini `RetentionItem`ga aylantiradi
     (id = fayl nomi, chunki nishonda boshqa identifikator yo'q)."""
@@ -191,21 +207,22 @@ def _sftp_connect_kwargs(target: SftpTarget) -> dict:
 async def _sftp_connect(target: SftpTarget):
     """Haqiqiy yuklash/olish/o'chirish/sanash YO'Li — `test_sftp()`dan FARQLI, bu yerda
     host kaliti pin MAJBURIY tekshiriladi (m4b-contract.md §0: "mos kelmasa
-    `host_key_mismatch`, jim qabul YO'Q"). `host_key_fp` hali tasdiqlanmagan (admin
-    «Ulanishni tekshirish» + `trust` qilmagan) bo'lsa ham jim ulanib QOLISH MITM eshigi —
-    shu sabab bu holat ham rad etiladi (`host_key_not_trusted`), `_upload_one` buni
+    `host_key_mismatch`, jim qabul YO'Q") VA bu tekshiruv AUTENTIFIKATSIYADAN OLDIN
+    sodir bo'ladi (`pinned_client_factory` + `known_hosts=([], [], [])`) — avval
+    ulanib (parol/kalit yuborib) KEYIN solishtirish MITM'ga parolni oshkor qilardi.
+    `host_key_fp` hali tasdiqlanmagan (admin «Ulanishni tekshirish» + `trust`
+    qilmagan) bo'lsa ham rad etiladi (`host_key_not_trusted`), `_upload_one` buni
     nishon xatosiga aylantiradi (zaxira holati `partial`)."""
     import asyncssh
 
-    conn = await asyncssh.connect(**_sftp_connect_kwargs(target))
-    observed = host_key_fingerprint(conn.get_server_host_key().public_data)
-    if not target.host_key_fp:
-        conn.close()
-        raise BackupTargetError("host_key_not_trusted")
-    if target.host_key_fp != observed:
-        conn.close()
-        raise BackupTargetError("host_key_mismatch")
-    return conn
+    kwargs = dict(_sftp_connect_kwargs(target))
+    kwargs["known_hosts"] = ([], [], [])
+    kwargs["client_factory"] = pinned_client_factory(target.host_key_fp)
+    try:
+        return await asyncssh.connect(**kwargs)
+    except asyncssh.HostKeyNotVerifiable as exc:
+        code = "host_key_mismatch" if target.host_key_fp else "host_key_not_trusted"
+        raise BackupTargetError(code) from exc
 
 
 async def test_sftp(target: SftpTarget) -> tuple[bool, str | None, str | None]:

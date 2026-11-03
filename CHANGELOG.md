@@ -1,5 +1,27 @@
 # O'zgarishlar tarixi
 
+## 1.0.12 — 2026-11-03
+To'liq xavfsizlik auditi va tuzatishlar:
+- **KRITIK — tarmoq sozlamalari orqali root buyruq bajarish yopildi.** IPv6 scope-id (`fe80::1%eth0\n...`) ichiga
+  yangi qator yashirib `/etc/network/interfaces`ga ixtiyoriy `up <buyruq>` yozish mumkin edi. Endi manzil/shlyuz/marshrut
+  faqat kanonik IPv4, hostname/DNS-qidiruv RFC1123, va har bir konfiguratsiya fayli yozishdan oldin `\r`/`\n`/NUL uchun
+  qayta tekshiriladi (ikki qavat himoya).
+- **Dialplan injeksiyasi yopildi** — kiruvchi/chiquvchi marshrut DID/CID/naqsh, CSV import va FreePBX migratsiyasi
+  qiymatlari tekshiriladi; kompilyator ham xavfli belgili qiymatni rad etadi. Asterisk'da `func_shell`/`app_system`
+  modullari o'chirildi (injeksiya bo'lsa ham OS buyrug'i ishlamaydi).
+- **Zaxiradan tiklashda yo'l chetlab o'tish (path traversal) yopildi** — arxiv qismlari faqat ruxsat etilgan nomlar
+  ro'yxatidan, staging papkasidan tashqariga yozilmaydi; scrypt parametrlari cheklangan (DoS'ga qarshi).
+- **2FA kuchaytirildi** — yoqilgan 2FA'ni qayta sozlab bo'lmaydi; o'chirish/zaxira kodlarda noto'g'ri kod hisobni
+  bloklaydi; yoqish/o'chirishda boshqa sessiyalar chiqarib yuboriladi.
+- **Vidjet toll-fraud himoyasi** — xalqaro/qora ro'yxat tekshiruvi terish bilan bir xil normallashtirilgan raqamda;
+  domenlar cheklangan bo'lsa, Origin'siz so'rov rad etiladi.
+- **SSH** (zaxira SFTP, FreePBX migratsiyasi) — host kaliti autentifikatsiyadan OLDIN tekshiriladi (MITM'ga parol chiqmaydi).
+- **SSRF** — Telegram bazaviy manzili tekshiriladi, masofaviy javob matni qaytarilmaydi.
+- Ichki API tokeni barcha endpointlarda doimiy vaqtli solishtiriladi; zaif `SECRET_KEY`/`INTERNAL_API_TOKEN`
+  (standart qiymat yoki 32 belgidan qisqa) bilan API ishga tushmaydi.
+- Bog'liqliklar: `python-jose` → `PyJWT 2.15.1`, `fastapi 0.135.4`, `starlette 1.10.0`, `python-multipart 0.0.33`
+  (ma'lum zaifliklar yo'q — pip-audit toza).
+
 ## 1.0.11 — 2026-11-03
 OnlinePBX'dagi, lekin bizda hali bo'lmagan funksiyalar (M10):
 - **Qayta qo'ng'iroq vidjeti (Callback widget)** — saytga bitta `<script>` qatori bilan qo'yiladi; mijoz raqamini

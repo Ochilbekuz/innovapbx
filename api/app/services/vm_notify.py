@@ -20,6 +20,7 @@ import asyncio
 import logging
 import smtplib
 import ssl
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from email.message import EmailMessage
@@ -33,6 +34,7 @@ from app.core.config import settings
 from app.db.models import NotifySettings, Tenant, VoicemailBox
 from app.services import voicemail as vm
 from app.services.crypto import decrypt_secret
+from app.services.integrations import ssrf
 from app.services.integrations.outbox import parse_schedule, transition
 from app.services.integrations.providers import DeliveryResult
 
@@ -124,9 +126,19 @@ def send_email_sync(cfg: NotifyConfig, message: EmailMessage) -> None:
 
 
 async def send_telegram(cfg: NotifyConfig, chat_id: str, caption: str, audio: Path | None, *,
-                        transport: httpx.AsyncBaseTransport | None = None) -> None:
+                        transport: httpx.AsyncBaseTransport | None = None,
+                        url_check: Callable[[str], None] = ssrf.check_url_default) -> None:
     if not cfg.telegram_token:
         raise NotifyError("Telegram bot token sozlanmagan")
+    # SSRF: `telegram_api_base` sozlamalardan (admin kiritadi) — har yuborishda
+    # tekshiriladi (DNS rebinding'dan himoya; faqat saqlashda tekshirish YETARLI EMAS,
+    # services/integrations/ssrf.py docstring'i shuni talab qiladi). Aks holda bot
+    # tokeni attacker belgilagan ichki/metadata manzilga yuboriladi (toll-fraud/SSRF).
+    # `url_check` inject qilinadi — webhook.py/amocrm.py/bitrix24.py'dagi BIR XIL qolip.
+    try:
+        await asyncio.to_thread(url_check, cfg.telegram_api_base)
+    except ssrf.UrlForbidden as exc:
+        raise NotifyError(f"Telegram manzili ruxsat etilmagan: {exc.reason}") from exc
     base = f"{cfg.telegram_api_base.rstrip('/')}/bot{cfg.telegram_token}"
     async with httpx.AsyncClient(timeout=_HTTP_TIMEOUT_S, transport=transport) as client:
         if audio is not None:
@@ -135,11 +147,27 @@ async def send_telegram(cfg: NotifyConfig, chat_id: str, caption: str, audio: Pa
         else:
             resp = await client.post(f"{base}/sendMessage", json={"chat_id": chat_id, "text": caption})
     if resp.status_code != 200:
-        try:
-            reason = resp.json().get("description", "")
-        except ValueError:
-            reason = resp.text[:200]
-        raise NotifyError(f"Telegram {resp.status_code}: {reason}")
+        raise NotifyError(_telegram_error_message(resp))
+
+
+# Telegram'ning ma'lum xato iboralari — adminga sababni ko'rsatish uchun. Masofaviy
+# javob matni HECH QACHON qaytarilmaydi (SSRF: attacker nazoratidagi manzil javobi
+# sizib chiqmasin) — faqat shu ro'yxatdagi O'ZIMIZNING doimiy satrimiz.
+_KNOWN_TELEGRAM_ERRORS = (
+    "chat not found", "bot was blocked by the user", "user is deactivated",
+    "bot is not a member", "not enough rights", "unauthorized", "chat_id is empty",
+    "message is too long", "too many requests",
+)
+
+
+def _telegram_error_message(resp: httpx.Response) -> str:
+    message = f"Telegram javobi muvaffaqiyatsiz (status={resp.status_code})"
+    try:
+        description = str(resp.json().get("description") or "").lower()
+    except (ValueError, AttributeError):
+        return message
+    known = next((phrase for phrase in _KNOWN_TELEGRAM_ERRORS if phrase in description), None)
+    return f"{message}: {known}" if known else message
 
 
 async def deliver(cfg: NotifyConfig, msg: PendingMessage, channel: str) -> None:

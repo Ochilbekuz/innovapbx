@@ -109,12 +109,30 @@ def _drain(_name: str, chunks: Iterator[bytes]) -> None:
         pass
 
 
+# Arxiv ichida kutilgan BARCHA qism nomlari -- hujumchi nazorat qiladigan `name`
+# (walk_archive uni MANIFEST TASDIQLANISHIDAN OLDIN `on_part()`ga -- demak diskka
+# yozishga -- beradi) shu ro'yxatdan TASHQARI bo'lsa darhol rad etiladi, yo'l-chiqish
+# (`../`, absolyut yo'l, `\\`, NUL) hech qachon `on_part` chaqiruvchisiga yetib bormaydi.
+_ALLOWED_PART_NAMES: frozenset[str] = frozenset({"db_key.enc", "database.dump"}) | frozenset(
+    f"{component}.tar" for component in backup_parts.FILE_COMPONENTS
+)
+
+
+def _validate_part_name(name: str) -> None:
+    if name not in _ALLOWED_PART_NAMES:
+        raise BackupCorruptError(f"kutilmagan qism nomi: {name!r}")
+
+
 def walk_archive(path: Path, passphrase: str, on_part=_drain) -> Manifest:
     """Manifestni (BIRINCHI freym) o'qiydi, so'ng har bir keyingi qismni
     `on_part(name, chunks)` orqali OQIMLI ko'rsatadi va (`db_key.enc`dan tashqari)
     manifestdagi sha256/hajm bilan solishtiradi -- mos kelmasa `BackupCorruptError`.
     `on_part` chaqiruvchining tanlovi: sukut -- shunchaki oqizadi (`inspect`), yoki
-    diskka yozadi (`extract_archive`, tiklash paytida)."""
+    diskka yozadi (`extract_archive`, tiklash paytida). `name` MANIFEST tasdiqlanishidan
+    OLDIN (sha256 solishtirishdan oldin) `on_part`ga beriladi -- shu sabab nom
+    `_validate_part_name` orqali OLDIN-DAN (allowlist) tekshiriladi, aks holda
+    `extract_archive` manifest hali tasdiqlanmasdan turib ixtiyoriy yo'lga yozardi
+    (yo'l-chiqish hujumi)."""
     manifest: Manifest | None = None
     parts_by_name: dict[str, object] = {}
     for name, size, frames in _frame_iterator(path, passphrase):
@@ -124,6 +142,7 @@ def walk_archive(path: Path, passphrase: str, on_part=_drain) -> Manifest:
             manifest = _parse_manifest(frames.read_exact(size))
             parts_by_name = {part.name: part for part in manifest.parts}
             continue
+        _validate_part_name(name)
         digest = hashlib.sha256()
         on_part(name, _hashing_stream(frames.read_stream(size), digest))
         if name == "db_key.enc":
@@ -138,14 +157,21 @@ def walk_archive(path: Path, passphrase: str, on_part=_drain) -> Manifest:
 
 def extract_archive(path: Path, passphrase: str, stage_dir: Path) -> tuple[Manifest, bytes]:
     """`walk_archive()` ustiga: `database.dump`/`<component>.tar` qismlarini
-    `stage_dir`ga yozadi, `db_key.enc` tarkibini (shifrlangan, re-key uchun) qaytaradi."""
+    `stage_dir`ga yozadi, `db_key.enc` tarkibini (shifrlangan, re-key uchun) qaytaradi.
+    `name` allaqachon `walk_archive._validate_part_name` orqali o'tgan (faqat ma'lum
+    qism nomlari), lekin ikkinchi himoya qatlami sifatida yakuniy yo'l HAR DOIM
+    `stage_dir` ICHIDA qolishi `resolve().is_relative_to()` bilan tasdiqlanadi."""
     captured: dict[str, bytes] = {}
+    resolved_stage = stage_dir.resolve()
 
     def on_part(name: str, chunks: Iterator[bytes]) -> None:
         if name == "db_key.enc":
             captured["db_key.enc"] = b"".join(chunks)
             return
-        with (stage_dir / name).open("wb") as out:
+        dest = stage_dir / name
+        if not dest.resolve().is_relative_to(resolved_stage):
+            raise BackupCorruptError(f"xavfli qism yo'li: {name!r}")
+        with dest.open("wb") as out:
             for chunk in chunks:
                 out.write(chunk)
 

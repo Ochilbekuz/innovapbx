@@ -12,7 +12,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_session
-from app.core.config import settings
+from app.core.security import check_internal_api_token
 from app.db.models import Conference
 from app.services.conference import pin_role
 
@@ -27,7 +27,7 @@ async def conference_pin_check(
 ) -> Response:
     """Doim 200 (tana — `"admin"`/`"user"`/`"deny"`). Token noto'g'ri bo'lsa
     DB'ga umuman murojaat qilinmaydi (`internal.py` bilan bir xil tezkor rad)."""
-    if not settings.internal_api_token or token != settings.internal_api_token:
+    if not check_internal_api_token(token):
         return _DENY
     row = (await session.execute(
         select(Conference.pin_hash, Conference.admin_pin_hash).where(Conference.id == conference_id)

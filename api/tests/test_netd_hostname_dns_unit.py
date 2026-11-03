@@ -6,6 +6,7 @@ import pytest
 
 from app.netd import dns, hostname
 from app.netd.executor import CommandResult
+from app.netd.safety import UnsafeRenderError
 
 
 class _Fs:
@@ -97,3 +98,30 @@ def test_write_resolv_conf():
     fs = _Fs()
     dns.write_resolv_conf(fs, ["9.9.9.9"], [])
     assert fs.files[dns.RESOLV_PATH] == "nameserver 9.9.9.9\n"
+
+
+# --------------------------------------------------------------------------
+# So'nggi himoya chizig'i: `validate.py`dan o'tib ketgan taqdirda ham,
+# render qatlami o'zi qator ko'chirish/NUL in'eksiyasini to'xtatadi.
+def test_render_resolv_conf_rejects_injected_server():
+    with pytest.raises(UnsafeRenderError):
+        dns.render_resolv_conf(["1.1.1.1\n    pre-up touch /tmp/pwned #"], [])
+
+
+def test_render_resolv_conf_rejects_injected_search():
+    with pytest.raises(UnsafeRenderError):
+        dns.render_resolv_conf([], ["example.com\n    pre-up touch /tmp/pwned #"])
+
+
+@pytest.mark.asyncio
+async def test_apply_hostname_rejects_injected_newline():
+    fs = _Fs({"/etc/hosts": "127.0.0.1\tlocalhost\n127.0.1.1\toldname\n"})
+    with pytest.raises(UnsafeRenderError):
+        await hostname.apply_hostname(fs, "newname\n    pre-up touch /tmp/pwned #")
+    assert "/etc/hostname" not in fs.files  # yarim yozuv yo'q — guard FAYLNI o'zgartirishdan OLDIN ishlaydi
+
+
+def test_render_hosts_rejects_injected_newline():
+    old = "127.0.0.1\tlocalhost\n127.0.1.1\toldname\n"
+    with pytest.raises(UnsafeRenderError):
+        hostname.render_hosts(old, "newname\n    pre-up touch /tmp/pwned #")

@@ -222,9 +222,32 @@ class Settings(BaseSettings):
         return self._require(self.innova_db_key, "INNOVA_DB_KEY")
 
 
+_WEAK_SECRETS = {"change-me", "changeme", "secret", "password", "innova", "default"}
+_MIN_SECRET_LENGTH = 32
+
+
+def _reject_weak_secret(value: str, env_name: str, *, min_length: int = _MIN_SECRET_LENGTH) -> None:
+    """Item 6b (LOW): `SECRET_KEY`/`INTERNAL_API_TOKEN` BO'SH bo'lsa jim o'tkaziladi
+    (sozlanmaganlik `_require`/`require_*` orqali ALOHIDA, foydalanish vaqtida
+    tekshiriladi — ko'p test shu maydonlarga qisqa soxta qiymat (`monkeypatch`)
+    qo'yadi, bu yerga tegmaydi). Faqat HAQIQIY (bo'sh bo'lmagan) qiymat
+    `.env`dagi odatiy/zaif placeholder BO'LSA yoki juda qisqa bo'lsa — ishga
+    tushishda (`get_settings()`, BIR MARTA) darhol to'xtatiladi."""
+    if not value:
+        return
+    if value.lower() in _WEAK_SECRETS or len(value) < min_length:
+        raise RuntimeError(
+            f"{env_name} juda zaif/qisqa — kamida {min_length} belgili tasodifiy qiymat kerak"
+            " (masalan: `openssl rand -hex 32`)"
+        )
+
+
 @lru_cache
 def get_settings() -> Settings:
-    return Settings()
+    loaded = Settings()
+    _reject_weak_secret(loaded.secret_key, "SECRET_KEY")
+    _reject_weak_secret(loaded.internal_api_token, "INTERNAL_API_TOKEN")
+    return loaded
 
 
 settings = get_settings()

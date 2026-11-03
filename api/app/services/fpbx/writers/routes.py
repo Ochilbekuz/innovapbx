@@ -12,6 +12,7 @@ from app.db.models import (
     OutboundRoutePattern,
     OutboundRouteTrunk,
 )
+from app.services.dialplan_safety import has_control_chars, is_dialplan_number
 from app.services.fpbx.mappers import Entry
 from app.services.fpbx.writers.context import SkipItem, WriteCtx, matches, unique_name
 from app.services.fpbx.writers.refs import required_target, resolve_entity
@@ -21,9 +22,35 @@ _PATTERN = r"[0-9XZN.\[\]*#+-]+"
 _FEATURE_CODE = r"\*[0-9*#]{1,6}"
 
 
+def _reject_bad_number(value: str, *, field: str) -> None:
+    """CONFIRMED HIGH tuzatish: FreePBX migratsiyasi `app/schemas.py` Pydantic
+    validatsiyasini chetlab o'tadi — DID/CID/callerid/`add_prefix` shu yerda
+    ham tekshiriladi (bo'sh qiymat ruxsat, `is_dialplan_number` xuddi
+    schema'dagi `_check_dialplan_number_opt` bilan BIR XIL qoida)."""
+    if value and not is_dialplan_number(value):
+        raise SkipItem(f"{field}_invalid", f"{field}: Innova formatiga mos emas: {value}")
+
+
+def _reject_control_chars(value: str | None, *, field: str) -> None:
+    if has_control_chars(value):
+        raise SkipItem(f"{field}_invalid", f"{field}: boshqaruv belgilar ruxsat etilmagan")
+
+
+def _validate_inbound_route_fields(did: str, cid: str, name: str, cid_name_prefix: str | None) -> None:
+    """`write_inbound_route`dan ajratilgan (CRAP/CC past bo'lsin) — 4ta
+    dialplan injection tekshiruvi BIR joyda."""
+    _reject_bad_number(did, field="did")
+    _reject_bad_number(cid, field="callerid_pattern")
+    _reject_control_chars(name, field="name")
+    _reject_control_chars(cid_name_prefix, field="callerid_name_prefix")
+
+
 async def write_inbound_route(ctx: WriteCtx, entry: Entry) -> str:
     p = entry.payload
     did, cid = p.get("did") or "", p.get("callerid_pattern") or ""
+    name = p.get("name") or entry.name
+    cid_name_prefix = p.get("callerid_name_prefix")
+    _validate_inbound_route_fields(did, cid, name, cid_name_prefix)
     taken = (await ctx.session.execute(
         select(InboundRoute.id).where(InboundRoute.tenant_id == ctx.tenant_id, InboundRoute.did == did,
                                       InboundRoute.callerid_pattern == cid).limit(1)
@@ -32,9 +59,9 @@ async def write_inbound_route(ctx: WriteCtx, entry: Entry) -> str:
         raise SkipItem("did_exists", f"Bu DID uchun kiruvchi yo'nalish allaqachon bor: {did or '(har qanday)'}")
     record = p.get("record_override")
     route = InboundRoute(
-        tenant_id=ctx.tenant_id, name=p.get("name") or entry.name, did=did, callerid_pattern=cid,
+        tenant_id=ctx.tenant_id, name=name, did=did, callerid_pattern=cid,
         target_id=await required_target(ctx, p.get("target_id"), source_ref=entry.source_ref),
-        callerid_name_prefix=p.get("callerid_name_prefix"),
+        callerid_name_prefix=cid_name_prefix,
         record_override=record if record in _RECORD_OVERRIDE else None, enabled=bool(p.get("enabled", True)),
     )
     ctx.session.add(route)
@@ -63,9 +90,14 @@ def _patterns(ctx: WriteCtx, entry: Entry) -> list[OutboundRoutePattern]:
         if not matches(_PATTERN, raw.get("pattern")):
             ctx.warn(entry.source_ref, "pattern_invalid", f"Naqsh Innova formatiga mos emas: {raw.get('pattern')}")
             continue
+        add_prefix = raw.get("add_prefix") or ""
+        if add_prefix and not is_dialplan_number(add_prefix):
+            ctx.warn(entry.source_ref, "add_prefix_invalid",
+                      f"add_prefix Innova formatiga mos emas: {add_prefix}")
+            continue
         result.append(OutboundRoutePattern(
             strip_prefix=raw.get("strip_prefix") or "", pattern=raw["pattern"],
-            add_prefix=raw.get("add_prefix") or "", callerid_match=raw.get("callerid_match") or "",
+            add_prefix=add_prefix, callerid_match=raw.get("callerid_match") or "",
         ))
     return result
 
@@ -81,12 +113,19 @@ async def _route_trunks(ctx: WriteCtx, entry: Entry) -> list[OutboundRouteTrunk]
     return [OutboundRouteTrunk(position=i, trunk_id=t) for i, t in enumerate(trunk_ids, start=1)]
 
 
+def _validate_outbound_route_fields(name: str, callerid: str | None) -> None:
+    _reject_control_chars(name, field="name")
+    _reject_bad_number(callerid or "", field="callerid")
+
+
 async def write_outbound_route(ctx: WriteCtx, entry: Entry) -> str:
     p = entry.payload
     pin = p.get("pin_plain")
+    callerid = p.get("callerid")
+    _validate_outbound_route_fields(p.get("name") or entry.name, callerid)
     route = OutboundRoute(
         tenant_id=ctx.tenant_id, name=await unique_name(ctx, OutboundRoute, p.get("name") or entry.name),
-        priority=await _free_priority(ctx, p.get("priority")), callerid=p.get("callerid"),
+        priority=await _free_priority(ctx, p.get("priority")), callerid=callerid,
         override_extension_callerid=bool(p.get("override_extension_callerid")),
         pin_hash=hash_password(pin) if pin else None, international=bool(p.get("international")),
         enabled=bool(p.get("enabled", True)),

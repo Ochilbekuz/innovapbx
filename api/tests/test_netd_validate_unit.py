@@ -22,8 +22,11 @@ def _route(destination="10.1.0.0/24", gateway="10.0.0.254", interface=None, metr
     return SimpleNamespace(destination=destination, gateway=gateway, interface=interface, metric=metric)
 
 
-def _cfg(interfaces=None, routes=None, hostname="innova-pbx"):
-    return SimpleNamespace(hostname=hostname, interfaces=interfaces or [], routes=routes or [])
+def _cfg(interfaces=None, routes=None, hostname="innova-pbx", dns=None):
+    return SimpleNamespace(hostname=hostname, interfaces=interfaces or [], routes=routes or [], dns=dns)
+
+
+INJECTED = "fe80::1%eth0\n    pre-up touch /tmp/pwned #/64"
 
 
 @pytest.mark.parametrize("name,valid", [
@@ -130,3 +133,88 @@ def test_route_unknown_interface_rejected():
     cfg = _cfg([_iface()], [_route(gateway=None, interface="eth9")])
     result = validate_config(cfg, [ETH0])
     assert any(e.field == "routes[0].interface" for e in result.errors)
+
+
+# --------------------------------------------------------------------------
+# CONFIRMED CRITICAL: admin -> root RCE. `netd` API'ga ishonmaydi — har bir
+# chekka holat shu yerda MUSTAQIL ravishda rad etilishi kerak (hatto
+# `app/schemas.py` ishdan chiqsa ham, soketga to'g'ridan-to'g'ri yozilgan
+# `config`ni netd o'zi ushlashi SHART).
+def test_hostname_with_trailing_newline_rejected():
+    cfg = _cfg([_iface()], hostname="innova-pbx\n")
+    result = validate_config(cfg, [ETH0])
+    assert any(e.field == "hostname" for e in result.errors)
+
+
+def test_address_with_ipv6_scope_id_newline_rejected():
+    cfg = _cfg([_iface(address=INJECTED)])
+    result = validate_config(cfg, [ETH0])
+    assert any(e.field == "interfaces[0].address" for e in result.errors)
+
+
+def test_gateway_with_ipv6_scope_id_newline_rejected():
+    cfg = _cfg([_iface(gateway=INJECTED)])
+    result = validate_config(cfg, [ETH0])
+    assert any(e.field == "interfaces[0].gateway" for e in result.errors)
+
+
+def test_route_gateway_with_scope_id_newline_rejected_even_when_interface_set():
+    """Ilgari: `route.interface` berilsa, `route.gateway` formati HECH QACHON
+    tekshirilmasdi (409-108-qatorlar) — shlyuzga in'eksiya shu yo'l bilan
+    o'tib ketardi."""
+    cfg = _cfg([_iface(name="eth0"), _iface(name="eth1", address="10.0.1.5/24", gateway=None)],
+                [_route(destination="10.2.0.0/24", gateway=INJECTED, interface="eth1")])
+    result = validate_config(cfg, [ETH0, ETH1])
+    assert not result.ok
+    assert any(e.field == "routes[0].gateway" for e in result.errors)
+
+
+def test_route_destination_injection_rejected():
+    cfg = _cfg([_iface()], [_route(destination="10.1.0.0/24\n    pre-up touch /tmp/pwned #")])
+    result = validate_config(cfg, [ETH0])
+    assert any(e.field == "routes[0].destination" for e in result.errors)
+
+
+def test_mtu_string_injection_rejected():
+    cfg = _cfg([_iface(mtu="9000\n0 pre-up touch /tmp/pwned #")])
+    result = validate_config(cfg, [ETH0])
+    assert any(e.field == "interfaces[0].mtu" for e in result.errors)
+
+
+def test_mtu_out_of_range_rejected():
+    cfg = _cfg([_iface(mtu=67)])
+    result = validate_config(cfg, [ETH0])
+    assert any(e.field == "interfaces[0].mtu" for e in result.errors)
+
+
+def test_mode_injection_rejected():
+    cfg = _cfg([_iface(mode="dhcp\n    pre-up touch /tmp/pwned #")])
+    result = validate_config(cfg, [ETH0])
+    assert any(e.field == "interfaces[0].mode" for e in result.errors)
+
+
+def test_dns_server_with_scope_id_newline_rejected():
+    cfg = _cfg([_iface()], dns=SimpleNamespace(servers=[INJECTED], search=[]))
+    result = validate_config(cfg, [ETH0])
+    assert any(e.field == "dns.servers[0]" for e in result.errors)
+
+
+def test_dns_search_with_trailing_newline_rejected():
+    cfg = _cfg([_iface()], dns=SimpleNamespace(servers=[], search=["example.com\n    pre-up touch /tmp/pwned #"]))
+    result = validate_config(cfg, [ETH0])
+    assert any(e.field == "dns.search[0]" for e in result.errors)
+
+
+def test_dns_valid_servers_and_search_accepted():
+    cfg = _cfg([_iface()], dns=SimpleNamespace(servers=["1.1.1.1", "8.8.8.8"], search=["example.com"]))
+    result = validate_config(cfg, [ETH0])
+    assert result.ok
+
+
+def test_dns_absent_is_skipped_not_crashed():
+    """Eski chaqiruvchilar (yoki `dns`siz test fixture) `cfg.dns` berishi
+    shart EMAS — bu holatda DNS tekshiruvi jim o'tkazib yuboriladi, lekin
+    `AttributeError` bilan yiqilmaydi."""
+    cfg = _cfg([_iface()])
+    result = validate_config(cfg, [ETH0])
+    assert result.ok

@@ -46,6 +46,7 @@ halqa — ruxsat»).
 from __future__ import annotations
 
 import hashlib
+import re
 from dataclasses import dataclass, field
 
 from app.services import dialplan_features as feat
@@ -53,6 +54,7 @@ from app.services import dialplan_recording as rec
 from app.services import outbound_rules as rules
 from app.services.dialplan_callback import callback_context_lines
 from app.services.dialplan_campaign import campaign_context_lines
+from app.services.dialplan_safety import is_dialplan_number, sanitize_dialplan_text
 
 _WEEKDAY_NAMES = {1: "mon", 2: "tue", 3: "wed", 4: "thu", 5: "fri", 6: "sat", 7: "sun"}
 
@@ -67,6 +69,53 @@ class CompileError(Exception):
         super().__init__(message)
         self.code = code
         self.details = details or {}
+
+
+# ------------------------------------------------- dialplan injection himoyasi
+# (CONFIRMED HIGH tuzatish) — erkin matn (ism, prefiks, label) VA raqam/naqsh
+# maydonlari (DID, CID, callerid, `add_prefix`) BARCHA `NoOp()`/`Set()`/`exten`
+# interpolatsiyalarida SHU IKKI funksiya orqali o'tadi (`app/services/
+# dialplan_safety.py` — yagona joy, schema validatsiyasi bilan BIR XIL
+# qoida). `_dp_num` — IKKINCHI himoya chizig'i: schema allaqachon tekshirgan
+# bo'lsa ham (yangi yozuvlar), eski/CSV/FreePBX import qilingan qatorlar
+# buzilgan bo'lishi mumkin — bunday holatda buzilgan dialplan yozish O'RNIGA
+# kompilyatsiya rad etiladi.
+def _dp_text(value: str | None) -> str:
+    return sanitize_dialplan_text(value)
+
+
+def _dp_num(value: str | None, *, field: str) -> str:
+    value = value or ""
+    if not is_dialplan_number(value):
+        raise CompileError(f"{field}: Asterisk dialplan uchun yaroqsiz qiymat: {value!r}",
+                            code="bad_dialplan_value", details={"field": field})
+    return value
+
+
+def _dp_num_opt(value: str | None, *, field: str) -> str:
+    """`_dp_num`ning ixtiyoriy-maydon shakli — bo'sh/`None` (masalan `add_prefix`
+    yoki filtrsiz DID) qiymat bo'lsa, tekshirmay bo'sh satr qaytaradi."""
+    if not value:
+        return ""
+    return _dp_num(value, field=field)
+
+
+# `app/schemas.py::_ALERT_INFO_PATTERN` BILAN ATAYLAB BIR XIL belgi to'plami
+# (ataylab DUBLIKAT qilingan — `app.schemas`ni bu yerda import qilish
+# `schemas.py`da hozir faol tahrir bilan keraksiz bog'liqlik/aylanma import
+# xavfini tug'diradi; belgi to'plamining o'zi `$`/`{`/`}`/`(`/`)` o'z ichiga
+# OLMAYDI, shuning uchun render vaqtida ikkinchi marta tasdiqlash xavfsiz).
+_ALERT_INFO_RE = re.compile(r"^[A-Za-z0-9=<>:;/._@-]{1,128}$")
+
+
+def _dp_alert_info(value: str | None) -> str:
+    value = value or ""
+    if not value:
+        return ""
+    if not _ALERT_INFO_RE.fullmatch(value):
+        raise CompileError(f"inbound_route.alert_info: Asterisk dialplan uchun yaroqsiz qiymat: {value!r}",
+                            code="bad_dialplan_value", details={"field": "inbound_route.alert_info"})
+    return value
 
 
 @dataclass(frozen=True)
@@ -402,12 +451,13 @@ def _extension_by_target(snapshot: DialplanSnapshot) -> dict[str, ExtensionSnaps
 def _extension_dest_lines(code: str, ext: ExtensionSnapshot) -> list[str]:
     """M2a: ichki raqamga har qanday yo'l (DID, IVR, guruh javobsiz manzili) —
     yagona `<code>-ext` oqimi (DND/yo'naltirish/transfer bir joyda)."""
-    return [f"exten => s,1,NoOp(Innova: {ext.name} <{ext.number}>)",
-            f" same => n,Goto({code}-ext,{ext.number},1)"]
+    number = _dp_num(ext.number, field="extension.number")
+    return [f"exten => s,1,NoOp(Innova: {_dp_text(ext.name)} <{number}>)",
+            f" same => n,Goto({code}-ext,{number},1)"]
 
 
 def _time_condition_dest_lines(code: str, tc: TimeConditionSnapshot, holidays: tuple) -> list[str]:
-    lines = [f"exten => s,1,NoOp(Innova: ish vaqti {tc.name})"]
+    lines = [f"exten => s,1,NoOp(Innova: ish vaqti {_dp_text(tc.name)})"]
     if tc.override == "force_open":
         lines.append(f" same => n,Goto({code}-dest-{tc.open_target_id},s,1)")
         return lines
@@ -433,14 +483,15 @@ def _ivr_dest_lines(code: str, ivr: IvrSnapshot, audio_paths: dict[str, str]) ->
     # Idempotent — kanal allaqachon javob berilgan bo'lsa, no-op.
     greeting = audio_paths.get(ivr.greeting_audio_id, "")
     lines = [
-        f"exten => s,1,NoOp(Innova: IVR {ivr.name})",
+        f"exten => s,1,NoOp(Innova: IVR {_dp_text(ivr.name)})",
         " same => n,Answer()",
         " same => n,Set(IVR_REPEAT=0)",
         f" same => n(menu),Background({greeting})",
         f" same => n,WaitExten({ivr.timeout_seconds})",
     ]
     for opt in sorted(ivr.options, key=lambda o: o.digit):
-        lines.append(f"exten => {opt.digit},1,Goto({code}-dest-{opt.target_id},s,1)")
+        digit = _dp_num(opt.digit, field="ivr_option.digit")
+        lines.append(f"exten => {digit},1,Goto({code}-dest-{opt.target_id},s,1)")
     if ivr.direct_dial:
         lines.append(f"exten => _X.,1,Goto({code}-from-internal,${{EXTEN}},1)")
     lines.append("exten => t,1,Set(IVR_REPEAT=$[${IVR_REPEAT} + 1])")
@@ -454,7 +505,7 @@ def _ivr_dest_lines(code: str, ivr: IvrSnapshot, audio_paths: dict[str, str]) ->
 
 
 def _ring_group_dest_lines(code: str, rg: RingGroupSnapshot) -> list[str]:
-    lines = [f"exten => s,1,NoOp(Innova: qo'ng'iroq guruhi {rg.name})"]
+    lines = [f"exten => s,1,NoOp(Innova: qo'ng'iroq guruhi {_dp_text(rg.name)})"]
     members = [m for m in sorted(rg.members, key=lambda m: m.position) if m.extension_number]
     if not members:
         lines.append(" same => n,NoOp(Innova: guruhda a'zo yo'q)")
@@ -515,6 +566,11 @@ def _route_pattern_lines(idx: int, route: OutboundRouteSnapshot, next_label: str
         strip_len = len(pat.strip_prefix)
         stripped = "${EXTEN}" if not strip_len else f"${{EXTEN:{strip_len}}}"
         lines.append(f" same => n,Set(INNOVA_STRIPPED={stripped})")
+        # IKKINCHI himoya chizig'i: `pattern` schema/router darajasida
+        # tekshirilgan bo'lsa ham (FreePBX import/eski yozuv buzilgan bo'lishi
+        # mumkin), REGEX() argumenti qurilishidan OLDIN belgi to'plami
+        # qayta tasdiqlanadi.
+        _dp_num(pat.pattern, field="outbound_pattern.pattern")
         body = rules.pattern_to_regex_body(pat.pattern)
         # MUHIM (ishlab chiqarish xatosi, jonli SIP isbotida topildi):
         # Asterisk'ning `REGEX()` funksiyasi (`funcs/func_strings.c`,
@@ -528,7 +584,8 @@ def _route_pattern_lines(idx: int, route: OutboundRouteSnapshot, next_label: str
             f' same => n,GotoIf($[${{REGEX("^{body}$" ${{INNOVA_STRIPPED}})}} = 1]?r{idx}_p{pidx}_matched)')
     lines.append(f" same => n,Goto({next_label})")
     for pidx, pat in enumerate(route.patterns, start=1):
-        lines.append(f" same => n(r{idx}_p{pidx}_matched),Set(INNOVA_DIALED={pat.add_prefix}${{INNOVA_STRIPPED}})")
+        add_prefix = _dp_num_opt(pat.add_prefix, field="outbound_pattern.add_prefix")
+        lines.append(f" same => n(r{idx}_p{pidx}_matched),Set(INNOVA_DIALED={add_prefix}${{INNOVA_STRIPPED}})")
         lines.append(f" same => n,Goto(r{idx}_proceed)")
     return lines
 
@@ -610,18 +667,20 @@ def _route_callerid_lines(idx: int, route: OutboundRouteSnapshot) -> list[str]:
     tekshiruvi (M2c §3, pastda) uchun ANIQ KIRISH NUQTASI, trunk Dial zanjiridan
     OLDIN (zanjirning o'zi `r{idx}_dial1`dan o'zgarmagan boshlanadi)."""
     if route.override_extension_callerid and route.callerid:
+        callerid = _dp_num(route.callerid, field="outbound_route.callerid")
         return [
-            f" same => n(r{idx}_cid),Set(CALLERID(num)={route.callerid})",
+            f" same => n(r{idx}_cid),Set(CALLERID(num)={callerid})",
             " same => n,Set(INNOVA_CID_DONE=1)",
             f" same => n,Goto(r{idx}_toll1)",
         ]
     if route.callerid:
+        callerid = _dp_num(route.callerid, field="outbound_route.callerid")
         return [
             f' same => n(r{idx}_cid),GotoIf($["${{INNOVA_EXT_CID}}"!=""]?r{idx}_cid_ext:r{idx}_cid_route)',
             f" same => n(r{idx}_cid_ext),Set(CALLERID(num)=${{INNOVA_EXT_CID}})",
             " same => n,Set(INNOVA_CID_DONE=1)",
             f" same => n,Goto(r{idx}_toll1)",
-            f" same => n(r{idx}_cid_route),Set(CALLERID(num)={route.callerid})",
+            f" same => n(r{idx}_cid_route),Set(CALLERID(num)={callerid})",
             " same => n,Set(INNOVA_CID_DONE=1)",
             f" same => n,Goto(r{idx}_toll1)",
         ]
@@ -714,8 +773,9 @@ def _route_trunk_dial_lines(code: str, idx: int, route: OutboundRouteSnapshot) -
         fail_label = f"r{idx}_all_failed" if is_last else f"r{idx}_dial{t_i + 1}"
         lines.append(f' same => n(r{idx}_dial{t_i}),GotoIf($["${{INNOVA_CID_DONE}}"="1"]?r{idx}_dial{t_i}_go)')
         if trunk.outbound_callerid:
-            lines.append(f" same => n,Set(CALLERID(num)={trunk.outbound_callerid})")
-        lines.append(f" same => n(r{idx}_dial{t_i}_go),Set(CDR(userfield)={trunk.name})")
+            callerid = _dp_num(trunk.outbound_callerid, field="trunk.outbound_callerid")
+            lines.append(f" same => n,Set(CALLERID(num)={callerid})")
+        lines.append(f" same => n(r{idx}_dial{t_i}_go),Set(CDR(userfield)={_dp_text(trunk.name)})")
         lines += rec.recorded_dial_lines(f"PJSIP/${{INNOVA_DIALED}}@{code}-trunk-{trunk.id}", "30")
         lines.append(f' same => n,GotoIf($["${{DIALSTATUS}}"="CHANUNAVAIL"]?{fail_label})')
         lines.append(f' same => n,GotoIf($["${{DIALSTATUS}}"="CONGESTION"]?{fail_label})')
@@ -735,7 +795,7 @@ def _outbound_route_block(
     `r{idx}_toll1`ga o'tadi — toll-fraud tekshiruvlari (bo'sh bo'lsa ham, NoOp
     sifatida) har doim shu nuqtada, trunk Dial zanjiridan (`r{idx}_dial1`,
     o'zgarmagan) OLDIN turadi."""
-    lines = [f" same => n(r{idx}_start),NoOp(Innova: marshrut {route.name})"]
+    lines = [f" same => n(r{idx}_start),NoOp(Innova: marshrut {_dp_text(route.name)})"]
     lines += _route_extension_filter_lines(idx, route, next_label)
     lines.append(f" same => n(r{idx}_intl),NoOp(Innova: xalqaro tekshiruv)")
     lines += _route_international_lines(idx, route, next_label)
@@ -760,9 +820,11 @@ def _ext_callerid_lookup_lines(extension_callerids: tuple[ExtensionCallerIdSnaps
     izohi yonidagi comment, 596-qator atrofi)."""
     lines = []
     for ext in extension_callerids:
+        number = _dp_num(ext.number, field="extension.number")
+        callerid = _dp_num(ext.outbound_callerid, field="extension.outbound_callerid")
         lines.append(
-            f' same => n,Set(INNOVA_EXT_CID=${{IF($["${{INNOVA_SRC_EXT}}"="{ext.number}"'
-            f'?"{ext.outbound_callerid}":${{INNOVA_EXT_CID}})}})')
+            f' same => n,Set(INNOVA_EXT_CID=${{IF($["${{INNOVA_SRC_EXT}}"="{number}"'
+            f'?"{callerid}":${{INNOVA_EXT_CID}})}})')
     return lines
 
 
@@ -821,7 +883,7 @@ def _queue_dest_lines(code: str, q: QueueSnapshot) -> list[str]:
     # qiluvchi hech qanday kutish ovozini (MOH) eshitmaydi. Idempotent.
     queue_name = f"{code}-q-{q.id}"
     return [
-        f"exten => s,1,NoOp(Innova: navbat {q.name})",
+        f"exten => s,1,NoOp(Innova: navbat {_dp_text(q.name)})",
         " same => n,Answer()",
         *rec.recorded_queue_lines(queue_name, q.max_wait_seconds, queue_id=q.id),
         f" same => n,Goto({code}-dest-{q.timeout_target_id},s,1)",
@@ -842,7 +904,7 @@ def _announcement_dest_lines(code: str, ann: AnnouncementSnapshot, audio_paths: 
     e'tiborsiz qoladi (sakrab o'tish YO'Q — kontrakt talabi)."""
     audio = audio_paths.get(ann.audio_file_id, "")
     next_dest = f"{code}-dest-{ann.next_target_id}"
-    lines = [f"exten => s,1,NoOp(Innova: e'lon {ann.name})"]
+    lines = [f"exten => s,1,NoOp(Innova: e'lon {_dp_text(ann.name)})"]
     if ann.answer:
         lines.append(" same => n,Answer()")
     if not ann.allow_skip and not ann.repeat_key:
@@ -850,7 +912,8 @@ def _announcement_dest_lines(code: str, ann: AnnouncementSnapshot, audio_paths: 
         return lines
     lines += [f" same => n(play),Background({audio})", " same => n,WaitExten(1)"]
     if ann.repeat_key:
-        lines.append(f"exten => {ann.repeat_key},1,Goto(s,play)")
+        repeat_key = _dp_num(ann.repeat_key, field="announcement.repeat_key")
+        lines.append(f"exten => {repeat_key},1,Goto(s,play)")
     if ann.allow_skip:
         lines.append(f"exten => _X.,1,Goto({next_dest},s,1)")
     lines.append(f"exten => t,1,Goto({next_dest},s,1)")
@@ -860,9 +923,10 @@ def _announcement_dest_lines(code: str, ann: AnnouncementSnapshot, audio_paths: 
 def _misc_dest_lines(code: str, md: MiscDestinationSnapshot) -> list[str]:
     """M9 A2: ODDIY ICHKI TERISH kabi — `{code}-from-internal`ga Goto
     (toll-fraud/PIN/ext ruxsatlari bypass qilinmaydi, kontrakt A2)."""
+    dial = _dp_num(md.dial, field="misc_destination.dial")
     return [
-        f"exten => s,1,NoOp(Innova: boshqa manzil {md.name})",
-        f" same => n,Goto({code}-from-internal,{md.dial},1)",
+        f"exten => s,1,NoOp(Innova: boshqa manzil {_dp_text(md.name)})",
+        f" same => n,Goto({code}-from-internal,{dial},1)",
     ]
 
 
@@ -870,9 +934,10 @@ def _voicemail_dest_lines(code: str, box: VoicemailBoxSnapshot) -> list[str]:
     """m1c-contract.md §2: javob bo'lmasa `u` (unavailable), band bo'lsa `b`.
     `DIALSTATUS` oldingi `Dial()` dan (ichki raqam `dest` konteksti) qoladi —
     to'g'ridan-to'g'ri (marshrut/IVR) kelganda bo'sh, ya'ni `u`."""
-    mailbox = f"{box.mailbox}@{code}"
+    mailbox_num = _dp_num(box.mailbox, field="voicemail_box.mailbox")
+    mailbox = f"{mailbox_num}@{code}"
     return [
-        f"exten => s,1,NoOp(Innova: ovozli pochta {box.mailbox})",
+        f"exten => s,1,NoOp(Innova: ovozli pochta {mailbox_num})",
         ' same => n,GotoIf($["${DIALSTATUS}"="BUSY"]?busy)',
         f" same => n,VoiceMail({mailbox},u)",
         " same => n,Hangup()",
@@ -891,7 +956,7 @@ def _conference_dest_lines(code: str, conf: ConferenceSnapshot, snapshot: Dialpl
     bridge = feat.conf_bridge_profile(code, conf.id)
     user = feat.conf_user_profile(code, conf.id)
     admin = feat.conf_admin_profile(code, conf.id)
-    lines = [f"exten => s,1,NoOp(Innova: konferensiya {conf.name})", " same => n,Answer()"]
+    lines = [f"exten => s,1,NoOp(Innova: konferensiya {_dp_text(conf.name)})", " same => n,Answer()"]
     if not conf.has_pin and not conf.has_admin_pin:
         lines.append(f" same => n,ConfBridge({room},{bridge},{user},{feat.CONF_MENU})")
         lines.append(" same => n,Hangup()")
@@ -1009,11 +1074,13 @@ def _from_internal_lines(snapshot: DialplanSnapshot) -> list[str]:
     code = snapshot.tenant_code
     lines = [f"[{code}-from-internal]"]
     for dn in sorted(snapshot.dial_numbers, key=lambda d: d.number):
-        lines.append(f"exten => {dn.number},1,Goto({code}-dest-{dn.target_id},s,1)")
+        number = _dp_num(dn.number, field="dial_number.number")
+        lines.append(f"exten => {number},1,Goto({code}-dest-{dn.target_id},s,1)")
     # M9 A2: boshqa ilovalar — aniq `code` (naqsh EMAS) `_X.`dan ustun.
     for ma in sorted(snapshot.misc_applications, key=lambda m: m.code):
         if ma.enabled:
-            lines.append(f"exten => {ma.code},1,Goto({code}-dest-{ma.target_id},s,1)")
+            ma_code = _dp_num(ma.code, field="misc_application.code")
+            lines.append(f"exten => {ma_code},1,Goto({code}-dest-{ma.target_id},s,1)")
     # M9 A4: paging/intercom guruhlari.
     for pg in sorted(snapshot.page_groups, key=lambda p: p.number):
         lines += feat.page_group_lines(pg.number, pg.member_numbers, duplex=pg.duplex,
@@ -1022,7 +1089,8 @@ def _from_internal_lines(snapshot: DialplanSnapshot) -> list[str]:
     lines += feat.park_lines(code, snapshot.parking)
     for tc in snapshot.time_conditions:
         if tc.toggle_code:
-            lines.append(f"exten => {tc.toggle_code},1,NoOp(Innova: {tc.name} rejim almashtirish — "
+            toggle_code = _dp_num(tc.toggle_code, field="time_condition.toggle_code")
+            lines.append(f"exten => {toggle_code},1,NoOp(Innova: {_dp_text(tc.name)} rejim almashtirish — "
                          "faqat API orqali, M1a'da dialplan write-back yo'q)")
             lines.append(" same => n,Hangup()")
     lines += [
@@ -1094,9 +1162,9 @@ def _cid_prefix_alert_lines(route: InboundRouteSnapshot) -> list[str]:
     (sarlavhani `[innova-predial-hdr]` gosub qo'shadi — bu yerda EMAS)."""
     lines: list[str] = []
     if route.cid_name_prefix:
-        lines.append(f" same => n,Set(CALLERID(name)={route.cid_name_prefix}${{CALLERID(name)}})")
+        lines.append(f" same => n,Set(CALLERID(name)={_dp_text(route.cid_name_prefix)}${{CALLERID(name)}})")
     if route.alert_info:
-        lines.append(f" same => n,Set(__INNOVA_ALERT_INFO={route.alert_info})")
+        lines.append(f" same => n,Set(__INNOVA_ALERT_INFO={_dp_alert_info(route.alert_info)})")
     return lines
 
 
@@ -1106,8 +1174,9 @@ def _inbound_route_lines(snapshot: DialplanSnapshot) -> list[str]:
     routes = [r for r in snapshot.inbound_routes if r.enabled]
     routes.sort(key=lambda r: (r.did, r.callerid_pattern, r.id))
     for idx, route in enumerate(routes, start=1):
-        exten = route.did if route.did else "_."
-        lines.append(f"exten => {exten},1,NoOp(Innova: kiruvchi {route.did or 'har qanday'})")
+        did = _dp_num_opt(route.did, field="inbound_route.did")
+        exten = did if did else "_."
+        lines.append(f"exten => {exten},1,NoOp(Innova: kiruvchi {did or 'har qanday'})")
         lines.append(f" same => n,Set(CDR(accountcode)={code})")
         lines.append(" same => n,Set(CDR(userfield)=${EXTEN})")
         lines.append(" same => n,Set(__INNOVA_DID=${EXTEN})")
@@ -1115,8 +1184,13 @@ def _inbound_route_lines(snapshot: DialplanSnapshot) -> list[str]:
         # §5: qora ro'yxat — marshrutlashdan OLDIN (realtime, reload shart emas).
         lines.append(f" same => n,Gosub({code}-blacklist-check,s,1)")
         if route.callerid_pattern:
+            cid_pattern = _dp_num(route.callerid_pattern, field="inbound_route.callerid_pattern")
+            # (LOW tuzatish) tashqi qo'ng'iroq qiluvchi `CALLERID(num)` ichiga
+            # qo'shtirnoq/operator kiritolmasligi uchun `FILTER()` bilan FAQAT
+            # raqam/`+` belgilariga toraytiriladi — natija qo'shtirnoq ichida
+            # solishtiriladi, qochib chiqib bo'lmaydi.
             lines.append(
-                f' same => n,GotoIf($["${{CALLERID(num)}}"="{route.callerid_pattern}"]?matched)')
+                f' same => n,GotoIf($["${{FILTER(0-9+,${{CALLERID(num)}})}}"="{cid_pattern}"]?matched)')
             lines.append(" same => n,Hangup(21)")
             lines.append(" same => n(matched),NoOp(Innova: callerid mos keldi)")
         lines += _cid_lookup_lines(idx, route, snapshot.internal_api_base_url, snapshot.internal_api_token)
@@ -1154,7 +1228,20 @@ def _all_dest_ids(snapshot: DialplanSnapshot) -> list[str]:
 
 
 def compile_dialplan(snapshot: DialplanSnapshot) -> str:
-    """Bazadan o'qilgan snapshot -> `extensions_innova.conf` matni. Sof funksiya."""
+    """Bazadan o'qilgan snapshot -> `extensions_innova.conf` matni. Sof funksiya.
+
+    `dialplan_features.py` (`feat.*`) ichidagi raqam-maydon tekshiruvlari
+    (`_dp_num`, dialplan injection himoyasi) aylanma import tufayli `ValueError`
+    ko'taradi (`CompileError`ni import qilolmaydi — `feat`ni shu modul import
+    qiladi) — shu YERDA, YAGONA joyda, API'ga bir xil 422 `bad_dialplan_value`
+    formatida chiqishi uchun `CompileError`ga aylantiriladi."""
+    try:
+        return _compile_dialplan_unsafe(snapshot)
+    except ValueError as exc:
+        raise CompileError(str(exc), code="bad_dialplan_value") from exc
+
+
+def _compile_dialplan_unsafe(snapshot: DialplanSnapshot) -> str:
     _detect_target_cycle(snapshot)
     by_target = _extension_by_target(snapshot)
     satellites = _satellite_index(snapshot)

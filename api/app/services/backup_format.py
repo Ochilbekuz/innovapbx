@@ -34,6 +34,14 @@ CHUNK_SIZE = 1024 * 1024
 _SCRYPT_N_LOG2 = 15
 _SCRYPT_R = 8
 _SCRYPT_P = 1
+# Sarlavhadagi n_log2/r/p HAR BIRI 1 bayt (0-255) -- hujumchi arxiv yasasa
+# (masalan n_log2=255 -> N=2**255) `Scrypt().derive()` xotira/CPU'ni abadiy band
+# qilib DoS beradi. Haqiqiy arxivlar doim yuqoridagi SUKUT qiymatlarni yozadi --
+# chegara shundan SEZILARLI yuqori (kelgusi parametr kuchaytirishga joy qoldirish
+# uchun), lekin DoS qila olmaydigan darajada (N=2**20, r=16 -> taxminan 1 GiB).
+_MAX_SCRYPT_N_LOG2 = 20
+_MAX_SCRYPT_R = 16
+_MAX_SCRYPT_P = 16
 _SALT_LEN = 16
 _NONCE_LEN = 12
 _KEY_LEN = 32
@@ -150,6 +158,8 @@ class ArchiveReader:
             raise BackupCorruptError(f"qo'llab-quvvatlanmaydigan versiya: {version}")
         salt = self._read_exact(_SALT_LEN)
         n_log2, r, p = self._read_exact(3)
+        if not (1 <= n_log2 <= _MAX_SCRYPT_N_LOG2 and 1 <= r <= _MAX_SCRYPT_R and 1 <= p <= _MAX_SCRYPT_P):
+            raise BackupCorruptError("scrypt parametrlari ruxsat etilgan chegaradan tashqarida")
         base_nonce = self._read_exact(_NONCE_LEN)
         (check_len,) = struct.unpack(">H", self._read_exact(2))
         check_ct = self._read_exact(check_len)

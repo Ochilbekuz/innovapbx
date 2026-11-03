@@ -20,6 +20,7 @@ from sqlalchemy.orm import selectinload
 
 from app.api.deps import get_session
 from app.core.config import settings
+from app.core.security import check_internal_api_token
 from app.db.models import OutboundRoute, PinSet, SecurityEvent
 from app.services.pin_hmac import pin_matches
 from app.services.rate_limit import SlidingWindowLimiter
@@ -59,7 +60,7 @@ async def pin_set_check(
 ) -> Response:
     """Doim 200 qaytaradi — xato/topilmadi/limit holatlarida ham RAD ("0"),
     Asterisk `CURL()` HTTP status kodini emas, tana matnini o'qiydi."""
-    if not settings.internal_api_token or token != settings.internal_api_token:
+    if not check_internal_api_token(token):
         return _DENY
     route = (await session.execute(
         select(OutboundRoute).where(OutboundRoute.id == route_id)

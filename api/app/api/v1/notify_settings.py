@@ -15,6 +15,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_session, require_access
+from app.api.v1.integrations import check_webhook_url
 from app.core.errors import ApiError
 from app.core.optimistic import check_not_stale
 from app.db.models import NotifySettings, User
@@ -82,6 +83,10 @@ async def update_notify_settings(
         check_not_stale(row.updated_at, payload.updated_at)
 
     diff = _plain_changes(payload)
+    if "telegram_api_base" in diff:
+        # SSRF: saqlashda tekshirish (yuborishda ham vm_notify.send_telegram
+        # tekshiradi — DNS rebinding'dan himoya uchun ikkinchi marta).
+        diff["telegram_api_base"] = await check_webhook_url(diff["telegram_api_base"], field="telegram_api_base")
     for field, value in diff.items():
         setattr(row, field, value)
     await _apply_secrets(session, row, payload, diff)

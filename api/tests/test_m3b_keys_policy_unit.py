@@ -80,6 +80,19 @@ def test_validate_to_rejects(raw):
         originate.validate_to(raw)
 
 
+@pytest.mark.parametrize("raw,expected", [
+    ("+998 90 123-45-67", "+998901234567"), ("(00)447911123456", "00447911123456"),
+    ("101", "101"), ("(71) 200-00-00", "712000000"),
+])
+def test_normalize_formatting_keeps_leading_plus_strips_rest(raw, expected):
+    """`validate_to` BILAN BIR XIL manba (`normalize_formatting`) — faqat `+`
+    (xalqaro belgisi) saqlab qoladi, qolgan formatlash belgilari (bo'shliq,
+    `-`, `(`, `)`, `.`) olib tashlanadi. `validate_to` esa shundan KEYIN `+`ni
+    ham olib tashlaydi (AMI uchun) — ikkisi bitta manbadan farqlanadi, ammo
+    farq FAQAT `+`da (toll-fraud tuzatish: ikkinchi joy mustaqil regex yozmasin)."""
+    assert originate.normalize_formatting(raw) == expected
+
+
 def test_validate_external_id():
     assert originate.validate_external_id(None) is None
     assert originate.validate_external_id("crm-42.a:b_c") == "crm-42.a:b_c"

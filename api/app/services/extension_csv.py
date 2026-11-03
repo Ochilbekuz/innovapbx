@@ -29,6 +29,7 @@ from app.core.security import generate_sip_secret
 from app.db.models import CallTarget, Extension, User, VoicemailBox
 from app.schemas import ExtensionImportRow, ExtensionImportResult
 from app.services.crypto import encrypt_secret
+from app.services.dialplan_safety import has_control_chars, is_dialplan_number
 from app.services.numbers import ensure_number_free
 
 MAX_ROWS = 2000
@@ -102,13 +103,24 @@ def parse_csv(text: str) -> list[dict]:
 
 
 def _text_field_changes(row: dict) -> dict:
+    """CONFIRMED HIGH tuzatish: `name`/`outbound_cid` generatsiya qilinadigan
+    dialplan'ga tushadi (`app/services/compiler.py`), shu sabab bu yerda — CSV
+    import `app/schemas.py` Pydantic validatsiyasini chetlab o'tadi — ularni
+    `dialplan_safety` bilan tekshiramiz (xato -> qator xabari, `_plan_row`da
+    tutiladi)."""
     changes: dict = {}
     if row.get("name"):
-        changes["name"] = row["name"].strip()
+        name = row["name"].strip()
+        if has_control_chars(name):
+            raise ValueError("name: boshqaruv belgilar (shu jumladan qator ko'chirish) ruxsat etilmagan")
+        changes["name"] = name
     if "email" in row:
         changes["email"] = row.get("email", "").strip() or None
     if "outbound_cid" in row:
-        changes["outbound_callerid"] = row.get("outbound_cid", "").strip() or None
+        outbound_cid = row.get("outbound_cid", "").strip() or None
+        if outbound_cid is not None and not is_dialplan_number(outbound_cid):
+            raise ValueError("outbound_cid: faqat raqam va + * # _ X N Z . ! [ ] - belgilari (1-40 ta) ruxsat etilgan")
+        changes["outbound_callerid"] = outbound_cid
     return changes
 
 

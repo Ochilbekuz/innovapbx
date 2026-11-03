@@ -25,9 +25,20 @@ class InvalidExternalId(ValueError):
     pass
 
 
+def normalize_formatting(raw: str) -> str:
+    """Formatlash belgilarini (bo'shliq, `-`, `(`, `)`, `.`) olib tashlaydi — `+`
+    boshida qolsa ham. BITTA joy: `validate_to` (keyin `+` ham olib tashlaydi) VA
+    xalqaro/qora ro'yxat tekshiruvlari (`public_widget.py`) SHU BITTA natija
+    ustida ishlashi SHART — aks holda ikki xil normalizatsiya (masalan bu yerda
+    qavs olib tashlanadi, boshqa joyda emas) `(00)447...` kabi yozilishni
+    xalqaro blokdan O'TKAZIB YUBORARDI, holbuki AMI'ga aynan xalqaro raqam
+    (`00447...`) yuboriladi (toll-fraud)."""
+    return _FORMATTING.sub("", raw)
+
+
 def validate_to(raw: str) -> str:
     """`+998 90 123-45-67` → `998901234567`; faqat `[0-9+*#]` (formatlash belgilari olib tashlanadi), ≤ 32."""
-    compact = _FORMATTING.sub("", raw)
+    compact = normalize_formatting(raw)
     if not _TO_RE.fullmatch(compact):
         raise InvalidNumber(raw)
     return compact.lstrip("+")

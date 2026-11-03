@@ -58,6 +58,48 @@ def test_walk_archive_detects_truncated_file(tmp_path):
         mod.walk_archive(ibk, "s3cret")
 
 
+@pytest.mark.parametrize("evil_name", ["../evil.sh", "../../etc/passwd", "sounds.tar/../../evil"])
+def test_extract_archive_rejects_path_traversal_part_name(tmp_path, evil_name):
+    """Arxiv ichidagi qism nomi hujumchi nazorat qiladigan satr -- manifest hali
+    tasdiqlanmasdan turib `stage_dir` tashqarisiga yozilmasligi SHART."""
+    staged = tmp_path / "staged-src"
+    staged.mkdir()
+    part_a = staged / "database.dump"
+    part_a.write_bytes(b"dump-bytes")
+    evil_part = staged / "evil-payload"
+    evil_part.write_bytes(b"pwned")
+    ibk = tmp_path / "out.ibk"
+    bj.write_archive(
+        ibk, "s3cret", "the-db-key", alembic_revision="rev1", components=["config"],
+        parts=[("database.dump", part_a), (evil_name, evil_part)], source_host="test-host",
+    )
+    stage_dir = tmp_path / "stage"
+    stage_dir.mkdir()
+    with pytest.raises(BackupCorruptError):
+        mod.extract_archive(ibk, "s3cret", stage_dir)
+    # Hech narsa `stage_dir` tashqarisiga yoki ildiziga yozilmagan bo'lishi kerak.
+    assert not (tmp_path / "evil.sh").exists()
+    assert list(stage_dir.iterdir()) == [] or all(
+        p.resolve().is_relative_to(stage_dir.resolve()) for p in stage_dir.rglob("*")
+    )
+
+
+def test_walk_archive_rejects_unknown_part_name(tmp_path):
+    staged = tmp_path / "staged-src"
+    staged.mkdir()
+    part_a = staged / "database.dump"
+    part_a.write_bytes(b"dump-bytes")
+    bogus = staged / "bogus"
+    bogus.write_bytes(b"data")
+    ibk = tmp_path / "out.ibk"
+    bj.write_archive(
+        ibk, "s3cret", "the-db-key", alembic_revision="rev1", components=["config"],
+        parts=[("database.dump", part_a), ("bogus-part-name", bogus)], source_host="test-host",
+    )
+    with pytest.raises(BackupCorruptError):
+        mod.walk_archive(ibk, "s3cret")
+
+
 def test_extract_archive_writes_files_and_returns_db_key_blob(tmp_path):
     ibk, manifest = _build_archive(tmp_path, db_key="original-key")
     stage_dir = tmp_path / "stage"

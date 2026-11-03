@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 
 from app.netd.executor import Executor
+from app.netd.safety import assert_renderable
 
 HOSTNAME_PATH = "/etc/hostname"
 HOSTS_PATH = "/etc/hosts"
@@ -19,6 +20,7 @@ def read_hostname(executor: Executor) -> str:
 def render_hosts(old_hosts_text: str, new_hostname: str) -> str:
     """`127.0.1.1 <eski-nom>` qatorini yangi nomga almashtiradi; boshqa
     qatorlar O'ZGARMAYDI (qator topilmasa — hech narsa qo'shilmaydi)."""
+    assert_renderable(new_hostname)
     out = []
     for line in old_hosts_text.splitlines(keepends=True):
         if _HOSTS_127_RE.match(line):
@@ -30,6 +32,7 @@ def render_hosts(old_hosts_text: str, new_hostname: str) -> str:
 
 
 async def apply_hostname(executor: Executor, new_hostname: str) -> None:
+    assert_renderable(new_hostname)
     executor.write_text_atomic(HOSTNAME_PATH, new_hostname + "\n")
     old_hosts = executor.read_text(HOSTS_PATH) or ""
     executor.write_text_atomic(HOSTS_PATH, render_hosts(old_hosts, new_hostname))
