@@ -146,7 +146,7 @@ async def apply_config(
 
     try:
         # M2a §3: park lot dialplan'dan OLDIN (`Park(<code>-park)` unga tayanadi); idempotent.
-        await ensure_parking_lot(ami, snapshot.tenant_code)
+        await ensure_parking_lot(ami, snapshot.tenant_code, snapshot.parking)
         write_dialplan_file(new_text)
         await _reload_and_verify(ami, snapshot.tenant_code)
         revision.status = "applied"

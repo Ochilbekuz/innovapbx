@@ -256,3 +256,48 @@ describe('ExtensionsPage — SIP parolini almashtirish', () => {
     await screen.findByRole('dialog', { name: /yangi SIP maʼlumotlari/ });
   });
 });
+
+describe('ExtensionsPage — CSV import', () => {
+  beforeEach(async () => {
+    await loginAs(client, 'admin');
+  });
+  afterEach(() => useSession.getState().clear());
+
+  it("yangi qatorni oldindan koʻrib — qoʻllagandan keyin parollar koʻrsatiladi", async () => {
+    const user = userEvent.setup();
+    renderPage(<ExtensionsPage />);
+
+    await user.click(await screen.findByRole('button', { name: 'CSV import' }));
+    const header = 'number,name,email,outbound_cid,language,voicemail,record_in,record_out,max_contacts,call_waiting,enabled';
+    const row = ['199', 'Test Foydalanuvchi', '', '', '', '', '', '', '', 'yes', 'yes'].join(',');
+    const csv = new File([`${header}\n${row}\n`], 'extensions.csv', { type: 'text/csv' });
+    const fileInput = document.body.querySelector('input[type="file"]');
+    expect(fileInput).toBeTruthy();
+    await user.upload(fileInput as HTMLInputElement, csv);
+
+    expect(await screen.findByText(/Yangi: 1/)).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: 'Qoʻllash' }));
+
+    expect(await screen.findByRole('heading', { name: /Yangi SIP parollari/ })).toBeTruthy();
+    expect(screen.getByRole('button', { name: /Parollarni yuklab olish/ })).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: 'Tayyor' }));
+
+    await user.type(screen.getByRole('searchbox'), '199');
+    expect(await screen.findByText('Test Foydalanuvchi')).toBeTruthy();
+  });
+
+  it('notoʻgʻri qator — Qoʻllash tugmasi oʻchirilgan', async () => {
+    const user = userEvent.setup();
+    renderPage(<ExtensionsPage />);
+
+    await user.click(await screen.findByRole('button', { name: 'CSV import' }));
+    const header = 'number,name,email,outbound_cid,language,voicemail,record_in,record_out,max_contacts,call_waiting,enabled';
+    const row = ['bad', '', '', '', '', '', '', '', '', '', ''].join(',');
+    const csv = new File([`${header}\n${row}\n`], 'extensions.csv', { type: 'text/csv' });
+    const fileInput = document.body.querySelector('input[type="file"]');
+    await user.upload(fileInput as HTMLInputElement, csv);
+
+    expect(await screen.findByText(/Xatolar: 1/)).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Qoʻllash' })).toBeDisabled();
+  });
+});

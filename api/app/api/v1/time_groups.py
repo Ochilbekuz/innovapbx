@@ -6,6 +6,7 @@ from datetime import time as dt_time
 from fastapi import APIRouter, Depends
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.api.deps import get_session, require_access
 from app.core.errors import ApiError
@@ -22,6 +23,15 @@ from app.schemas import (
 from app.services.audit import record_audit
 
 router = APIRouter(prefix="/time-groups", tags=["time-groups"])
+
+# M9a rejimida topilgan nuqsonni tuzatish: `TimeGroup.ranges` — lazy relationship;
+# uni `_group_out`da sinxron o'qish, agar oldindan `selectinload` bilan EAGER
+# yuklanmagan bo'lsa, `sqlalchemy.exc.MissingGreenlet` bilan qulaydi (asinxron
+# ORM sinxron lazy-load'ni qo'llamaydi). `create_time_group` muammoга uchramaydi
+# (`_replace_ranges` darhol to'ldiradi), lekin FRESH `select()`dan qaytgan
+# obyektlar (list/`update`/`delete`) uchun SHART — `inbound_routes.py`dagi
+# `_ROUTE_OPTIONS` naqshi bilan BIR XIL.
+_GROUP_OPTIONS = (selectinload(TimeGroup.ranges),)
 
 
 def _validate_ranges(ranges: list[TimeRangeIn]) -> None:
@@ -63,6 +73,7 @@ async def list_time_groups(
 ) -> dict:
     groups = (await session.execute(
         select(TimeGroup).where(TimeGroup.tenant_id == user.tenant_id).order_by(TimeGroup.name)
+        .options(*_GROUP_OPTIONS)
     )).unique().scalars().all()
     return {"items": [_group_out(g) for g in groups]}
 
@@ -87,6 +98,7 @@ async def create_time_group(
 async def _get_group_or_404(session: AsyncSession, tenant_id: str, group_id: str) -> TimeGroup:
     return await get_tenant_scoped_or_404(
         session, TimeGroup, tenant_id, group_id, not_found_message="Ish vaqti guruhi topilmadi",
+        options=_GROUP_OPTIONS,
     )
 
 

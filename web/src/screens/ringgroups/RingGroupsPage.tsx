@@ -24,7 +24,7 @@ import { useToast } from '@/ui/Toast';
 const EXTERNAL_NUMBER = /^\+?\d{3,15}$/;
 
 const NAME_MAX = 60;
-const M1A_TARGETS = ['extension', 'ring_group', 'queue', 'ivr', 'time_condition', 'conference', 'hangup', 'busy'] as const;
+const M1A_TARGETS = ['extension', 'ring_group', 'queue', 'ivr', 'time_condition', 'conference', 'hangup', 'busy', 'announcement', 'misc'] as const;
 
 /** S21 — Qoʻngʻiroq guruhlari: bir vaqtda yoki ketma-ket bir nechta ichki raqamga qoʻngʻiroq. */
 export function RingGroupsPage() {
@@ -260,7 +260,7 @@ function RingGroupDrawer({
           </div>
         </div>
 
-        <DestinationPicker label={t('form.noAnswerLabel')} required kinds={['extension', 'ring_group', 'queue', 'ivr', 'time_condition', 'conference', 'hangup', 'busy']} value={noAnswer} onChange={setNoAnswer} catalog={catalog} />
+        <DestinationPicker label={t('form.noAnswerLabel')} required kinds={['extension', 'ring_group', 'queue', 'ivr', 'time_condition', 'conference', 'hangup', 'busy', 'announcement', 'misc']} value={noAnswer} onChange={setNoAnswer} catalog={catalog} />
       </div>
     </Drawer>
   );

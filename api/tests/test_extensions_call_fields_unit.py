@@ -36,7 +36,7 @@ def _ext(**kw):
                 outbound_callerid=None, dnd=False, forward_always=None, forward_busy="202",
                 pickup_group=None, toll_blocked_at=None, toll_block_reason=None, updated_at=OLD,
                 webrtc=False, codecs=["ulaw", "alaw", "g722", "opus"],
-                recording="never", recording_out="never")
+                recording="never", recording_out="never", call_waiting=True)
     base.update(kw)
     return SimpleNamespace(**base)
 
@@ -237,6 +237,10 @@ class _NumSession:
 
     async def execute(self, stmt):
         return SimpleNamespace(scalars=lambda: SimpleNamespace(all=lambda: self.used))
+
+    async def get(self, model, pk):
+        """M9 A3: `get_parking_settings` chaqiradi — yozuv yo'q, sukut park oralig'i (701-720)."""
+        return None
 
 
 @pytest.mark.asyncio

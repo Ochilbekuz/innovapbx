@@ -5,7 +5,9 @@ import type { FollowMe, FollowMeInfo, FollowMeTarget, QrProvisioning, UpdateFoll
 import { defaultFollowMe, sameFollowMe } from '@/domain/followMe';
 import { generateSipPassword, validateSipPassword, type SipPasswordIssue } from '@/domain/sipPassword';
 import { normalizeFollowMe } from './fakeFollowMe';
-import { createCampaignStore } from './fakeCampaigns';
+import { createCampaignStore, csvCell } from './fakeCampaigns';
+import { callsToCsv, matchesCallFilters } from './fakeCalls';
+import { splitCsvRow } from '../domain/campaigns';
 import { seedCampaigns } from './fakeCampaignSeed';
 import { ApiError } from './errors';
 import { toneWav } from '../lib/wav';
@@ -33,6 +35,9 @@ import {
   seedBackups, seedBackupSettings, seedRestoreJobs,
   // M5a — qarang ../../replica/m5a-contract.md
   seedMigrationJobs,
+  // M9 — qarang ../../replica/m9-freepbx-gaps-contract.md
+  seedAnnouncements, seedCidSources, seedContacts, seedMiscApplications, seedMiscDestinations,
+  seedPageGroups, seedParkingSettings, seedPinSets,
 } from './fakeSeed';
 import { findDuplicateDigit, findIvrLoop, type IvrEdgeLookup, type IvrEdges } from '../domain/ivr';
 import { buildFlowGraph, type FlowGraphNode, type FlowLookup, type FlowLookupResult, type FlowRef } from '../domain/flow';
@@ -108,8 +113,16 @@ import type {
   // M8 — qarang ../../replica/m8-network-contract.md
   NetworkConfigIn, NetworkInterface, NetworkLastResult, NetworkPending, NetworkStateOut, NetworkStaticRoute,
   NetworkValidateResult,
+  // M9 — qarang ../../replica/m9-freepbx-gaps-contract.md
+  AddPinsPayload, Announcement, CidSource, CidSourceTestResult, Contact, CreateAnnouncementPayload,
+  CreateCidSourcePayload, CreateContactPayload, CreateMiscApplicationPayload, CreateMiscDestinationPayload,
+  CreatePageGroupPayload, CreatePinSetPayload, ExtensionImportRowAction, ImportExtensionsParams, ImportExtensionsResult,
+  ImportPhonebookParams, ImportPhonebookResult, ListPhonebookParams,
+  MiscApplication, MiscDestination, PageGroup, ParkingCall, ParkingSettings, PhonebookNumber, PinSet, PinSetPin,
+  UpdateAnnouncementPayload, UpdateCidSourcePayload, UpdateContactPayload, UpdateMiscApplicationPayload,
+  UpdateMiscDestinationPayload, UpdatePageGroupPayload, UpdateParkingSettingsPayload, UpdatePinSetPayload,
 } from './types';
-import { API_KEY_SCOPES, DEVICE_VENDORS, WEBHOOK_EVENTS, WEBRTC_CODECS } from './types';
+import { API_KEY_SCOPES, DEVICE_VENDORS, EXTENSIONS_CSV_COLUMNS, WEBHOOK_EVENTS, WEBRTC_CODECS } from './types';
 
 const LOCK_MS = 15 * 60 * 1000;
 const LOCK_AFTER = 5;
@@ -276,6 +289,21 @@ function advanceMigrationJob(
   rec.phase = null;
 }
 
+/** `listCalls`/`exportCallsCsv` ikkisi ham shu yerdan: sana/yoʻnalish/erkin qidiruv + CDR kengaytirilgan filtr. */
+function filterCallsFor(calls: Call[], params: ListCallsParams): Call[] {
+  const { from, to, q = '', direction } = params;
+  const needle = q.trim().toLowerCase();
+  const fromTs = from ? Date.parse(from) : -Infinity;
+  const toTs = to ? Date.parse(to) : Infinity;
+  return calls.filter((c) => {
+    const ts = Date.parse(c.started_at);
+    if (ts < fromTs || ts > toTs) return false;
+    if (direction && c.direction !== direction) return false;
+    if (needle && !`${c.src} ${c.dst} ${c.did ?? ''}`.toLowerCase().includes(needle)) return false;
+    return matchesCallFilters(c, params);
+  });
+}
+
 export function createFakeClient(): ApiClient {
   let needed = true;
   let extensions = seedExtensions();
@@ -405,6 +433,22 @@ export function createFakeClient(): ApiClient {
   let netPending: NetworkPending | null = null;
   let netPendingSnapshot: { hostname: string; dns: typeof netDns; interfaces: NetworkInterface[]; routes: NetworkStaticRoute[] } | null = null;
   let netLastResult: NetworkLastResult | null = null;
+
+  // ─────────────────────── M9 — qarang ../../replica/m9-freepbx-gaps-contract.md ───────────────────────
+  let announcements = seedAnnouncements();
+  let miscDestinations = seedMiscDestinations();
+  let miscApplications = seedMiscApplications();
+  let parkingSettingsCore = seedParkingSettings();
+  /** Jonli park ro'yxati (A3 §GET /parking/calls) — mavjud dashboard `Parking`/`ParkedCall`dan ataylab mustaqil. */
+  let parkingCalls: ParkingCall[] = [{ slot: 701, caller_num: '998901112233', caller_name: null, parked_by: '101', parked_seconds: 42, timeout_s: 60 }];
+  let pageGroups = seedPageGroups();
+  let pinSets = seedPinSets();
+  /** PIN-to'plam id → PIN yozuvlari; ochiq PIN faqat shu xaritada (hech qachon javobda qaytmaydi). */
+  const pinSetPins = new Map<string, { id: string; pin: string; label: string }[]>(
+    pinSets.map((p) => [p.id, [{ id: randomId('pin'), pin: '2024', label: 'Buxgalteriya' }, { id: randomId('pin'), pin: '1357', label: 'Savdo' }]]),
+  );
+  let contacts = seedContacts();
+  let cidSources = seedCidSources();
 
   // ─────────────────────── M5a — qarang ../../replica/m5a-contract.md ───────────────────────
   const migrationJobs = new Map<string, FakeMigrationRecord>();
@@ -679,6 +723,12 @@ export function createFakeClient(): ApiClient {
     return next;
   }
   const BLACKLIST_NUMBER_RE = /^[0-9]{3,15}$/;
+  // M9 — qarang ../../replica/m9-freepbx-gaps-contract.md
+  const MISC_DIAL_RE = /^[0-9*#+]{1,32}$/;
+  const MISC_CODE_RE = /^(\*[0-9*#]{1,6}|[0-9]{1,7})$/;
+  const PIN_SET_PIN_RE = /^\d{4,12}$/;
+  const EXT_NUMBER_RE = /^[0-9]{2,10}$/;
+  const ALERT_INFO_RE = /^[A-Za-z0-9=<>:;/._@-]{1,128}$/;
 
   /** `""` — `null` kabi tozalaydi (§1); berilmagan maydon `undefined` holida qoladi. */
   function clearsEmpty(v: string | null | undefined): string | null | undefined {
@@ -764,6 +814,7 @@ export function createFakeClient(): ApiClient {
       if (c.open_target.id === id) items.push({ kind: 'time_condition', id: c.id, label: c.name, field: 'open' });
       if (c.closed_target.id === id) items.push({ kind: 'time_condition', id: c.id, label: c.name, field: 'closed' });
     });
+    announcements.forEach((a) => { if (a.next_target.id === id) items.push({ kind: 'announcement', id: a.id, label: a.name, field: 'next' }); });
     return items;
   }
 
@@ -815,6 +866,10 @@ export function createFakeClient(): ApiClient {
     if (c) return { id: c.id, kind: 'time_condition', label: c.name, number: c.number, broken: false };
     const cf = conferences.find((x) => x.target_id === id);
     if (cf) return { id: cf.target_id, kind: 'conference', label: cf.name, number: cf.number, broken: false };
+    const an = announcements.find((x) => x.target_id === id);
+    if (an) return { id: an.target_id, kind: 'announcement', label: an.name, number: null, broken: false };
+    const md = miscDestinations.find((x) => x.target_id === id);
+    if (md) return { id: md.target_id, kind: 'misc', label: md.name, number: md.dial, broken: false };
     if (id === SYS_HANGUP_TARGET.id) return SYS_HANGUP_TARGET;
     if (id === SYS_BUSY_TARGET.id) return SYS_BUSY_TARGET;
     return null;
@@ -826,6 +881,28 @@ export function createFakeClient(): ApiClient {
     return t;
   }
 
+  /** CID lookup manbasi — kiruvchi marshrutga bogʻlanadi (M9 B2). */
+  function requireCidSource(id: string): CidSource {
+    const s = cidSources.find((c) => c.id === id);
+    if (!s) err(404, 'not_found', 'CID manbasi topilmadi.', { field: 'cid_lookup_source_id' });
+    return s;
+  }
+
+  /** PIN toʻplami — chiquvchi marshrutga bogʻlanadi (M9 B1). */
+  function requirePinSet(id: string): PinSet {
+    const p = pinSets.find((x) => x.id === id);
+    if (!p) err(404, 'not_found', 'PIN toʻplami topilmadi.', { field: 'pin_set_id' });
+    return p;
+  }
+
+  function pinSetUsedBy(id: string): { id: string; name: string }[] {
+    return outboundRoutes.filter((r) => r.pin_set?.id === id).map((r) => ({ id: r.id, name: r.name }));
+  }
+
+  function cidSourceUsedBy(id: string): { id: string; name: string }[] {
+    return routes.filter((r) => r.cid_lookup_source?.id === id).map((r) => ({ id: r.id, name: r.name }));
+  }
+
   function allTargets(): Target[] {
     return [
       ...extensions.map(toExtensionTarget),
@@ -834,6 +911,8 @@ export function createFakeClient(): ApiClient {
       ...ivrs.map((v): Target => ({ id: v.id, kind: 'ivr', label: v.name, number: v.number, broken: false })),
       ...timeConditions.map((c): Target => ({ id: c.id, kind: 'time_condition', label: c.name, number: c.number, broken: false })),
       ...conferences.map((cf): Target => ({ id: cf.target_id, kind: 'conference', label: cf.name, number: cf.number, broken: false })),
+      ...announcements.map((an): Target => ({ id: an.target_id, kind: 'announcement', label: an.name, number: null, broken: false })),
+      ...miscDestinations.map((md): Target => ({ id: md.target_id, kind: 'misc', label: md.name, number: md.dial, broken: false })),
       SYS_HANGUP_TARGET,
       SYS_BUSY_TARGET,
     ];
@@ -848,6 +927,16 @@ export function createFakeClient(): ApiClient {
     timeConditions.forEach((c) => { if (c.number && c.id !== excludeId) nums.push(c.number); });
     conferences.forEach((cf) => { if (cf.number && cf.id !== excludeId) nums.push(cf.number); });
     return nums;
+  }
+
+  /** Maxsus kod (`misc_applications.code`) — xizmat kodlari, boshqa maxsus kodlar VA ichki raqamlar bilan toʻqnashmasin, prefiks ham (A2 §2). */
+  function checkMiscCodeTaken(code: string, excludeId?: string) {
+    const conflictMisc = miscApplications.find((m) => m.id !== excludeId && codesConflict(m.code, code));
+    if (conflictMisc) err(409, 'code_taken', `Bu kod «${conflictMisc.code}» bilan toʻqnashadi.`, { field: 'code', details: { conflict: conflictMisc.code } });
+    const conflictFc = featureCodes.find((f) => codesConflict(f.code, code));
+    if (conflictFc) err(409, 'code_taken', `Bu kod «${conflictFc.code}» bilan toʻqnashadi.`, { field: 'code', details: { conflict: conflictFc.code } });
+    const conflictNum = allDialNumbers().find((n) => codesConflict(n, code));
+    if (conflictNum) err(409, 'code_taken', `Bu kod «${conflictNum}» raqami bilan toʻqnashadi.`, { field: 'code', details: { conflict: conflictNum } });
   }
 
   /** 700-720 — park uchun zahiralangan (§2/§3): har qanday raqam maydoni (ext/IVR/guruh/navbat/vaqt sharti/konferensiya) uchun bitta joy. */
@@ -1522,6 +1611,7 @@ export function createFakeClient(): ApiClient {
         updated_at: now,
         toll_blocked_at: null, toll_block_reason: null, webrtc, codecs,
         recording: recordingIn, recording_in: recordingIn, recording_out: recording.recording_out ?? 'never',
+        call_waiting: payload.call_waiting ?? true,
       };
       extensions = [...extensions, item];
       const sip: SipCredentials = { username: number, password, domain: sipDomain(), port: 5060 };
@@ -1552,6 +1642,7 @@ export function createFakeClient(): ApiClient {
         outbound_callerid: payload.outbound_callerid !== undefined ? (call.outboundCallerid as string | null) : cur.outbound_callerid,
         webrtc, codecs,
         recording: recordingIn, recording_in: recordingIn, recording_out: recording.recording_out ?? cur.recording_out,
+        call_waiting: payload.call_waiting ?? cur.call_waiting,
         updated_at: now,
       };
       extensions = extensions.map((e) => (e.id === id ? item : e));
@@ -1560,7 +1651,8 @@ export function createFakeClient(): ApiClient {
         && (payload.dnd !== undefined || payload.forward_always !== undefined || payload.forward_busy !== undefined || payload.pickup_group !== undefined
           || payload.outbound_allowed !== undefined || payload.outbound_callerid !== undefined
           || payload.webrtc !== undefined || payload.codecs !== undefined
-          || payload.recording !== undefined || payload.recording_in !== undefined || payload.recording_out !== undefined);
+          || payload.recording !== undefined || payload.recording_in !== undefined || payload.recording_out !== undefined
+          || payload.call_waiting !== undefined);
       const applyResult: ApplyResult = callFieldsOnly ? { status: 'applied', revision: null, message: null } : apply(`Ichki raqam ${item.number} tahrirlandi`, payload.name);
       return { item, apply: applyResult };
     },
@@ -1679,8 +1771,14 @@ export function createFakeClient(): ApiClient {
       const conflict = routes.find((r) => (r.did ?? null) === (payload.did ?? null) && (r.cid ?? null) === (payload.cid ?? null));
       if (conflict) err(409, 'did_conflict', 'Bu DID + CallerID kombinatsiyasi allaqachon ishlatilgan.', { field: 'did' });
       const target = requireTarget(payload.target_id, 'target_id');
+      if (payload.alert_info != null && !ALERT_INFO_RE.test(payload.alert_info)) err(422, 'bad_alert_info', 'Alert-Info notoʻgʻri.', { field: 'alert_info' });
+      const cidLookupSource = payload.cid_lookup_source_id ? requireCidSource(payload.cid_lookup_source_id) : null;
       const now = new Date().toISOString();
-      const item: InboundRoute = { id: randomId('r'), name: payload.name, did: payload.did, cid: payload.cid, target, enabled: payload.enabled, updated_at: now };
+      const item: InboundRoute = {
+        id: randomId('r'), name: payload.name, did: payload.did, cid: payload.cid, target, enabled: payload.enabled, updated_at: now,
+        cid_name_prefix: payload.cid_name_prefix ?? null, alert_info: payload.alert_info ?? null,
+        cid_lookup_source: cidLookupSource ? { id: cidLookupSource.id, name: cidLookupSource.name } : null,
+      };
       routes = [...routes, item];
       return { item, apply: apply(`Kiruvchi marshrut «${item.name}» qoʻshildi`, payload.name) };
     },
@@ -1696,8 +1794,20 @@ export function createFakeClient(): ApiClient {
       const conflict = routes.find((r) => r.id !== id && (r.did ?? null) === (nextDid ?? null) && (r.cid ?? null) === (nextCid ?? null));
       if (conflict) err(409, 'did_conflict', 'Bu DID + CallerID kombinatsiyasi allaqachon ishlatilgan.', { field: 'did' });
       const target = payload.target_id ? requireTarget(payload.target_id, 'target_id') : cur.target;
+      if (payload.alert_info != null && !ALERT_INFO_RE.test(payload.alert_info)) err(422, 'bad_alert_info', 'Alert-Info notoʻgʻri.', { field: 'alert_info' });
+      const cidLookupSource = payload.cid_lookup_source_id !== undefined
+        ? (payload.cid_lookup_source_id ? requireCidSource(payload.cid_lookup_source_id) : null)
+        : null;
       const now = new Date().toISOString();
-      const item: InboundRoute = { ...cur, name: payload.name ?? cur.name, did: nextDid, cid: nextCid, target, enabled: payload.enabled ?? cur.enabled, updated_at: now };
+      const item: InboundRoute = {
+        ...cur, name: payload.name ?? cur.name, did: nextDid, cid: nextCid, target, enabled: payload.enabled ?? cur.enabled,
+        cid_name_prefix: payload.cid_name_prefix !== undefined ? payload.cid_name_prefix : cur.cid_name_prefix,
+        alert_info: payload.alert_info !== undefined ? payload.alert_info : cur.alert_info,
+        cid_lookup_source: payload.cid_lookup_source_id !== undefined
+          ? (cidLookupSource ? { id: cidLookupSource.id, name: cidLookupSource.name } : null)
+          : cur.cid_lookup_source,
+        updated_at: now,
+      };
       routes = routes.map((r) => (r.id === id ? item : r));
       return { item, apply: apply(`Kiruvchi marshrut «${item.name}» tahrirlandi`, payload.name) };
     },
@@ -1749,20 +1859,18 @@ export function createFakeClient(): ApiClient {
       return { items };
     },
 
-    async listCalls({ from, to, q = '', direction, page = 1, size = 50 }: ListCallsParams): Promise<Paged<Call>> {
+    async listCalls(params: ListCallsParams): Promise<Paged<Call>> {
       await delay();
-      const needle = q.trim().toLowerCase();
-      const fromTs = from ? Date.parse(from) : -Infinity;
-      const toTs = to ? Date.parse(to) : Infinity;
-      const filtered = calls.filter((c) => {
-        const ts = Date.parse(c.started_at);
-        if (ts < fromTs || ts > toTs) return false;
-        if (direction && c.direction !== direction) return false;
-        if (needle && !`${c.src} ${c.dst} ${c.did ?? ''}`.toLowerCase().includes(needle)) return false;
-        return true;
-      });
+      const { page = 1, size = 50 } = params;
+      const filtered = filterCallsFor(calls, params);
       const start = (page - 1) * size;
       return { items: filtered.slice(start, start + size), total: filtered.length };
+    },
+
+    /** CDR CSV eksport — xuddi `listCalls` bilan bir xil filtr, sahifalashsiz (hammasi). */
+    async exportCallsCsv(params: ListCallsParams): Promise<Blob> {
+      await delay();
+      return new Blob([callsToCsv(filterCallsFor(calls, params))], { type: 'text/csv;charset=utf-8' });
     },
 
     async systemHealth(): Promise<SystemHealth> {
@@ -2230,11 +2338,13 @@ export function createFakeClient(): ApiClient {
       const extRefs = resolveOutboundExtensions(payload.extensions);
       const id = randomId('or');
       if (payload.pin) outboundPins.set(id, payload.pin);
+      const pinSet = payload.pin_set_id ? requirePinSet(payload.pin_set_id) : null;
       const now = new Date().toISOString();
       const item: OutboundRoute = {
         id, name: payload.name, priority: outboundRoutes.length + 1, enabled: payload.enabled, patterns: payload.patterns,
         trunks: trunkRefs, callerid: payload.callerid ?? null, override_extension_callerid: payload.override_extension_callerid,
         has_pin: !!payload.pin, international: payload.international, extensions: extRefs, updated_at: now,
+        pin_set: pinSet ? { id: pinSet.id, name: pinSet.name } : null,
       };
       outboundRoutes = [...outboundRoutes, item];
       auditAdd('create', 'outbound_route', id, item.name, { name: [null, item.name] });
@@ -2254,6 +2364,9 @@ export function createFakeClient(): ApiClient {
       if (payload.pin !== undefined) {
         if (payload.pin === null) outboundPins.delete(id); else outboundPins.set(id, payload.pin);
       }
+      const pinSet = payload.pin_set_id !== undefined
+        ? (payload.pin_set_id ? requirePinSet(payload.pin_set_id) : null)
+        : null;
       const now = new Date().toISOString();
       const item: OutboundRoute = {
         ...cur, name: payload.name ?? cur.name, enabled: payload.enabled ?? cur.enabled,
@@ -2262,6 +2375,7 @@ export function createFakeClient(): ApiClient {
         override_extension_callerid: payload.override_extension_callerid ?? cur.override_extension_callerid,
         has_pin: payload.pin !== undefined ? payload.pin !== null : cur.has_pin,
         international: payload.international ?? cur.international, extensions: extRefs, updated_at: now,
+        pin_set: payload.pin_set_id !== undefined ? (pinSet ? { id: pinSet.id, name: pinSet.name } : null) : cur.pin_set,
       };
       outboundRoutes = outboundRoutes.map((r) => (r.id === id ? item : r));
       auditAdd('update', 'outbound_route', id, item.name, { name: [cur.name, item.name] });
@@ -2831,6 +2945,575 @@ export function createFakeClient(): ApiClient {
       conferencePins.delete(id);
       conferenceAdminPins.delete(id);
       apply(`Konferensiya «${cur.name}» oʻchirildi`);
+    },
+
+    // ─────────────────────── M9 A1 — E'lonlar (Announcements) ───────────────────────
+
+    async listAnnouncements(): Promise<Paged<Announcement>> {
+      await delay();
+      return { items: announcements, total: announcements.length };
+    },
+
+    async createAnnouncement(payload: CreateAnnouncementPayload): Promise<Mutated<Announcement>> {
+      await delay();
+      requireManage('pbx.manage');
+      const name = payload.name.trim();
+      if (!name) err(422, 'bad_name', 'Nomi kerak.', { field: 'name' });
+      const nextTarget = requireTarget(payload.next_target_id, 'next_target_id');
+      const id = randomId('an');
+      const now = new Date().toISOString();
+      const item: Announcement = {
+        id, name, audio_file_id: payload.audio_file_id, audio_name: audioList.find((a) => a.id === payload.audio_file_id)?.name ?? payload.audio_file_id,
+        next_target: nextTarget, allow_skip: payload.allow_skip ?? false, repeat_key: payload.repeat_key ?? null,
+        answer: payload.answer ?? true, target_id: id, updated_at: now,
+      };
+      announcements = [...announcements, item];
+      return { item, apply: apply(`Eʼlon «${name}» qoʻshildi`, name) };
+    },
+
+    async updateAnnouncement(id: string, payload: UpdateAnnouncementPayload): Promise<Mutated<Announcement>> {
+      await delay();
+      requireManage('pbx.manage');
+      const cur = announcements.find((a) => a.id === id);
+      if (!cur) err(404, 'not_found', 'Eʼlon topilmadi.');
+      if (payload.updated_at !== cur.updated_at) err(409, 'stale', 'Bu yozuv boshqa joyda oʻzgartirilgan. Sahifani yangilang.', { details: { current: cur } });
+      const name = payload.name !== undefined ? payload.name.trim() : cur.name;
+      if (!name) err(422, 'bad_name', 'Nomi kerak.', { field: 'name' });
+      let nextTarget = cur.next_target;
+      if (payload.next_target_id !== undefined) {
+        if (payload.next_target_id === cur.target_id) err(422, 'bad_target', 'Eʼlon oʻz-oʻziga yoʻnaltirilmaydi.', { field: 'next_target_id' });
+        nextTarget = requireTarget(payload.next_target_id, 'next_target_id');
+      }
+      const now = new Date().toISOString();
+      const item: Announcement = {
+        ...cur, name, next_target: nextTarget,
+        audio_file_id: payload.audio_file_id ?? cur.audio_file_id,
+        audio_name: payload.audio_file_id !== undefined ? (audioList.find((a) => a.id === payload.audio_file_id)?.name ?? payload.audio_file_id) : cur.audio_name,
+        allow_skip: payload.allow_skip ?? cur.allow_skip,
+        repeat_key: payload.repeat_key !== undefined ? payload.repeat_key : cur.repeat_key,
+        answer: payload.answer ?? cur.answer,
+        updated_at: now,
+      };
+      announcements = announcements.map((a) => (a.id === id ? item : a));
+      return { item, apply: apply(`Eʼlon «${item.name}» tahrirlandi`, item.name) };
+    },
+
+    async deleteAnnouncement(id: string) {
+      await delay();
+      requireManage('pbx.manage');
+      const cur = announcements.find((a) => a.id === id);
+      if (!cur) err(404, 'not_found', 'Eʼlon topilmadi.');
+      const usages = usagesForTargetId(cur.target_id);
+      if (usages.length > 0) err(409, 'in_use', `${cur.name} hali ishlatilmoqda.`, { details: { usages } });
+      announcements = announcements.filter((a) => a.id !== id);
+      apply(`Eʼlon «${cur.name}» oʻchirildi`);
+    },
+
+    // ─────────────────────── M9 A2 — Boshqa manzillar / Maxsus kodlar ───────────────────────
+
+    async listMiscDestinations(): Promise<Paged<MiscDestination>> {
+      await delay();
+      return { items: miscDestinations, total: miscDestinations.length };
+    },
+
+    async createMiscDestination(payload: CreateMiscDestinationPayload): Promise<Mutated<MiscDestination>> {
+      await delay();
+      requireManage('pbx.manage');
+      const name = payload.name.trim();
+      if (!name) err(422, 'bad_name', 'Nomi kerak.', { field: 'name' });
+      const dial = payload.dial.trim();
+      if (!MISC_DIAL_RE.test(dial)) err(422, 'bad_dial', 'Terish qiymati notoʻgʻri — raqam/`*`/`#`/`+` (1-32 belgi).', { field: 'dial' });
+      const id = randomId('md');
+      const now = new Date().toISOString();
+      const item: MiscDestination = { id, name, dial, target_id: id, updated_at: now };
+      miscDestinations = [...miscDestinations, item];
+      return { item, apply: apply(`Manzil «${name}» qoʻshildi`, name) };
+    },
+
+    async updateMiscDestination(id: string, payload: UpdateMiscDestinationPayload): Promise<Mutated<MiscDestination>> {
+      await delay();
+      requireManage('pbx.manage');
+      const cur = miscDestinations.find((m) => m.id === id);
+      if (!cur) err(404, 'not_found', 'Manzil topilmadi.');
+      if (payload.updated_at !== cur.updated_at) err(409, 'stale', 'Bu yozuv boshqa joyda oʻzgartirilgan. Sahifani yangilang.', { details: { current: cur } });
+      const name = payload.name !== undefined ? payload.name.trim() : cur.name;
+      if (!name) err(422, 'bad_name', 'Nomi kerak.', { field: 'name' });
+      const dial = payload.dial !== undefined ? payload.dial.trim() : cur.dial;
+      if (!MISC_DIAL_RE.test(dial)) err(422, 'bad_dial', 'Terish qiymati notoʻgʻri — raqam/`*`/`#`/`+` (1-32 belgi).', { field: 'dial' });
+      const now = new Date().toISOString();
+      const item: MiscDestination = { ...cur, name, dial, updated_at: now };
+      miscDestinations = miscDestinations.map((m) => (m.id === id ? item : m));
+      return { item, apply: apply(`Manzil «${item.name}» tahrirlandi`, item.name) };
+    },
+
+    async deleteMiscDestination(id: string) {
+      await delay();
+      requireManage('pbx.manage');
+      const cur = miscDestinations.find((m) => m.id === id);
+      if (!cur) err(404, 'not_found', 'Manzil topilmadi.');
+      const usages = usagesForTargetId(cur.target_id);
+      if (usages.length > 0) err(409, 'in_use', `${cur.name} hali ishlatilmoqda.`, { details: { usages } });
+      miscDestinations = miscDestinations.filter((m) => m.id !== id);
+      apply(`Manzil «${cur.name}» oʻchirildi`);
+    },
+
+    async listMiscApplications(): Promise<Paged<MiscApplication>> {
+      await delay();
+      return { items: miscApplications, total: miscApplications.length };
+    },
+
+    async createMiscApplication(payload: CreateMiscApplicationPayload): Promise<Mutated<MiscApplication>> {
+      await delay();
+      requireManage('pbx.manage');
+      const name = payload.name.trim();
+      if (!name) err(422, 'bad_name', 'Nomi kerak.', { field: 'name' });
+      const code = payload.code.trim();
+      if (!MISC_CODE_RE.test(code)) err(422, 'bad_code', 'Kod notoʻgʻri — `*`/raqam/`#` (1-7 belgi).', { field: 'code' });
+      checkMiscCodeTaken(code);
+      const target = requireTarget(payload.target_id, 'target_id');
+      const id = randomId('ma');
+      const now = new Date().toISOString();
+      const item: MiscApplication = { id, name, code, target, enabled: payload.enabled ?? true, updated_at: now };
+      miscApplications = [...miscApplications, item];
+      return { item, apply: apply(`Maxsus kod «${name}» qoʻshildi`, name) };
+    },
+
+    async updateMiscApplication(id: string, payload: UpdateMiscApplicationPayload): Promise<Mutated<MiscApplication>> {
+      await delay();
+      requireManage('pbx.manage');
+      const cur = miscApplications.find((m) => m.id === id);
+      if (!cur) err(404, 'not_found', 'Maxsus kod topilmadi.');
+      if (payload.updated_at !== cur.updated_at) err(409, 'stale', 'Bu yozuv boshqa joyda oʻzgartirilgan. Sahifani yangilang.', { details: { current: cur } });
+      const name = payload.name !== undefined ? payload.name.trim() : cur.name;
+      if (!name) err(422, 'bad_name', 'Nomi kerak.', { field: 'name' });
+      const code = payload.code !== undefined ? payload.code.trim() : cur.code;
+      if (!MISC_CODE_RE.test(code)) err(422, 'bad_code', 'Kod notoʻgʻri — `*`/raqam/`#` (1-7 belgi).', { field: 'code' });
+      if (code !== cur.code) checkMiscCodeTaken(code, id);
+      const target = payload.target_id !== undefined ? requireTarget(payload.target_id, 'target_id') : cur.target;
+      const now = new Date().toISOString();
+      const item: MiscApplication = { ...cur, name, code, target, enabled: payload.enabled ?? cur.enabled, updated_at: now };
+      miscApplications = miscApplications.map((m) => (m.id === id ? item : m));
+      return { item, apply: apply(`Maxsus kod «${item.name}» tahrirlandi`, item.name) };
+    },
+
+    async deleteMiscApplication(id: string) {
+      await delay();
+      requireManage('pbx.manage');
+      const cur = miscApplications.find((m) => m.id === id);
+      if (!cur) err(404, 'not_found', 'Maxsus kod topilmadi.');
+      miscApplications = miscApplications.filter((m) => m.id !== id);
+      apply(`Maxsus kod «${cur.name}» oʻchirildi`);
+    },
+
+    // ─────────────────────── M9 A3 — Parkovka sozlamalari ───────────────────────
+
+    async parkingSettings(): Promise<ParkingSettings> {
+      await delay();
+      return parkingSettingsCore;
+    },
+
+    async updateParkingSettings(payload: UpdateParkingSettingsPayload): Promise<Mutated<ParkingSettings>> {
+      await delay();
+      requireManage('pbx.manage');
+      if (payload.updated_at !== parkingSettingsCore.updated_at) err(409, 'stale', 'Bu sozlama boshqa joyda oʻzgartirilgan. Sahifani yangilang.', { details: { current: parkingSettingsCore } });
+      if (!/^\d{3,4}$/.test(payload.lot_number)) err(422, 'bad_lot', 'Lot raqami notoʻgʻri.', { field: 'lot_number' });
+      if (payload.slot_count < 1 || payload.slot_count > 200) err(422, 'bad_slot_count', 'Joylar soni 1-200 orasida boʻlishi kerak.', { field: 'slot_count' });
+      if (payload.timeout_s < 10 || payload.timeout_s > 3600) err(422, 'bad_timeout', 'Kutish vaqti 10-3600 soniya orasida boʻlishi kerak.', { field: 'timeout_s' });
+      const timeoutTarget = payload.timeout_target_id ? requireTarget(payload.timeout_target_id, 'timeout_target_id') : null;
+      const now = new Date().toISOString();
+      parkingSettingsCore = {
+        lot_number: payload.lot_number, first_slot: payload.first_slot, slot_count: payload.slot_count,
+        timeout_s: payload.timeout_s, on_timeout: payload.on_timeout, timeout_target: timeoutTarget,
+        moh_class_id: payload.moh_class_id, updated_at: now,
+      };
+      return { item: parkingSettingsCore, apply: apply('Parkovka sozlamalari saqlandi') };
+    },
+
+    async parkedCalls(): Promise<Paged<ParkingCall>> {
+      await delay(120);
+      return { items: parkingCalls, total: parkingCalls.length };
+    },
+
+    // ─────────────────────── M9 A4 — Paging / Intercom ───────────────────────
+
+    async listPageGroups(): Promise<Paged<PageGroup>> {
+      await delay();
+      return { items: pageGroups, total: pageGroups.length };
+    },
+
+    async createPageGroup(payload: CreatePageGroupPayload): Promise<Mutated<PageGroup>> {
+      await delay();
+      requireManage('pbx.manage');
+      const name = payload.name.trim();
+      if (!name) err(422, 'bad_name', 'Nomi kerak.', { field: 'name' });
+      const number = payload.number.trim();
+      checkNumberTaken(number);
+      if (payload.member_ids.length === 0) err(422, 'bad_members', 'Kamida bitta aʼzo kerak.', { field: 'member_ids' });
+      const members = payload.member_ids.map((mid) => {
+        const e = extensions.find((x) => x.id === mid);
+        if (!e) err(404, 'not_found', 'Ichki raqam topilmadi.', { field: 'member_ids' });
+        return { id: e.id, number: e.number, name: e.name };
+      });
+      const id = randomId('pg');
+      const now = new Date().toISOString();
+      const item: PageGroup = { id, name, number, duplex: payload.duplex, skip_busy: payload.skip_busy, beep: payload.beep, members, updated_at: now };
+      pageGroups = [...pageGroups, item];
+      return { item, apply: apply(`Paging guruhi «${name}» qoʻshildi`, name) };
+    },
+
+    async updatePageGroup(id: string, payload: UpdatePageGroupPayload): Promise<Mutated<PageGroup>> {
+      await delay();
+      requireManage('pbx.manage');
+      const cur = pageGroups.find((p) => p.id === id);
+      if (!cur) err(404, 'not_found', 'Paging guruhi topilmadi.');
+      if (payload.updated_at !== cur.updated_at) err(409, 'stale', 'Bu yozuv boshqa joyda oʻzgartirilgan. Sahifani yangilang.', { details: { current: cur } });
+      const name = payload.name !== undefined ? payload.name.trim() : cur.name;
+      if (!name) err(422, 'bad_name', 'Nomi kerak.', { field: 'name' });
+      const number = payload.number !== undefined ? payload.number.trim() : cur.number;
+      if (number !== cur.number) checkNumberTaken(number, id);
+      let members = cur.members;
+      if (payload.member_ids !== undefined) {
+        if (payload.member_ids.length === 0) err(422, 'bad_members', 'Kamida bitta aʼzo kerak.', { field: 'member_ids' });
+        members = payload.member_ids.map((mid) => {
+          const e = extensions.find((x) => x.id === mid);
+          if (!e) err(404, 'not_found', 'Ichki raqam topilmadi.', { field: 'member_ids' });
+          return { id: e.id, number: e.number, name: e.name };
+        });
+      }
+      const now = new Date().toISOString();
+      const item: PageGroup = {
+        ...cur, name, number, duplex: payload.duplex ?? cur.duplex, skip_busy: payload.skip_busy ?? cur.skip_busy,
+        beep: payload.beep ?? cur.beep, members, updated_at: now,
+      };
+      pageGroups = pageGroups.map((p) => (p.id === id ? item : p));
+      return { item, apply: apply(`Paging guruhi «${item.name}» tahrirlandi`, item.name) };
+    },
+
+    async deletePageGroup(id: string) {
+      await delay();
+      requireManage('pbx.manage');
+      const cur = pageGroups.find((p) => p.id === id);
+      if (!cur) err(404, 'not_found', 'Paging guruhi topilmadi.');
+      pageGroups = pageGroups.filter((p) => p.id !== id);
+      apply(`Paging guruhi «${cur.name}» oʻchirildi`);
+    },
+
+    // ─────────────────────── M9 B1 — PIN toʻplamlari ───────────────────────
+
+    async listPinSets(): Promise<Paged<PinSet>> {
+      await delay();
+      const items = pinSets.map((p) => ({ ...p, used_by: pinSetUsedBy(p.id) }));
+      return { items, total: items.length };
+    },
+
+    async createPinSet(payload: CreatePinSetPayload): Promise<Mutated<PinSet>> {
+      await delay();
+      requireManage('pbx.manage');
+      const name = payload.name.trim();
+      if (!name) err(422, 'bad_name', 'Nomi kerak.', { field: 'name' });
+      const id = randomId('ps');
+      const now = new Date().toISOString();
+      const item: PinSet = { id, name, record_in_cdr: payload.record_in_cdr ?? false, pin_count: 0, used_by: [], updated_at: now };
+      pinSets = [...pinSets, item];
+      pinSetPins.set(id, []);
+      return { item, apply: apply(`PIN toʻplami «${name}» qoʻshildi`, name) };
+    },
+
+    async updatePinSet(id: string, payload: UpdatePinSetPayload): Promise<Mutated<PinSet>> {
+      await delay();
+      requireManage('pbx.manage');
+      const cur = pinSets.find((p) => p.id === id);
+      if (!cur) err(404, 'not_found', 'PIN toʻplami topilmadi.');
+      if (payload.updated_at !== cur.updated_at) err(409, 'stale', 'Bu yozuv boshqa joyda oʻzgartirilgan. Sahifani yangilang.', { details: { current: cur } });
+      const name = payload.name !== undefined ? payload.name.trim() : cur.name;
+      if (!name) err(422, 'bad_name', 'Nomi kerak.', { field: 'name' });
+      const now = new Date().toISOString();
+      const item: PinSet = { ...cur, name, record_in_cdr: payload.record_in_cdr ?? cur.record_in_cdr, updated_at: now };
+      pinSets = pinSets.map((p) => (p.id === id ? item : p));
+      return { item, apply: apply(`PIN toʻplami «${item.name}» tahrirlandi`, item.name) };
+    },
+
+    async deletePinSet(id: string) {
+      await delay();
+      requireManage('pbx.manage');
+      const cur = pinSets.find((p) => p.id === id);
+      if (!cur) err(404, 'not_found', 'PIN toʻplami topilmadi.');
+      const usedBy = pinSetUsedBy(id);
+      if (usedBy.length > 0) err(409, 'in_use', `${cur.name} hali ishlatilmoqda.`, { details: { usages: usedBy.map((u) => ({ kind: 'outbound_route', id: u.id, label: u.name })) } });
+      pinSets = pinSets.filter((p) => p.id !== id);
+      pinSetPins.delete(id);
+      apply(`PIN toʻplami «${cur.name}» oʻchirildi`);
+    },
+
+    async listPinSetPins(id: string): Promise<{ items: PinSetPin[] }> {
+      await delay();
+      const pins = pinSetPins.get(id);
+      if (!pins) err(404, 'not_found', 'PIN toʻplami topilmadi.');
+      return { items: pins.map((p) => ({ id: p.id, label: p.label })) };
+    },
+
+    async addPinSetPins(id: string, payload: AddPinsPayload): Promise<{ items: PinSetPin[] }> {
+      await delay();
+      requireManage('pbx.manage');
+      const set = pinSets.find((p) => p.id === id);
+      const pins = pinSetPins.get(id);
+      if (!set || !pins) err(404, 'not_found', 'PIN toʻplami topilmadi.');
+      const existing = new Set(pins.map((p) => p.pin));
+      const added: { id: string; pin: string; label: string }[] = [];
+      for (const row of payload.pins) {
+        const pin = row.pin.trim();
+        if (!PIN_SET_PIN_RE.test(pin)) err(422, 'bad_pin', `PIN «${pin}» notoʻgʻri — 4-12 ta raqam.`, { field: 'pin' });
+        if (existing.has(pin) || added.some((a) => a.pin === pin)) err(409, 'pin_taken', `PIN «${pin}» allaqachon mavjud.`, { field: 'pin' });
+        added.push({ id: randomId('pin'), pin, label: row.label.trim() });
+      }
+      const next = [...pins, ...added];
+      pinSetPins.set(id, next);
+      pinSets = pinSets.map((p) => (p.id === id ? { ...p, pin_count: next.length } : p));
+      apply(`${added.length} ta PIN «${set.name}» toʻplamiga qoʻshildi`, set.name);
+      return { items: next.map((p) => ({ id: p.id, label: p.label })) };
+    },
+
+    async deletePinSetPin(id: string, pinId: string) {
+      await delay();
+      requireManage('pbx.manage');
+      const pins = pinSetPins.get(id);
+      if (!pins) err(404, 'not_found', 'PIN toʻplami topilmadi.');
+      const next = pins.filter((p) => p.id !== pinId);
+      pinSetPins.set(id, next);
+      pinSets = pinSets.map((p) => (p.id === id ? { ...p, pin_count: next.length } : p));
+      apply('PIN oʻchirildi');
+    },
+
+    // ─────────────────────── M9 B2 — Telefon kitobi + CID Lookup ───────────────────────
+
+    async listPhonebook({ q = '' }: ListPhonebookParams): Promise<Paged<Contact>> {
+      await delay();
+      const needle = q.trim().toLowerCase();
+      const items = contacts.filter((c) => !needle
+        || c.name.toLowerCase().includes(needle)
+        || (c.company ?? '').toLowerCase().includes(needle)
+        || c.numbers.some((n) => n.number.includes(needle)));
+      return { items, total: items.length };
+    },
+
+    async createContact(payload: CreateContactPayload): Promise<Mutated<Contact>> {
+      await delay();
+      requireManage('pbx.manage');
+      const name = payload.name.trim();
+      if (!name) err(422, 'bad_name', 'Ism kerak.', { field: 'name' });
+      if (payload.numbers.length === 0) err(422, 'bad_numbers', 'Kamida bitta raqam kerak.', { field: 'numbers' });
+      const id = randomId('ct');
+      const now = new Date().toISOString();
+      const item: Contact = { id, name, company: payload.company ?? null, note: payload.note ?? null, numbers: payload.numbers, updated_at: now };
+      contacts = [...contacts, item];
+      return { item, apply: apply(`Kontakt «${name}» qoʻshildi`, name) };
+    },
+
+    async updateContact(id: string, payload: UpdateContactPayload): Promise<Mutated<Contact>> {
+      await delay();
+      requireManage('pbx.manage');
+      const cur = contacts.find((c) => c.id === id);
+      if (!cur) err(404, 'not_found', 'Kontakt topilmadi.');
+      if (payload.updated_at !== cur.updated_at) err(409, 'stale', 'Bu yozuv boshqa joyda oʻzgartirilgan. Sahifani yangilang.', { details: { current: cur } });
+      const name = payload.name !== undefined ? payload.name.trim() : cur.name;
+      if (!name) err(422, 'bad_name', 'Ism kerak.', { field: 'name' });
+      const numbers = payload.numbers ?? cur.numbers;
+      if (numbers.length === 0) err(422, 'bad_numbers', 'Kamida bitta raqam kerak.', { field: 'numbers' });
+      const now = new Date().toISOString();
+      const item: Contact = { ...cur, name, company: payload.company !== undefined ? payload.company : cur.company, note: payload.note !== undefined ? payload.note : cur.note, numbers, updated_at: now };
+      contacts = contacts.map((c) => (c.id === id ? item : c));
+      return { item, apply: apply(`Kontakt «${item.name}» tahrirlandi`, item.name) };
+    },
+
+    async deleteContact(id: string) {
+      await delay();
+      requireManage('pbx.manage');
+      const cur = contacts.find((c) => c.id === id);
+      if (!cur) err(404, 'not_found', 'Kontakt topilmadi.');
+      contacts = contacts.filter((c) => c.id !== id);
+      apply(`Kontakt «${cur.name}» oʻchirildi`);
+    },
+
+    async exportPhonebookCsv(): Promise<Blob> {
+      await delay();
+      const header = 'name,company,note,numbers\n';
+      const rows = contacts.map((c) => [c.name, c.company ?? '', c.note ?? '', c.numbers.map((n) => `${n.number}:${n.label}`).join('|')].map(csvCell).join(','));
+      return new Blob([header + rows.join('\n') + '\n'], { type: 'text/csv;charset=utf-8' });
+    },
+
+    async importPhonebookCsv(params: ImportPhonebookParams): Promise<ImportPhonebookResult> {
+      await delay(200);
+      requireManage('pbx.manage');
+      const text = await params.file.text();
+      const lines = text.split(/\r?\n/).filter((l) => l.trim() !== '');
+      const result: ImportPhonebookResult = { created: 0, updated: 0, skipped: 0, errors: [] };
+      lines.slice(1).forEach((line, idx) => {
+        const row = idx + 2;
+        const cells = splitCsvRow(line);
+        const [name, company, note, numbersRaw] = cells;
+        if (!name?.trim()) { result.errors.push({ row, message: 'Ism kerak.' }); return; }
+        const numbers: PhonebookNumber[] = (numbersRaw ?? '').split('|').filter(Boolean).map((part) => {
+          const [number, label] = part.split(':');
+          return { number: (number ?? '').trim(), label: (label ?? '').trim() };
+        });
+        if (numbers.length === 0) { result.errors.push({ row, message: 'Kamida bitta raqam kerak.' }); return; }
+        const existing = contacts.find((c) => c.name.toLowerCase() === name.trim().toLowerCase());
+        if (!params.dry_run) {
+          const now = new Date().toISOString();
+          if (existing) {
+            contacts = contacts.map((c) => (c.id === existing.id ? { ...c, company: company?.trim() || null, note: note?.trim() || null, numbers, updated_at: now } : c));
+          } else {
+            contacts = [...contacts, { id: randomId('ct'), name: name.trim(), company: company?.trim() || null, note: note?.trim() || null, numbers, updated_at: now }];
+          }
+        }
+        if (existing) result.updated += 1; else result.created += 1;
+      });
+      if (!params.dry_run && result.created + result.updated > 0) apply(`Telefon kitobi CSV: ${result.created} qoʻshildi, ${result.updated} tahrirlandi`);
+      return result;
+    },
+
+    async listCidSources(): Promise<Paged<CidSource>> {
+      await delay();
+      const items = cidSources.map((c) => ({ ...c, used_by: cidSourceUsedBy(c.id) }));
+      return { items, total: items.length };
+    },
+
+    async createCidSource(payload: CreateCidSourcePayload): Promise<Mutated<CidSource>> {
+      await delay();
+      requireManage('pbx.manage');
+      const name = payload.name.trim();
+      if (!name) err(422, 'bad_name', 'Nomi kerak.', { field: 'name' });
+      if (payload.kind === 'http' && !payload.http_url) err(422, 'bad_url', 'HTTP URL kerak.', { field: 'http_url' });
+      const id = randomId('cs');
+      const now = new Date().toISOString();
+      const item: CidSource = {
+        id, name, kind: payload.kind, http_url: payload.http_url ?? null, http_json_path: payload.http_json_path ?? null,
+        timeout_ms: payload.timeout_ms ?? 1500, cache_ttl_s: payload.cache_ttl_s ?? 3600, enabled: payload.enabled ?? true,
+        used_by: [], updated_at: now,
+      };
+      cidSources = [...cidSources, item];
+      return { item, apply: apply(`CID manbasi «${name}» qoʻshildi`, name) };
+    },
+
+    async updateCidSource(id: string, payload: UpdateCidSourcePayload): Promise<Mutated<CidSource>> {
+      await delay();
+      requireManage('pbx.manage');
+      const cur = cidSources.find((c) => c.id === id);
+      if (!cur) err(404, 'not_found', 'CID manbasi topilmadi.');
+      if (payload.updated_at !== cur.updated_at) err(409, 'stale', 'Bu yozuv boshqa joyda oʻzgartirilgan. Sahifani yangilang.', { details: { current: cur } });
+      const name = payload.name !== undefined ? payload.name.trim() : cur.name;
+      if (!name) err(422, 'bad_name', 'Nomi kerak.', { field: 'name' });
+      const kind = payload.kind ?? cur.kind;
+      const httpUrl = payload.http_url !== undefined ? payload.http_url : cur.http_url;
+      if (kind === 'http' && !httpUrl) err(422, 'bad_url', 'HTTP URL kerak.', { field: 'http_url' });
+      const now = new Date().toISOString();
+      const item: CidSource = {
+        ...cur, name, kind, http_url: httpUrl,
+        http_json_path: payload.http_json_path !== undefined ? payload.http_json_path : cur.http_json_path,
+        timeout_ms: payload.timeout_ms ?? cur.timeout_ms, cache_ttl_s: payload.cache_ttl_s ?? cur.cache_ttl_s,
+        enabled: payload.enabled ?? cur.enabled, updated_at: now,
+      };
+      cidSources = cidSources.map((c) => (c.id === id ? item : c));
+      return { item, apply: apply(`CID manbasi «${item.name}» tahrirlandi`, item.name) };
+    },
+
+    async deleteCidSource(id: string) {
+      await delay();
+      requireManage('pbx.manage');
+      const cur = cidSources.find((c) => c.id === id);
+      if (!cur) err(404, 'not_found', 'CID manbasi topilmadi.');
+      const usedBy = cidSourceUsedBy(id);
+      if (usedBy.length > 0) err(409, 'in_use', `${cur.name} hali ishlatilmoqda.`, { details: { usages: usedBy.map((u) => ({ kind: 'inbound_route', id: u.id, label: u.name })) } });
+      cidSources = cidSources.filter((c) => c.id !== id);
+      apply(`CID manbasi «${cur.name}» oʻchirildi`);
+    },
+
+    async testCidSource(id: string, number: string): Promise<CidSourceTestResult> {
+      await delay(400);
+      const source = cidSources.find((c) => c.id === id);
+      if (!source) err(404, 'not_found', 'CID manbasi topilmadi.');
+      if (!FORWARD_NUMBER_RE.test(number)) err(422, 'bad_number', 'Raqam notoʻgʻri.', { field: 'number' });
+      const started = Date.now();
+      if (source.kind === 'phonebook') {
+        const contact = contacts.find((c) => c.numbers.some((n) => n.number === number));
+        return { name: contact?.name ?? null, ms: Date.now() - started + 8, error: contact ? null : 'Topilmadi' };
+      }
+      return { name: null, ms: source.timeout_ms, error: 'Bu demo muhitda tashqi manba chaqirilmaydi.' };
+    },
+
+    // ─────────────────────── M9 B4 — Ichki raqamlar CSV import/eksport ───────────────────────
+
+    async exportExtensionsCsv(): Promise<Blob> {
+      await delay();
+      const header = EXTENSIONS_CSV_COLUMNS.join(',') + '\n';
+      const rows = extensions.map((e) => EXTENSIONS_CSV_COLUMNS.map((col) => {
+        const raw = col === 'voicemail' ? (voicemailBoxes.some((v) => v.extension?.id === e.id) ? 'yes' : 'no') : (col === 'email' || col === 'language' || col === 'max_contacts' ? '' : (e as unknown as Record<string, unknown>)[col]);
+        return csvCell(String(raw ?? ''));
+      }).join(','));
+      return new Blob([header + rows.join('\n') + '\n'], { type: 'text/csv;charset=utf-8' });
+    },
+
+    async importExtensionsCsv(params: ImportExtensionsParams): Promise<ImportExtensionsResult> {
+      await delay(250);
+      requireManage('pbx.manage');
+      const text = await params.file.text();
+      if (text.length > 1_000_000) err(413, 'too_large', 'Fayl 1 MBdan katta.');
+      const lines = text.split(/\r?\n/).filter((l) => l.trim() !== '');
+      if (lines.length - 1 > 2000) err(422, 'too_many_rows', 'Fayl 2000 qatordan koʻp.');
+      const recPolicy = (v: string | undefined, fallback: RecordingPolicy): RecordingPolicy => (
+        v === 'always' || v === 'never' || v === 'on_demand' ? v : fallback
+      );
+      type PlannedRow = { row: number; number: string; action: ExtensionImportRowAction; message: string | null; existing: Extension | null; name: string; outboundCid: string | null; recordIn: string | undefined; recordOut: string | undefined; callWaiting: boolean; enabled: boolean };
+      const seenNumbers = new Set<string>();
+      const planned: PlannedRow[] = lines.slice(1).map((line, idx) => {
+        const row = idx + 2;
+        const cells = splitCsvRow(line);
+        // Ustunlar (§B4): number,name,email,outbound_cid,language,voicemail,record_in,record_out,max_contacts,call_waiting,enabled.
+        // email/language/max_contacts/voicemail — bu frontend-mock'da saqlanmaydi (Extension modelida yo'q); backend bo'lak B o'z CRUD'ida ishlatadi.
+        const [numberRaw, nameRaw, , outboundCid, , , recordIn, recordOut, , callWaiting, enabled] = cells;
+        const number = (numberRaw ?? '').trim();
+        const name = (nameRaw ?? '').trim();
+        const base = { row, number, name, outboundCid: outboundCid?.trim() || null, recordIn, recordOut, callWaiting: callWaiting?.trim() === 'yes' || callWaiting?.trim() === 'true', enabled: enabled?.trim() !== 'no' && enabled?.trim() !== 'false', existing: null };
+        if (!number || !EXT_NUMBER_RE.test(number)) return { ...base, action: 'error' as const, message: 'Raqam notoʻgʻri.' };
+        if (!name) return { ...base, action: 'error' as const, message: 'Ism kerak.' };
+        if (seenNumbers.has(number)) return { ...base, action: 'error' as const, message: 'Faylda shu raqam takrorlanmoqda.' };
+        seenNumbers.add(number);
+        const existing = extensions.find((e) => e.number === number) ?? null;
+        return { ...base, existing, action: existing ? 'update' as const : 'create' as const, message: null };
+      });
+      const errors = planned.filter((p) => p.action === 'error').length;
+      const created = planned.filter((p) => p.action === 'create').length;
+      const updated = planned.filter((p) => p.action === 'update').length;
+      const passwordLines: string[] = ['number,password'];
+      if (!params.dry_run && errors === 0) {
+        const now = new Date().toISOString();
+        for (const p of planned) {
+          if (p.action === 'update' && p.existing) {
+            const item: Extension = {
+              ...p.existing, name: p.name, outbound_callerid: p.outboundCid, call_waiting: p.callWaiting, enabled: p.enabled,
+              recording_in: recPolicy(p.recordIn, p.existing.recording_in), recording_out: recPolicy(p.recordOut, p.existing.recording_out),
+              updated_at: now,
+            };
+            extensions = extensions.map((e) => (e.id === p.existing!.id ? item : e));
+          } else if (p.action === 'create') {
+            const password = generateSipPassword(p.number);
+            const recIn = recPolicy(p.recordIn, 'never');
+            const item: Extension = {
+              id: randomId('e'), number: p.number, name: p.name, enabled: p.enabled, status: 'unknown',
+              contact: null, user_agent: null, dnd: false, forward_always: null, forward_busy: null, pickup_group: null,
+              outbound_allowed: true, outbound_callerid: p.outboundCid, updated_at: now,
+              toll_blocked_at: null, toll_block_reason: null, webrtc: false, codecs: [],
+              recording: recIn, recording_in: recIn, recording_out: recPolicy(p.recordOut, 'never'), call_waiting: p.callWaiting,
+            };
+            extensions = [...extensions, item];
+            passwordLines.push(`${item.number},${password}`);
+          }
+        }
+        if (created + updated > 0) apply(`Ichki raqamlar CSV: ${created} qoʻshildi, ${updated} tahrirlandi`);
+      }
+      const rows = planned.map((p) => ({ row: p.row, number: p.number, action: p.action, message: p.message }));
+      const secretsCsv = !params.dry_run && errors === 0 && passwordLines.length > 1 ? passwordLines.join('\n') + '\n' : null;
+      return { rows, created, updated, errors, secrets_csv: secretsCsv };
     },
 
     async listBlacklist({ q = '' }: ListBlacklistParams): Promise<{ items: BlacklistEntry[] }> {

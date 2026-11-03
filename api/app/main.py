@@ -11,7 +11,9 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.internal import router as internal_router
 from app.api.internal_campaigns import router as internal_campaigns_router
+from app.api.internal_cidlookup import router as internal_cidlookup_router
 from app.api.internal_conference import router as internal_conference_router
+from app.api.internal_pinset import router as internal_pinset_router
 from app.api.internal_softphone import router as internal_softphone_router
 from app.api.internal_toll import router as internal_toll_router
 from app.api.internal_voicemail import router as internal_voicemail_router
@@ -157,6 +159,8 @@ app.include_router(internal_voicemail_router)
 app.include_router(internal_toll_router)
 app.include_router(internal_softphone_router)
 app.include_router(internal_campaigns_router)
+app.include_router(internal_pinset_router)
+app.include_router(internal_cidlookup_router)
 app.include_router(public_router)
 app.include_router(public_crm_router)
 app.include_router(prov_router)

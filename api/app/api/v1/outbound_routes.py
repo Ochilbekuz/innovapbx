@@ -23,6 +23,7 @@ from app.db.models import (
     OutboundRoute,
     OutboundRoutePattern,
     OutboundRouteTrunk,
+    PinSet,
     Trunk,
     User,
 )
@@ -33,6 +34,7 @@ from app.schemas import (
     OutboundRouteMutated,
     OutboundRouteOut,
     OutboundRouteTrunkOut,
+    PinSetRef,
     ReorderOutboundRoutesPayload,
     SimulatePayload,
     SimulateResult,
@@ -52,6 +54,7 @@ _ROUTE_OPTIONS = (
     selectinload(OutboundRoute.patterns),
     selectinload(OutboundRoute.route_trunks).selectinload(OutboundRouteTrunk.trunk),
     selectinload(OutboundRoute.extension_links).selectinload(ExtensionOutboundRoute.extension),
+    selectinload(OutboundRoute.pin_set),
 )
 
 
@@ -72,6 +75,7 @@ async def _route_out(route: OutboundRoute) -> OutboundRouteOut:
                                       callerid_match=p.callerid_match) for p in route.patterns],
         trunks=trunks, callerid=route.callerid, override_extension_callerid=route.override_extension_callerid,
         has_pin=route.pin_hash is not None, international=route.international, extensions=extensions,
+        pin_set=PinSetRef(id=str(route.pin_set.id), name=route.pin_set.name) if route.pin_set else None,
         updated_at=route.updated_at,
     )
 
@@ -115,6 +119,14 @@ async def _validate_extension_ids(session: AsyncSession, tenant_id: str, extensi
     missing = [e for e in extension_ids if e not in found]
     if missing:
         raise ApiError(422, "invalid_target", "Noto'g'ri ichki raqam", field="extension_ids")
+
+
+async def _validate_pin_set_id(session: AsyncSession, tenant_id: str, pin_set_id: str) -> None:
+    found = (await session.execute(
+        select(PinSet.id).where(PinSet.tenant_id == tenant_id, PinSet.id == pin_set_id)
+    )).first()
+    if found is None:
+        raise ApiError(422, "invalid_target", "Noto'g'ri PIN to'plami", field="pin_set_id")
 
 
 def _set_patterns(route: OutboundRoute, patterns: list) -> None:
@@ -190,6 +202,8 @@ async def create_outbound_route(
     await _validate_trunk_ids(session, tenant_id, payload.trunk_ids)
     ext_ids = [] if payload.extension_ids == "all" else payload.extension_ids
     await _validate_extension_ids(session, tenant_id, ext_ids)
+    if payload.pin_set_id is not None:
+        await _validate_pin_set_id(session, tenant_id, payload.pin_set_id)
 
     if payload.priority is not None:
         await _insert_at_priority(session, tenant_id, payload.priority)
@@ -201,6 +215,7 @@ async def create_outbound_route(
         tenant_id=tenant_id, name=payload.name, priority=priority, enabled=payload.enabled,
         callerid=payload.callerid, override_extension_callerid=payload.override_extension_callerid,
         pin_hash=hash_password(payload.pin) if payload.pin else None, international=payload.international,
+        pin_set_id=payload.pin_set_id,
     )
     _set_patterns(route, payload.patterns)
     _set_trunks(route, payload.trunk_ids)
@@ -236,6 +251,18 @@ def _apply_route_pin(route: OutboundRoute, payload: UpdateOutboundRoutePayload, 
     elif payload.pin is not None:
         route.pin_hash = hash_password(payload.pin)
         diff["pin"] = payload.pin
+
+
+async def _apply_route_pin_set(
+    session: AsyncSession, tenant_id: str, route: OutboundRoute, payload: UpdateOutboundRoutePayload, diff: dict,
+) -> None:
+    if payload.pin_set_id_clear:
+        route.pin_set_id = None
+        diff["pin_set_id"] = None
+    elif payload.pin_set_id is not None:
+        await _validate_pin_set_id(session, tenant_id, payload.pin_set_id)
+        route.pin_set_id = payload.pin_set_id
+        diff["pin_set_id"] = payload.pin_set_id
 
 
 async def _apply_route_patterns(
@@ -281,6 +308,7 @@ async def update_outbound_route(
     diff: dict = {}
     _apply_simple_route_fields(route, payload, diff)
     _apply_route_pin(route, payload, diff)
+    await _apply_route_pin_set(session, tenant_id, route, payload, diff)
     await _apply_route_patterns(session, route, payload, diff)
     await _apply_route_trunks(session, tenant_id, route, payload, diff)
     await _apply_route_extensions(session, tenant_id, route, payload, diff)

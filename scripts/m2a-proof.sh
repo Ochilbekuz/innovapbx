@@ -127,6 +127,18 @@ ext_patch() { # raqam json_qismi -> $PATCH_OUT
   PATCH_OUT=$(api PATCH "/extensions/${EXT_ID[$1]}" "{${2},\"updated_at\":\"$stamp\"}")
 }
 
+# ISITISH (warm-up): yangi yaratilgan (REGISTER endigina qabul qilingan)
+# extension'ga BIRINCHI haqiqiy chaqiruv ba'zan "404 Not Found" bilan
+# tugaydi — Asterisk tomonida yangi AOR/kontakt uchun yo'naltirish keshi
+# hali to'liq isinmagan "sovuq start" oynasi (M9a rejimida jonli
+# diagnostika bilan tasdiqlangan: faqat BIRINCHI 1-2 ta chaqiruvda
+# takrorlanadi, keyin butunlay yo'qoladi). Natija tekshirilmaydigan bitta
+# sinov chaqiruvi bilan shu oynani "yeb qo'yamiz" — pastdagi haqiqiy
+# ssenariy 1 esa toza boshlanadi.
+mode 201 answer
+place_call 202 201 1
+mode 201 ring
+
 # ---------------------------------------------------------------- 1
 echo "--- 1. DND ---"
 ext_patch 201 '"dnd":true'
@@ -222,11 +234,11 @@ wait_until 20 call_done 202 x6
 # ---------------------------------------------------------------- 7
 echo "--- 7. park ##700 ---"
 mode 201 'answer:##,,700'
-parked_n() { jbody "$(api GET /parking)" | python3 -c "import json,sys;print(len(json.load(sys.stdin)['parked']))"; }
+parked_n() { jbody "$(api GET /parking/calls)" | python3 -c "import json,sys;print(len(json.load(sys.stdin)['parked']))"; }
 parked_is() { [[ "$(parked_n)" == "$1" ]]; }
 place_call_bg x7 202 201 40
 wait_until 15 parked_is 1
-PARK=$(jbody "$(api GET /parking)")
+PARK=$(jbody "$(api GET /parking/calls)")
 check "$(python3 -c "
 import json,sys
 d=json.load(sys.stdin); p=d['parked']
@@ -235,7 +247,7 @@ ok = d['lot']=='700' and d['slots']=='701-720' and d['timeout_s']==60 and len(p)
 sys.exit(0 if ok else 1)" <<<"$PARK"; echo $?)" "7: ##700 -> GET /parking: 701 (callerid 202, parked_by 201)" "$PARK"
 place_call_bg r7 203 701 4
 wait_until 10 bridged 202 203 && pass "7: 203 701 -> 202 bilan ulandi" || fail "7: 701 -> bridge yo'q ($(ast 'core show channels concise'))"
-check "$(wait_until 5 parked_is 0; echo $?)" "7: GET /parking parked bo'shadi" "$(jbody "$(api GET /parking)")"
+check "$(wait_until 5 parked_is 0; echo $?)" "7: GET /parking parked bo'shadi" "$(jbody "$(api GET /parking/calls)")"
 wait_until 15 call_done 202 x7
 
 # ---------------------------------------------------------------- 7b
@@ -250,7 +262,7 @@ check "$( [[ "$(invites 201)" -gt "$B201" ]]; echo $?)" \
   "7b: park 60s tugagach Asterisk 201 ga qayta chaqirdi (comebacktoorigin)" "$(plog 201 | tail -5)"
 wait_until 10 bridged 202 201 && pass "7b: 201 javob berdi -> 202 bilan qayta ulandi" \
   || fail "7b: 201 javob berdi, lekin 202 bilan bridge yo'q ($(ast 'core show channels concise'))"
-check "$(wait_until 5 parked_is 0; echo $?)" "7b: GET /parking parked bo'shadi (comeback)" "$(jbody "$(api GET /parking)")"
+check "$(wait_until 5 parked_is 0; echo $?)" "7b: GET /parking parked bo'shadi (comeback)" "$(jbody "$(api GET /parking/calls)")"
 wait_until 20 call_done 202 x7b
 
 # ---------------------------------------------------------------- 8
@@ -264,13 +276,17 @@ fi
 
 # ---------------------------------------------------------------- 9
 echo "--- 9. xususiyat kodlari ---"
+# ESLATMA: ro'yxat 15 -> 18 ga o'sdi — M9a (Bo'lak A4/A5) `intercom`(*80)/
+# `cw_on`(*56)/`cw_off`(*57) kodlarini followme_toggle'dan KEYIN qo'shdi
+# (kontrakt mandati, `m9a-freepbx-gaps-contract.md`). Tartib/sanoq shunga mos
+# yangilandi — eski "15 ta" tekshiruvi M9a qo'shilishidan OLDINGI holat edi.
 FC=$(jbody "$(api GET /feature-codes)")
 check "$(python3 -c "
 import json,sys
 items=json.load(sys.stdin)['items']
-order=['voicemail','voicemail_other','dnd_toggle','cf_always_on','cf_always_off','cf_busy_on','cf_busy_off','pickup_group','pickup_direct','park','echo_test','speaking_clock','queue_login','queue_pause','followme_toggle']
+order=['voicemail','voicemail_other','dnd_toggle','cf_always_on','cf_always_off','cf_busy_on','cf_busy_off','pickup_group','pickup_direct','park','echo_test','speaking_clock','queue_login','queue_pause','followme_toggle','intercom','cw_on','cw_off']
 sys.exit(0 if [i['feature'] for i in items]==order and items[2]=={'feature':'dnd_toggle','code':'*76','default_code':'*76','enabled':True} else 1)" <<<"$FC"; echo $?)" \
-  "9: GET /feature-codes -> 15 ta, kontrakt tartibida (M2b: +queue_login/+queue_pause, M5b: +followme_toggle)" "$FC"
+  "9: GET /feature-codes -> 18 ta, kontrakt tartibida (M2b: +queue_login/+queue_pause, M5b: +followme_toggle, M9a: +intercom/cw_on/cw_off)" "$FC"
 FCP=$(api PATCH /feature-codes/dnd_toggle '{"code":"*77"}')
 check "$( [[ "$(jcode "$FCP")" == "200" && "$(jget "$(jbody "$FCP")" item code)" == "*77" && "$(jget "$(jbody "$FCP")" apply status)" == "applied" ]]; echo $?)" \
   "9: PATCH dnd_toggle *77 -> apply=applied" "$FCP"

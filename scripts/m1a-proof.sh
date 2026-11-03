@@ -131,10 +131,22 @@ print(items[0]['id'] if items else '')
 [[ -n "$HANGUP_TARGET" ]] && pass "hangup tizim manzili topildi" || fail "hangup tizim manzili topilmadi"
 
 # --- Tizim audio (salomlashuv) ---
+# ESLATMA (M9a rejimida topilgan kross-skript nuqsoni): oldin `items[0]`
+# (ro'yxatdagi BIRINCHI audio, tartib kafolatlanmagan) olingan — umumiy
+# stekda boshqa isbot skriptlari (masalan `m9a-proof.sh`ning "M9aTone")
+# o'zining VAQTINCHA audio faylini yaratib, hali o'chirmagan bo'lsa, shu
+# begona audio tasodifan tanlanib, keyin uni USHBU skriptning IVR'lari
+# "greeting" sifatida ishlatib qoladi — bu esa boshqa skriptning keyingi
+# ishga tushirishda audio'ni (foreign-key `in_use`) o'chirishga TO'SQINLIK
+# qiladi. Tuzatish: ma'lum tizim namunasini NOM bo'yicha izlaymiz, faqat u
+# topilmasa birinchi elementga qaytamiz.
 AUDIO_ID=$(python3 -c "
 import json,sys
 d=json.load(sys.stdin)
-print(d['items'][0]['id'] if d['items'] else '')
+items=d.get('items', [])
+known=[i for i in items if i.get('name')=='Salomlashuv (tizim)']
+pick=known[0] if known else (items[0] if items else None)
+print(pick['id'] if pick else '')
 " <<<"$(curl -s "$API_BASE/audio" "${AUTH[@]}")")
 [[ -n "$AUDIO_ID" ]] && pass "tizim audio namunasi topildi" || fail "tizim audio namunasi topilmadi"
 
@@ -314,12 +326,21 @@ else
     fail "SIPp UAC IVR+DTMF $DID1 natijasi: successful=$OK1 failed=$FAIL1"
     echo "$UAC1_OUT" | tail -15
   fi
-  CALLS1=$(curl -s "$API_BASE/calls" "${AUTH[@]}")
-  FOUND1=$(python3 -c "
+  # CDR yozuvi qo'ng'iroq tugagach biroz kechikib tushadi (pastda ssenariy 3dagi
+  # bilan BIR XIL sabab — yuklamada 1 s dan oshadi) — shu sabab bitta so'rov
+  # o'rniga 10 s gacha poll qilamiz (ssenariy 3dagi naqsh bilan BIR XIL, M1a
+  # rejimida topilgan skript nuqsoni: ssenariy 1 oldin faqat 1 marta so'ragan edi).
+  FOUND1=no
+  for _ in $(seq 1 20); do
+    CALLS1=$(curl -s "$API_BASE/calls" "${AUTH[@]}")
+    FOUND1=$(python3 -c "
 import json,sys
 d=json.load(sys.stdin)
 print('yes' if any(i.get('did')=='$DID1' and i.get('disposition')=='answered' for i in d.get('items',[])) else 'no')
 " <<<"$CALLS1")
+    [[ "$FOUND1" == "yes" ]] && break
+    sleep 0.5
+  done
   [[ "$FOUND1" == "yes" ]] && pass "GET /calls -> $DID1 disposition=answered" || fail "GET /calls -> $DID1/answered topilmadi"
   assert_leg_answered "$DID1" 101
 

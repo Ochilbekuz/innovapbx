@@ -1,12 +1,15 @@
 """Ichki raqamlar — m0-contract.md «Ichki raqamlar (S04)»."""
 from __future__ import annotations
 
+import csv
+import io
 import re
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, File, Form, Request, UploadFile
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
+from starlette.responses import PlainTextResponse
 
 from app.api.deps import get_ami, get_session, require_access
 from app.api.v1.voicemail_boxes import apply_dialplan_and_voicemail, delete_box_and_target
@@ -18,6 +21,7 @@ from app.db.models import CallTarget, Extension, SystemSettings, User, Voicemail
 from app.schemas import (
     CreateExtensionPayload,
     ExtensionCreated,
+    ExtensionImportResult,
     ExtensionMutated,
     ExtensionOut,
     Paged,
@@ -32,9 +36,11 @@ from app.services.crypto import encrypt_secret
 from app.services.devices import notify_extension_devices
 from app.services.dialplan_features import is_park_number
 from app.services.ext_media import resolve_codecs
+from app.services.extension_csv import MAX_BYTES, MAX_ROWS, export_rows, parse_csv, rows_to_csv, run_import
 from app.services.live_status import endpoint_states
 from app.services.number_normalize import normalize_number
 from app.services.numbers import ensure_number_free
+from app.services.parking_settings import get_parking_settings
 from app.services.sip_identity import endpoint_id
 from app.services.sip_secret_policy import validate_sip_password
 from app.services.usages import usages_for_target
@@ -50,8 +56,10 @@ _NUMBER_RANGE = range(100, 1000)
 # M3b/M3c §1: `recording`/`recording_out` — dialplan `innova-rec` realtime o'qiydi.
 _REALTIME_FIELDS = frozenset({
     "dnd", "forward_always", "forward_busy", "pickup_group", "webrtc", "codecs", "recording", "recording_out",
+    # M9 A5 — kutish holatidagi qo'ng'iroq: `DEVICE_STATE` tekshiruvi realtime o'qiydi.
+    "call_waiting",
 })
-_KEEP_IF_NONE = ("name", "enabled", "outbound_allowed", "outbound_callerid", "dnd", "recording")
+_KEEP_IF_NONE = ("name", "enabled", "outbound_allowed", "outbound_callerid", "dnd", "recording", "call_waiting")
 _CLEARABLE = ("forward_always", "forward_busy", "pickup_group")  # aniq null/"" = tozalash
 # Tuzatish (a): dialplan `_X.` patterni "+" bilan mos kelmaydi — kirishda
 # `normalize_number()` bilan bir xil qoida (boshidagi "+" ham olib tashlanadi).
@@ -75,8 +83,9 @@ async def _sip_credentials(session: AsyncSession, request: Request, tenant_id: s
 async def _next_free_number(session: AsyncSession, tenant_id: str) -> str:
     used = set((await session.execute(
         select(Extension.number).where(Extension.tenant_id == tenant_id))).scalars().all())
+    parking = await get_parking_settings(session, tenant_id)
     for candidate in _NUMBER_RANGE:
-        if str(candidate) not in used and not is_park_number(str(candidate)):
+        if str(candidate) not in used and not is_park_number(str(candidate), parking):
             return str(candidate)
     raise ApiError(409, "no_free_number", "Bo'sh ichki raqam qolmadi")
 
@@ -94,7 +103,7 @@ def _ext_out(ext: Extension, state: dict | None = None) -> ExtensionOut:
         recording=getattr(ext, "recording", None) or "always",
         recording_in=getattr(ext, "recording", None) or "always",
         recording_out=getattr(ext, "recording_out", None) or "always",
-        updated_at=ext.updated_at,
+        call_waiting=ext.call_waiting, updated_at=ext.updated_at,
     )
 
 
@@ -122,6 +131,58 @@ async def list_extensions(
     stmt = stmt.order_by(Extension.number).offset((page - 1) * size).limit(size)
     items = (await session.execute(stmt)).scalars().all()
     return Paged(items=await _bulk_extension_out(ami, items), total=total)
+
+
+@router.get("/export.csv")
+async def export_extensions_csv(
+    session: AsyncSession = Depends(get_session), user: User = Depends(require_access),
+) -> PlainTextResponse:
+    """M9 B4: SIR/PAROL hech qachon eksport qilinmaydi (faqat ommaviy maydonlar)."""
+    rows = await export_rows(session, str(user.tenant_id))
+    return PlainTextResponse(rows_to_csv(rows), media_type="text/csv", headers={
+        "Content-Disposition": 'attachment; filename="extensions.csv"',
+    })
+
+
+@router.post("/import", response_model=ExtensionImportResult)
+async def import_extensions_csv(
+    file: UploadFile = File(...), dry_run: bool = Form(False),
+    session: AsyncSession = Depends(get_session), user: User = Depends(require_access),
+    ami=Depends(get_ami),
+) -> ExtensionImportResult:
+    """M9 B4: bitta tranzaksiya (xato → hech narsa yozilmaydi) + bitta `apply_config`;
+    yaratish — `new_extension`/`ensure_number_free` QAYTA ishlatiladi (dryer, yuqorida)."""
+    raw = await file.read(MAX_BYTES + 1)
+    if len(raw) > MAX_BYTES:
+        raise ApiError(413, "too_large", "Fayl juda katta (≤1MB)")
+    rows = parse_csv(raw.decode("utf-8-sig", errors="replace"))
+    if len(rows) > MAX_ROWS:
+        raise ApiError(413, "too_large", f"Qatorlar soni {MAX_ROWS}dan ko'p")
+
+    tenant_id = str(user.tenant_id)
+    result, secrets = await run_import(session, tenant_id, rows, dry_run=dry_run)
+    if dry_run or result.errors:
+        return result
+
+    await record_audit(session, tenant_id=tenant_id, user_id=str(user.id), action="extension.import",
+                        entity="extension", entity_id="-",
+                        diff={"created": result.created, "updated": result.updated})
+    await apply_config(session, tenant_id=tenant_id, user_id=str(user.id), ami=ami)
+    await session.commit()
+
+    if secrets:
+        result.secrets_csv = _secrets_csv(secrets)
+    return result
+
+
+def _secrets_csv(secrets: dict[str, str]) -> str:
+    """Yangi yaratilgan raqamlarning SIP sirlari — BIR MARTA (javobda, saqlanmaydi)."""
+    buf = io.StringIO()
+    writer = csv.writer(buf)
+    writer.writerow(["number", "sip_password"])
+    for number, secret in secrets.items():
+        writer.writerow([number, secret])
+    return buf.getvalue()
 
 
 def new_extension(*, codecs: list[str] | None, **fields) -> Extension:

@@ -1,0 +1,70 @@
+// "announcements" namespace — AnnouncementsPage (eʼlonlar). Qarang ../../replica/m9-freepbx-gaps-contract.md §A1.
+
+export const uz = {
+  title: "Eʼlonlar",
+  readOnlyNotice: "Sizda eʼlonlarni boshqarish ruxsati yoʻq — faqat koʻrish mumkin.",
+  column: { name: 'Nom', audio: 'Audio', target: 'Keyingi manzil', allowSkip: "Oʻtkazib yuborish", repeat: 'Takror' },
+  caption: "Eʼlonlar",
+  empty: { title: "Hali eʼlon yoʻq", body: "Eʼlon — chaqiruvchiga xabar eshittirib, keyin boshqa manzilga yoʻnaltiradi.", action: "Eʼlon qoʻshish" },
+  newAnnouncement: "Yangi eʼlon",
+  toast: { added: "Eʼlon qoʻshildi", saved: "Eʼlon saqlandi", deleted: '{{name}} oʻchirildi', deleteFailed: 'Oʻchirib boʻlmadi' },
+  deleteModal: { title: '{{name}}ni oʻchirish', description: "Bu eʼlonga yoʻnaltirilgan qoʻngʻiroqlar endi javobsiz ohang eshittiradi.", body: '«{{name}}» butunlay oʻchiriladi.', usagePrefix: '«{{name}}» hali ishlatilmoqda — avval ulardan olib tashlang:' },
+  cancel: 'Bekor qilish', delete: 'Oʻchirish', save: 'Saqlash', add: 'Qoʻshish',
+  editAriaLabel: '{{name}}ni tahrirlash', deleteAriaLabel: '{{name}}ni oʻchirish',
+  noAudioNotice: "Avval Audio kutubxonaga fayl yuklang — eʼlon uchun audio kerak.",
+  form: {
+    newTitle: "Yangi eʼlon", editTitle: '{{name}}ni tahrirlash',
+    nameLabel: 'Nom',
+    audioLabel: 'Audio fayl', audioHint: 'Chaqiruvchiga eshittiriladigan xabar',
+    targetLabel: 'Keyingi manzil', targetHint: 'Xabar tugagach (yoki oʻtkazib yuborilgach) qoʻngʻiroq qayerga boradi',
+    allowSkipLabel: "Oʻtkazib yuborishga ruxsat", allowSkipDesc: "Chaqiruvchi # tugmasini bosib xabarni oʻtkazib yuborishi mumkin",
+    repeatLabel: 'Takrorlash tugmasi', repeatHint: 'Shu tugma bosilsa — xabar qaytadan boshidan eshittiriladi', repeatNone: 'Takrorlanmaydi',
+    answerLabel: "Qoʻngʻiroqni javob berib boshlash", answerDesc: "Yoqilgan boʻlsa — xabar boshlanishidan oldin qoʻngʻiroq javob beriladi (billing uchun muhim)",
+  },
+};
+
+export const ru = {
+  title: 'Объявления',
+  readOnlyNotice: 'У вас нет прав на управление объявлениями — доступен только просмотр.',
+  column: { name: 'Имя', audio: 'Аудио', target: 'Следующий адрес', allowSkip: 'Пропуск', repeat: 'Повтор' },
+  caption: 'Объявления',
+  empty: { title: 'Объявлений пока нет', body: 'Объявление — проигрывает звонящему сообщение, затем направляет на другой адрес.', action: 'Добавить объявление' },
+  newAnnouncement: 'Новое объявление',
+  toast: { added: 'Объявление добавлено', saved: 'Объявление сохранено', deleted: '{{name}} удалено', deleteFailed: 'Не удалось удалить' },
+  deleteModal: { title: 'Удаление {{name}}', description: 'Звонки на это объявление будут слышать сигнал «нет ответа».', body: '«{{name}}» будет удалено полностью.', usagePrefix: '«{{name}}» всё ещё используется — сначала удалите отсюда:' },
+  cancel: 'Отмена', delete: 'Удалить', save: 'Сохранить', add: 'Добавить',
+  editAriaLabel: 'Редактировать {{name}}', deleteAriaLabel: 'Удалить {{name}}',
+  noAudioNotice: 'Сначала загрузите файл в Аудиотеку — объявлению нужен звук.',
+  form: {
+    newTitle: 'Новое объявление', editTitle: 'Редактирование {{name}}',
+    nameLabel: 'Имя',
+    audioLabel: 'Аудиофайл', audioHint: 'Сообщение, которое услышит звонящий',
+    targetLabel: 'Следующий адрес', targetHint: 'Куда пойдёт звонок после (или вместо) сообщения',
+    allowSkipLabel: 'Разрешить пропуск', allowSkipDesc: 'Звонящий может нажать # и пропустить сообщение',
+    repeatLabel: 'Кнопка повтора', repeatHint: 'При нажатии этой клавиши сообщение проигрывается с начала', repeatNone: 'Не повторяется',
+    answerLabel: 'Отвечать на звонок перед проигрыванием', answerDesc: 'Если включено — звонок отвечается до начала сообщения (важно для биллинга)',
+  },
+};
+
+export const en = {
+  title: 'Announcements',
+  readOnlyNotice: "You don't have permission to manage announcements — view only.",
+  column: { name: 'Name', audio: 'Audio', target: 'Next destination', allowSkip: 'Skip', repeat: 'Repeat' },
+  caption: 'Announcements',
+  empty: { title: 'No announcements yet', body: 'An announcement plays a message to the caller, then routes to another destination.', action: 'Add announcement' },
+  newAnnouncement: 'New announcement',
+  toast: { added: 'Announcement added', saved: 'Announcement saved', deleted: '{{name}} deleted', deleteFailed: 'Could not delete' },
+  deleteModal: { title: 'Delete {{name}}', description: 'Calls to this announcement will now hear a "no answer" tone.', body: '"{{name}}" will be permanently deleted.', usagePrefix: '"{{name}}" is still in use — remove it from these first:' },
+  cancel: 'Cancel', delete: 'Delete', save: 'Save', add: 'Add',
+  editAriaLabel: 'Edit {{name}}', deleteAriaLabel: 'Delete {{name}}',
+  noAudioNotice: 'Upload a file to the audio library first — an announcement needs audio.',
+  form: {
+    newTitle: 'New announcement', editTitle: 'Edit {{name}}',
+    nameLabel: 'Name',
+    audioLabel: 'Audio file', audioHint: 'The message the caller will hear',
+    targetLabel: 'Next destination', targetHint: 'Where the call goes after (or instead of) the message',
+    allowSkipLabel: 'Allow skipping', allowSkipDesc: 'The caller can press # to skip the message',
+    repeatLabel: 'Repeat key', repeatHint: 'Pressing this key replays the message from the start', repeatNone: "Doesn't repeat",
+    answerLabel: 'Answer the call before playing', answerDesc: 'When on, the call is answered before the message starts (important for billing)',
+  },
+};

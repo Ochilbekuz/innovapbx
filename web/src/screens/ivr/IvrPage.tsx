@@ -26,7 +26,7 @@ import { useToast } from '@/ui/Toast';
 
 const NAME_MAX = 60;
 const DIGITS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '*', '0', '#'];
-const M1A_TARGETS = ['extension', 'ring_group', 'queue', 'ivr', 'time_condition', 'conference', 'hangup', 'busy'] as const;
+const M1A_TARGETS = ['extension', 'ring_group', 'queue', 'ivr', 'time_condition', 'conference', 'hangup', 'busy', 'announcement', 'misc'] as const;
 
 /** S09 — IVR: salomlashuv, raqamlar xaritasi (0–9 * #), kutish/takror, vaqt tugashi va notoʻgʻri tugma manzillari. */
 export function IvrPage() {
@@ -250,8 +250,8 @@ function IvrDrawer({
           {errorField === 'options' && errorMessage && <p className="mt-1.5 text-sm text-danger">{errorMessage}</p>}
         </div>
 
-        <DestinationPicker label={t('form.timeoutTargetLabel')} required kinds={['extension', 'ring_group', 'queue', 'ivr', 'time_condition', 'conference', 'hangup', 'busy']} value={form.timeoutTarget} onChange={(d) => set('timeoutTarget', d)} catalog={catalog} />
-        <DestinationPicker label={t('form.invalidTargetLabel')} required kinds={['extension', 'ring_group', 'queue', 'ivr', 'time_condition', 'conference', 'hangup', 'busy']} value={form.invalidTarget} onChange={(d) => set('invalidTarget', d)} catalog={catalog} />
+        <DestinationPicker label={t('form.timeoutTargetLabel')} required kinds={['extension', 'ring_group', 'queue', 'ivr', 'time_condition', 'conference', 'hangup', 'busy', 'announcement', 'misc']} value={form.timeoutTarget} onChange={(d) => set('timeoutTarget', d)} catalog={catalog} />
+        <DestinationPicker label={t('form.invalidTargetLabel')} required kinds={['extension', 'ring_group', 'queue', 'ivr', 'time_condition', 'conference', 'hangup', 'busy', 'announcement', 'misc']} value={form.invalidTarget} onChange={(d) => set('invalidTarget', d)} catalog={catalog} />
       </div>
     </Drawer>
   );
@@ -276,7 +276,7 @@ function DigitPad({ digits, catalog, onChange }: { digits: Partial<Record<string
             {open === d ? (
               <DestinationPicker
                 label={t('form.digitFieldLabel', { digit: d })} value={dest ?? null} catalog={catalog}
-                kinds={['extension', 'ring_group', 'queue', 'ivr', 'time_condition', 'conference', 'hangup', 'busy']}
+                kinds={['extension', 'ring_group', 'queue', 'ivr', 'time_condition', 'conference', 'hangup', 'busy', 'announcement', 'misc']}
                 onChange={(v) => { onChange(d, v); setOpen(null); }}
               />
             ) : (

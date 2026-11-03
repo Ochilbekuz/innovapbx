@@ -1,8 +1,9 @@
-"""M2a §3: park joyi — lot fayli (`res_parking.conf` #include) va park qilinganlar ro'yxati.
+"""M2a §3 / M9 A3: park joyi — lot fayli (`res_parking.conf` #include) va park
+qilinganlar ro'yxati.
 
-Lot parametrlari doimiy (`dialplan_features.PARK_*`) — fayl faqat tenant kodiga
-bog'liq. `apply_config` har safar `ensure_parking_lot` ni chaqiradi: fayl
-o'zgarmagan bo'lsa AMI'ga murojaat yo'q (idempotent)."""
+Lot parametrlari endi JONLI `parking_settings`dan (`dialplan_features.ParkingSettingsData`,
+sukut — tenant hali `/setup`ni o'tmagan bo'lsa). `apply_config` har safar
+`ensure_parking_lot` ni chaqiradi: fayl o'zgarmagan bo'lsa AMI'ga murojaat yo'q (idempotent)."""
 from __future__ import annotations
 
 import os
@@ -11,14 +12,7 @@ from typing import Protocol
 
 from app.core.config import settings
 from app.services.atomic_write import atomic_write
-from app.services.dialplan_features import (
-    PARK_FIRST_SLOT,
-    PARK_LAST_SLOT,
-    PARK_LOT_NUMBER,
-    PARK_TIMEOUT_S,
-    park_lot_name,
-    parking_conf_text,
-)
+from app.services.dialplan_features import ParkingSettingsData, park_lot_name, parking_conf_text
 
 
 class ParkingAmi(Protocol):
@@ -39,10 +33,12 @@ def _current_text() -> str | None:
         return None
 
 
-async def ensure_parking_lot(ami: ParkingAmi, tenant_code: str) -> bool:
+async def ensure_parking_lot(
+    ami: ParkingAmi, tenant_code: str, parking: ParkingSettingsData | None = None,
+) -> bool:
     """Lot fayli yangilanadi va `res_parking` qayta yuklanadi (faqat o'zgargan bo'lsa).
     Qaytaradi: yozildimi. Lot ko'rinmasa — RuntimeError (apply rollback qiladi)."""
-    text = parking_conf_text(tenant_code)
+    text = parking_conf_text(tenant_code, parking)
     if _current_text() == text:
         return False
     atomic_write(settings.dialplan_dir, settings.parking_filename, text, tmp_prefix=".tmp-park-")
@@ -72,15 +68,19 @@ def _parked_item(event: dict, now: datetime) -> dict:
     }
 
 
-async def parking_status(ami: ParkingAmi, tenant_code: str, *, now: datetime | None = None) -> dict:
+async def parking_status(
+    ami: ParkingAmi, tenant_code: str, parking: ParkingSettingsData | None = None, *,
+    now: datetime | None = None,
+) -> dict:
+    s = parking or ParkingSettingsData()
     await ami.ensure_connected()
     events = await ami.action_list("ParkedCalls", ParkingLot=park_lot_name(tenant_code))
     moment = now or datetime.now(timezone.utc)
     parked = [_parked_item(e, moment) for e in events if e.get("Event") == "ParkedCall"]
     parked.sort(key=lambda p: p["slot"])
     return {
-        "lot": PARK_LOT_NUMBER,
-        "slots": f"{PARK_FIRST_SLOT}-{PARK_LAST_SLOT}",
-        "timeout_s": PARK_TIMEOUT_S,
+        "lot": s.lot_number,
+        "slots": f"{s.first_slot}-{s.last_slot}",
+        "timeout_s": s.timeout_s,
         "parked": parked,
     }

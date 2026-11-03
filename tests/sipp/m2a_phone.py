@@ -124,6 +124,12 @@ class Phone(VmCaller):
         tag = f"{_TAG}{self.invites}"
         print(f"INVITE n={self.invites} from={_uri_user(h.get('from', ''))} "
               f"ruri={text.split(' ', 2)[1]} mode={mode}", flush=True)
+        # M9 A4 — Alert-Info/Call-Info sarlavhalarini kuzatish (intercom
+        # avto-javob isboti uchun; `b(innova-predial-hdr^s^1)` ularni qo'shadi).
+        alert_info = h.get("alert-info", "")
+        call_info = h.get("call-info", "")
+        if alert_info or call_info:
+            print(f"HDR alert-info={alert_info!r} call-info={call_info!r}", flush=True)
         if mode == "busy":
             self.dialogs[call_id] = None  # type: ignore[assignment]
             self._reply(text, addr, "486 Busy Here", tag=tag)

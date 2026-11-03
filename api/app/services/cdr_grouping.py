@@ -23,6 +23,7 @@ Shu farq bilan `in` (manba trunk) va `out` (manzil trunk) bir-biridan
 ajratiladi; `out` uchun `Call.trunk` — userfield'da yozilgan trunk NOMI."""
 from __future__ import annotations
 
+import re
 from collections.abc import Mapping
 
 from sqlalchemy import select
@@ -31,6 +32,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.models import Cdr, Trunk
 from app.schemas import CallDirection, CallDisposition, CallOut
 from app.services.call_direction import classify_direction
+
+_CLID_NAME = re.compile(r'^\s*"?([^"<]*?)"?\s*<[^>]*>\s*$')
 
 _DISPOSITION_MAP = {"ANSWERED": "answered", "NO ANSWER": "no_answer", "BUSY": "busy"}
 
@@ -122,7 +125,20 @@ def call_out_from_group(group: list[Cdr], names: Mapping[str, str] | None = None
         dst=resolve_dst(winner), did=did, direction=direction,
         disposition=disposition_of(winner.disposition), duration=winner.duration,
         billsec=winner.billsec, trunk=trunk, linkedid=primary.linkedid or primary.uniqueid,
+        src_name=clid_name(primary.clid), pin_label=_pin_label_of(group),
     )
+
+
+def clid_name(clid: str | None) -> str | None:
+    """`"Ali Valiyev" <201>` → `Ali Valiyev`; ism yo'q yoki faqat raqam bo'lsa — `None`."""
+    found = _CLID_NAME.match(clid or "")
+    name = found.group(1).strip() if found else ""
+    return None if not name or name.lstrip("+").isdigit() else name
+
+
+def _pin_label_of(group: list[Cdr]) -> str | None:
+    """PIN to'plami yorlig'i dialplanda bitta oyoqqa yoziladi — guruhdagi birinchi bo'sh bo'lmagani."""
+    return next((row.pin_label for row in group if row.pin_label), None)
 
 
 def calls_from_rows(rows: list[Cdr], names: Mapping[str, str] | None = None) -> list[CallOut]:

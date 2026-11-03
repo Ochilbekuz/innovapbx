@@ -43,6 +43,12 @@ import type {
   CleanupIn,
   // M8 — qarang ../../replica/m8-network-contract.md
   NetworkConfigIn,
+  // M9 — qarang ../../replica/m9-freepbx-gaps-contract.md
+  AddPinsPayload, CreateAnnouncementPayload, CreateCidSourcePayload, CreateContactPayload,
+  CreateMiscApplicationPayload, CreateMiscDestinationPayload, CreatePageGroupPayload, CreatePinSetPayload,
+  ImportExtensionsParams, ImportPhonebookParams, ListPhonebookParams, UpdateAnnouncementPayload,
+  UpdateCidSourcePayload, UpdateContactPayload, UpdateMiscApplicationPayload, UpdateMiscDestinationPayload,
+  UpdatePageGroupPayload, UpdateParkingSettingsPayload, UpdatePinSetPayload,
 } from './types';
 
 export const qk = {
@@ -138,6 +144,17 @@ export const qk = {
   systemStatus: ['system-status'] as const,
   // M8 — qarang ../../replica/m8-network-contract.md
   networkState: ['network-state'] as const,
+  // M9 — qarang ../../replica/m9-freepbx-gaps-contract.md
+  announcements: ['announcements'] as const,
+  miscDestinations: ['misc-destinations'] as const,
+  miscApplications: ['misc-applications'] as const,
+  parkingSettings: ['parking-settings'] as const,
+  parkedCalls: ['parked-calls'] as const,
+  pageGroups: ['page-groups'] as const,
+  pinSets: ['pin-sets'] as const,
+  pinSetPins: (id: string) => ['pin-set-pins', id] as const,
+  phonebook: (p: ListPhonebookParams) => ['phonebook', p] as const,
+  cidSources: ['cid-sources'] as const,
 };
 
 export function useSetupState() {
@@ -1375,5 +1392,246 @@ export function useRollbackNetwork() {
   return useMutation({
     mutationFn: (pendingId: string) => apiClient.rollbackNetwork(pendingId),
     onSuccess: () => invalidate([qk.networkState]),
+  });
+}
+
+// ─────────────────────── M9 A1 — Eʼlon (Announcement) ───────────────────────
+// `['targets']` ham invalidatsiya qilinadi — Announcement DestinationPicker katalogida nishon sifatida chiqadi.
+
+export function useAnnouncements() {
+  return useQuery({ queryKey: qk.announcements, queryFn: () => apiClient.listAnnouncements() });
+}
+export function useCreateAnnouncement() {
+  const invalidate = useInvalidate();
+  return useMutation({
+    mutationFn: (payload: CreateAnnouncementPayload) => apiClient.createAnnouncement(payload),
+    onSuccess: () => invalidate([qk.announcements, ['targets'], qk.health, qk.revisions]),
+  });
+}
+export function useUpdateAnnouncement() {
+  const invalidate = useInvalidate();
+  return useMutation({
+    mutationFn: ({ id, payload }: { id: string; payload: UpdateAnnouncementPayload }) => apiClient.updateAnnouncement(id, payload),
+    onSuccess: () => invalidate([qk.announcements, ['targets'], qk.health, qk.revisions]),
+  });
+}
+export function useDeleteAnnouncement() {
+  const invalidate = useInvalidate();
+  return useMutation({
+    mutationFn: (id: string) => apiClient.deleteAnnouncement(id),
+    onSuccess: () => invalidate([qk.announcements, ['targets'], qk.health, qk.revisions]),
+  });
+}
+
+// ─────────────────────── M9 A2 — Boshqa manzillar / Maxsus kodlar ───────────────────────
+
+export function useMiscDestinations() {
+  return useQuery({ queryKey: qk.miscDestinations, queryFn: () => apiClient.listMiscDestinations() });
+}
+export function useCreateMiscDestination() {
+  const invalidate = useInvalidate();
+  return useMutation({
+    mutationFn: (payload: CreateMiscDestinationPayload) => apiClient.createMiscDestination(payload),
+    onSuccess: () => invalidate([qk.miscDestinations, ['targets'], qk.health, qk.revisions]),
+  });
+}
+export function useUpdateMiscDestination() {
+  const invalidate = useInvalidate();
+  return useMutation({
+    mutationFn: ({ id, payload }: { id: string; payload: UpdateMiscDestinationPayload }) => apiClient.updateMiscDestination(id, payload),
+    onSuccess: () => invalidate([qk.miscDestinations, ['targets'], qk.health, qk.revisions]),
+  });
+}
+export function useDeleteMiscDestination() {
+  const invalidate = useInvalidate();
+  return useMutation({
+    mutationFn: (id: string) => apiClient.deleteMiscDestination(id),
+    onSuccess: () => invalidate([qk.miscDestinations, ['targets'], qk.health, qk.revisions]),
+  });
+}
+export function useMiscApplications() {
+  return useQuery({ queryKey: qk.miscApplications, queryFn: () => apiClient.listMiscApplications() });
+}
+export function useCreateMiscApplication() {
+  const invalidate = useInvalidate();
+  return useMutation({
+    mutationFn: (payload: CreateMiscApplicationPayload) => apiClient.createMiscApplication(payload),
+    onSuccess: () => invalidate([qk.miscApplications, qk.health, qk.revisions]),
+  });
+}
+export function useUpdateMiscApplication() {
+  const invalidate = useInvalidate();
+  return useMutation({
+    mutationFn: ({ id, payload }: { id: string; payload: UpdateMiscApplicationPayload }) => apiClient.updateMiscApplication(id, payload),
+    onSuccess: () => invalidate([qk.miscApplications, qk.health, qk.revisions]),
+  });
+}
+export function useDeleteMiscApplication() {
+  const invalidate = useInvalidate();
+  return useMutation({
+    mutationFn: (id: string) => apiClient.deleteMiscApplication(id),
+    onSuccess: () => invalidate([qk.miscApplications, qk.health, qk.revisions]),
+  });
+}
+
+// ─────────────────────── M9 A3 — Parkovka sozlamalari + jonli roʻyxat ───────────────────────
+
+export function useParkingSettings() {
+  return useQuery({ queryKey: qk.parkingSettings, queryFn: () => apiClient.parkingSettings() });
+}
+export function useUpdateParkingSettings() {
+  const invalidate = useInvalidate();
+  return useMutation({
+    mutationFn: (payload: UpdateParkingSettingsPayload) => apiClient.updateParkingSettings(payload),
+    onSuccess: () => invalidate([qk.parkingSettings, qk.health, qk.revisions]),
+  });
+}
+/** Parkovkadagi qoʻng'iroqlar — jonli koʻrinish uchun 5 soniyada bir yangilanadi. */
+export function useParkedCalls(enabled = true) {
+  return useQuery({ queryKey: qk.parkedCalls, queryFn: () => apiClient.parkedCalls(), refetchInterval: enabled ? 5_000 : false, enabled });
+}
+
+// ─────────────────────── M9 A4 — Paging / Intercom guruhlari ───────────────────────
+
+export function usePageGroups() {
+  return useQuery({ queryKey: qk.pageGroups, queryFn: () => apiClient.listPageGroups() });
+}
+export function useCreatePageGroup() {
+  const invalidate = useInvalidate();
+  return useMutation({
+    mutationFn: (payload: CreatePageGroupPayload) => apiClient.createPageGroup(payload),
+    onSuccess: () => invalidate([qk.pageGroups, qk.health, qk.revisions]),
+  });
+}
+export function useUpdatePageGroup() {
+  const invalidate = useInvalidate();
+  return useMutation({
+    mutationFn: ({ id, payload }: { id: string; payload: UpdatePageGroupPayload }) => apiClient.updatePageGroup(id, payload),
+    onSuccess: () => invalidate([qk.pageGroups, qk.health, qk.revisions]),
+  });
+}
+export function useDeletePageGroup() {
+  const invalidate = useInvalidate();
+  return useMutation({
+    mutationFn: (id: string) => apiClient.deletePageGroup(id),
+    onSuccess: () => invalidate([qk.pageGroups, qk.health, qk.revisions]),
+  });
+}
+
+// ─────────────────────── M9 B1 — PIN toʻplamlari ───────────────────────
+
+export function usePinSets() {
+  return useQuery({ queryKey: qk.pinSets, queryFn: () => apiClient.listPinSets() });
+}
+export function useCreatePinSet() {
+  const invalidate = useInvalidate();
+  return useMutation({
+    mutationFn: (payload: CreatePinSetPayload) => apiClient.createPinSet(payload),
+    onSuccess: () => invalidate([qk.pinSets]),
+  });
+}
+export function useUpdatePinSet() {
+  const invalidate = useInvalidate();
+  return useMutation({
+    mutationFn: ({ id, payload }: { id: string; payload: UpdatePinSetPayload }) => apiClient.updatePinSet(id, payload),
+    onSuccess: () => invalidate([qk.pinSets]),
+  });
+}
+export function useDeletePinSet() {
+  const invalidate = useInvalidate();
+  return useMutation({
+    mutationFn: (id: string) => apiClient.deletePinSet(id),
+    onSuccess: () => invalidate([qk.pinSets]),
+  });
+}
+export function usePinSetPins(id: string, enabled = true) {
+  return useQuery({ queryKey: qk.pinSetPins(id), queryFn: () => apiClient.listPinSetPins(id), enabled });
+}
+export function useAddPins() {
+  const invalidate = useInvalidate();
+  return useMutation({
+    mutationFn: ({ id, payload }: { id: string; payload: AddPinsPayload }) => apiClient.addPinSetPins(id, payload),
+    onSuccess: (_data, { id }) => invalidate([qk.pinSetPins(id), qk.pinSets]),
+  });
+}
+export function useDeletePin() {
+  const invalidate = useInvalidate();
+  return useMutation({
+    mutationFn: ({ id, pinId }: { id: string; pinId: string }) => apiClient.deletePinSetPin(id, pinId),
+    onSuccess: (_data, { id }) => invalidate([qk.pinSetPins(id), qk.pinSets]),
+  });
+}
+
+// ─────────────────────── M9 B2 — Telefon kitobi (phonebook) + CID manbalari ───────────────────────
+
+export function usePhonebook(params: ListPhonebookParams) {
+  return useQuery({ queryKey: qk.phonebook(params), queryFn: () => apiClient.listPhonebook(params), placeholderData: (prev) => prev });
+}
+export function useCreateContact() {
+  const invalidate = useInvalidate();
+  return useMutation({
+    mutationFn: (payload: CreateContactPayload) => apiClient.createContact(payload),
+    onSuccess: () => invalidate([['phonebook']]),
+  });
+}
+export function useUpdateContact() {
+  const invalidate = useInvalidate();
+  return useMutation({
+    mutationFn: ({ id, payload }: { id: string; payload: UpdateContactPayload }) => apiClient.updateContact(id, payload),
+    onSuccess: () => invalidate([['phonebook']]),
+  });
+}
+export function useDeleteContact() {
+  const invalidate = useInvalidate();
+  return useMutation({
+    mutationFn: (id: string) => apiClient.deleteContact(id),
+    onSuccess: () => invalidate([['phonebook']]),
+  });
+}
+export function useImportPhonebookCsv() {
+  const invalidate = useInvalidate();
+  return useMutation({
+    mutationFn: (params: ImportPhonebookParams) => apiClient.importPhonebookCsv(params),
+    onSuccess: (result) => { if (result.errors.length === 0) invalidate([['phonebook']]); },
+  });
+}
+export function useCidSources() {
+  return useQuery({ queryKey: qk.cidSources, queryFn: () => apiClient.listCidSources() });
+}
+export function useCreateCidSource() {
+  const invalidate = useInvalidate();
+  return useMutation({
+    mutationFn: (payload: CreateCidSourcePayload) => apiClient.createCidSource(payload),
+    onSuccess: () => invalidate([qk.cidSources]),
+  });
+}
+export function useUpdateCidSource() {
+  const invalidate = useInvalidate();
+  return useMutation({
+    mutationFn: ({ id, payload }: { id: string; payload: UpdateCidSourcePayload }) => apiClient.updateCidSource(id, payload),
+    onSuccess: () => invalidate([qk.cidSources]),
+  });
+}
+export function useDeleteCidSource() {
+  const invalidate = useInvalidate();
+  return useMutation({
+    mutationFn: (id: string) => apiClient.deleteCidSource(id),
+    onSuccess: () => invalidate([qk.cidSources]),
+  });
+}
+export function useTestCidSource() {
+  return useMutation({
+    mutationFn: ({ id, number }: { id: string; number: string }) => apiClient.testCidSource(id, number),
+  });
+}
+
+// ─────────────────────── M9 B4 — ichki raqamlar CSV import ───────────────────────
+// Eksport (`exportExtensionsCsv`) toʻgʻridan-toʻgʻri `apiClient`dan chaqiriladi (Blob yuklab olish — mutatsiya emas).
+
+export function useImportExtensionsCsv() {
+  const invalidate = useInvalidate();
+  return useMutation({
+    mutationFn: (params: ImportExtensionsParams) => apiClient.importExtensionsCsv(params),
+    onSuccess: (result) => { if (!result.errors) invalidate([['extensions'], ['targets']]); },
   });
 }

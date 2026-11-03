@@ -71,7 +71,19 @@ def _policy_context() -> list[str]:
     on_demand_b = f' same => n,ExecIf($["${{INNOVA_REC_RB}}"="on_demand"]?Set(DYNAMIC_FEATURES={FEATURE_NAME}))'
     return [
         f"[{SUBROUTINE}]",
-        'exten => s,1,GotoIf($["${CHANNEL(channeltype)}"!="PJSIP"]?done)',
+        # M9 B1 (0032): PIN to'plami yorlig'i (`CDR(pin_label)`)
+        # `recordingfile` BILAN BIR XIL naqshda (DRY) AYNAN SHU YERDA (B —
+        # javob bergan kanalda, bridge'dan OLDIN) yoziladi — custom CDR
+        # maydonlari uchun izchil, xavfsiz andoza (tafsilot — compiler.py
+        # `_route_pin_set_lines()` izohida: jonli isbotda shu yerga
+        # ko'chirishga turtki bo'lgan haqiqiy sabab `cdr_pgsql` modulining
+        # ESKI ustun keshi edi, A/B kanal farqi EMAS). `INNOVA_PINSET_LABEL`
+        # — A kanalida `__INNOVA_PINSET_LABEL` (meros qoluvchi) sifatida
+        # o'rnatiladi, shu sabab bu yerda (B kanalda) pastki chiziqsiz
+        # ko'rinadi; bo'sh bo'lsa (PIN to'plami ishlatilmagan yoki
+        # yorlig'i yo'q) hech narsa yozilmaydi.
+        'exten => s,1,ExecIf($["${INNOVA_PINSET_LABEL}"!=""]?Set(CDR(pin_label)=${INNOVA_PINSET_LABEL}))',
+        ' same => n,GotoIf($["${CHANNEL(channeltype)}"!="PJSIP"]?done)',
         # RB — B'ning KIRUVCHI siyosati (`recording`, nomi o'zgarmaydi).
         f" same => n,Set(INNOVA_REC_RB={_field('${CHANNEL(endpoint)}', 'recording')})",
         " same => n,Set(INNOVA_REC_RA=)",

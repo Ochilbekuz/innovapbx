@@ -1,5 +1,24 @@
 # O'zgarishlar tarixi
 
+## 1.0.9 — 2026-11-03
+FreePBX'ning asosiy, lekin hali bo'lmagan modullari qo'shildi:
+- **E'lonlar (Announcements)** — audio ijro etib keyingi manzilga o'tadi (o'tkazib yuborish/takrorlash tugmasi, javob bermasdan ijro).
+- **Boshqa manzillar (Misc Destinations)** — istalgan raqamga yo'naltirish (chiquvchi qoidalar, toll/PIN amal qiladi) va
+  **Misc Applications** — o'z xizmat kodingiz → istalgan manzil.
+- **Park sozlamalari** — lot raqami, slotlar, kutish vaqti va vaqt tugaganda qayerga; hozir park qilingan qo'ng'iroqlar ro'yxati.
+- **Paging / Intercom** — guruhga e'lon (bir/ikki tomonlama, band qurilmani o'tkazib yuborish, signal), `*80<raqam>` intercom (avtojavob).
+- **Call Waiting** — har bir ichki raqam uchun yoqish/o'chirish, `*56`/`*57` xizmat kodlari.
+- **PIN to'plamlari (PIN Sets)** — chiquvchi marshrutga bir nechta PIN (har biri yorlig'i bilan), urinishlar cheklovi; yorliq CDR'ga yoziladi.
+- **Telefon kitobi** — kontaktlar va raqamlar, CSV import/eksport.
+- **CallerID Lookup** — kiruvchi qo'ng'iroq ismini telefon kitobi / CRM / HTTP manbadan aniqlash (sinov tugmasi bilan).
+- **Kiruvchi marshrut: CID ism prefiksi va Alert-Info** (alohida qo'ng'iroq ohangi).
+- **Ichki raqamlarni CSV import/eksport (Bulk Handler)** — avval «quruq sinov», keyin bitta tranzaksiyada qo'llash; yangi parollar bir marta yuklab olinadi.
+- **Qo'ng'iroqlar tarixi: kengaytirilgan qidiruv (FreePBX CDR Reports shabloni).** Raqam/qabul qiluvchi/DID bo'yicha
+  «o'z ichiga oladi / bilan boshlanadi / bilan tugaydi / aniq» va «emas»; CallerID ismi, ichki raqam, trunk, accountcode
+  (PIN yorlig'i), holat (bir nechta), davomiylik oralig'i, **faqat yozuvli / yozuvsiz**. Qidiruvni **shablon** sifatida
+  nom bilan saqlab, bir bosishda qayta qo'llash; natijani **CSV** ga eksport (Toshkent vaqti, Excel uchun xavfsiz).
+  Jadvalda endi qo'ng'iroq qiluvchi ismi va accountcode ustuni.
+
 ## 1.0.8 — 2026-11-03
 - **Yangi: «Tarmoq» sahifasi** (Sozlamalar → Tarmoq), Issabel'ning Network bo'limi andozasida, lekin xavfsizroq:
   - **Umumiy** — host nomi, DNS serverlar va qidiruv domenlari, joriy standart shlyuz;

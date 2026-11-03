@@ -102,13 +102,17 @@ def test_ext_call_reads_dnd_and_forward_from_realtime():
     call = _context(compile_dialplan(_snapshot()), "t1-ext-call")
     assert ' same => n,GotoIf($["${REALTIME_FIELD(ext_state,endpoint,${EXTEN},dnd)}"="t"]?dnd)' in call
     assert " same => n,Set(INNOVA_FWD=${REALTIME_FIELD(ext_state,endpoint,${EXTEN},forward_always)})" in call
-    assert " same => n,Set(INNOVA_FWD=${REALTIME_FIELD(ext_state,endpoint,${EXTEN},forward_busy)})" in call
+    # M9 A5: qo'ng'iroq kutish o'chirilganda ham to'g'ridan-to'g'ri shu qatorga
+    # sakraladi — endi `(busycheck)` nishoni bilan (bir nechta yo'ldan kelinadi).
+    assert " same => n(busycheck),Set(INNOVA_FWD=${REALTIME_FIELD(ext_state,endpoint,${EXTEN},forward_busy)})" in call
 
 
 def test_ext_call_dials_with_transfer_options_pickup_mark_and_transfer_context():
     call = _context(compile_dialplan(_snapshot()), "t1-ext-call")
+    # M9 A4: barcha Dial() qatorlariga `[innova-predial-hdr]` gosub ulangan
+    # (auto-answer sarlavhalari — Page/Intercom bilan umumiy).
     assert (' same => n,Dial(PJSIP/${EXTEN},${INNOVA_RING},'
-            't${IF($["${INNOVA_FROM_TRUNK}"="1"]?:T)}U(innova-rec))') in call
+            't${IF($["${INNOVA_FROM_TRUNK}"="1"]?:T)}b(innova-predial-hdr^s^1)U(innova-rec))') in call
     assert " same => n(dial),Set(__PICKUPMARK=t1-${EXTEN})" in call
     assert " same => n,Set(__TRANSFER_CONTEXT=t1-from-internal)" in call
 
@@ -207,7 +211,9 @@ def test_ring_group_skips_dnd_members_at_runtime_and_keeps_external():
             '?Set(INNOVA_RG=${INNOVA_RG}&PJSIP/201))') in dest
     assert " same => n,Set(INNOVA_RG=${INNOVA_RG}&Local/998901234567@t1-outbound-rg)" in dest
     assert ' same => n,GotoIf($["${INNOVA_RG}"=""]?rg1_skip)' in dest
-    assert " same => n,Dial(${INNOVA_RG:1},20,t${IF($[\"${INNOVA_FROM_TRUNK}\"=\"1\"]?:T)}U(innova-rec))" in dest
+    # M9 A4: ring-group Dial() ham `[innova-predial-hdr]` gosub orqali o'tadi.
+    assert (" same => n,Dial(${INNOVA_RG:1},20,t${IF($[\"${INNOVA_FROM_TRUNK}\"=\"1\"]?:T)}"
+            "b(innova-predial-hdr^s^1)U(innova-rec))") in dest
 
 
 # ------------------------------------------------------------ funksiya kodlari
@@ -299,9 +305,11 @@ def test_echo_and_clock():
 
 
 def test_feature_order_matches_contract():
+    # M9 A4/A5: `intercom`/`cw_on`/`cw_off` ro'yxat oxirida qo'shildi.
     assert FEATURE_ORDER == ("voicemail", "voicemail_other", "dnd_toggle", "cf_always_on", "cf_always_off",
                              "cf_busy_on", "cf_busy_off", "pickup_group", "pickup_direct", "park",
-                             "echo_test", "speaking_clock", "queue_login", "queue_pause", "followme_toggle")
+                             "echo_test", "speaking_clock", "queue_login", "queue_pause", "followme_toggle",
+                             "intercom", "cw_on", "cw_off")
 
 
 # ------------------------------------------------------------ yaxlitlik

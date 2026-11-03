@@ -55,6 +55,16 @@ import type {
   CreateRolePayload, RoleOut, UpdateRolePayload,
   // Tizim holati (status) — pbx-klon vazifa (2026-11-02)
   CleanupIn, CleanupResult, SystemStatus,
+  // M9 — qarang ../../replica/m9-freepbx-gaps-contract.md
+  Announcement, CreateAnnouncementPayload, UpdateAnnouncementPayload,
+  MiscDestination, CreateMiscDestinationPayload, UpdateMiscDestinationPayload,
+  MiscApplication, CreateMiscApplicationPayload, UpdateMiscApplicationPayload,
+  ParkingSettings, UpdateParkingSettingsPayload, ParkingCall,
+  PageGroup, CreatePageGroupPayload, UpdatePageGroupPayload,
+  PinSet, CreatePinSetPayload, UpdatePinSetPayload, PinSetPin, AddPinsPayload,
+  Contact, CreateContactPayload, UpdateContactPayload, ListPhonebookParams, ImportPhonebookResult, ImportPhonebookParams,
+  CidSource, CreateCidSourcePayload, UpdateCidSourcePayload, CidSourceTestResult,
+  ImportExtensionsResult, ImportExtensionsParams,
 } from './types';
 import type { ApplyResult } from './types';
 
@@ -98,6 +108,8 @@ export interface ApiClient {
   numbersFree(params: NumbersFreeParams): Promise<{ items: string[] }>;
 
   listCalls(params: ListCallsParams): Promise<Paged<Call>>;
+  /** CDR kengaytirilgan qidiruv — xuddi `listCalls` bilan bir xil parametrlar, CSV fayl qaytaradi. */
+  exportCallsCsv(params: ListCallsParams): Promise<Blob>;
 
   systemHealth(): Promise<SystemHealth>;
   configRevisions(limit?: number): Promise<{ items: ConfigRevision[] }>;
@@ -382,6 +394,59 @@ export interface ApiClient {
   applyNetwork(payload: NetworkConfigIn): Promise<NetworkStateOut>;
   confirmNetwork(pendingId: string): Promise<NetworkStateOut>;
   rollbackNetwork(pendingId: string): Promise<NetworkStateOut>;
+
+  // M9 A1 — qarang ../../replica/m9-freepbx-gaps-contract.md §A1 («E'lon»)
+  listAnnouncements(): Promise<Paged<Announcement>>;
+  createAnnouncement(payload: CreateAnnouncementPayload): Promise<Mutated<Announcement>>;
+  updateAnnouncement(id: string, payload: UpdateAnnouncementPayload): Promise<Mutated<Announcement>>;
+  deleteAnnouncement(id: string): Promise<void>;
+
+  // M9 A2 — qarang §A2 («Boshqa manzillar» / «Maxsus kodlar»)
+  listMiscDestinations(): Promise<Paged<MiscDestination>>;
+  createMiscDestination(payload: CreateMiscDestinationPayload): Promise<Mutated<MiscDestination>>;
+  updateMiscDestination(id: string, payload: UpdateMiscDestinationPayload): Promise<Mutated<MiscDestination>>;
+  deleteMiscDestination(id: string): Promise<void>;
+  listMiscApplications(): Promise<Paged<MiscApplication>>;
+  createMiscApplication(payload: CreateMiscApplicationPayload): Promise<Mutated<MiscApplication>>;
+  updateMiscApplication(id: string, payload: UpdateMiscApplicationPayload): Promise<Mutated<MiscApplication>>;
+  deleteMiscApplication(id: string): Promise<void>;
+
+  // M9 A3 — qarang §A3 («Parkovka»)
+  parkingSettings(): Promise<ParkingSettings>;
+  updateParkingSettings(payload: UpdateParkingSettingsPayload): Promise<Mutated<ParkingSettings>>;
+  parkedCalls(): Promise<Paged<ParkingCall>>;
+
+  // M9 A4 — qarang §A4 («Paging / Intercom»)
+  listPageGroups(): Promise<Paged<PageGroup>>;
+  createPageGroup(payload: CreatePageGroupPayload): Promise<Mutated<PageGroup>>;
+  updatePageGroup(id: string, payload: UpdatePageGroupPayload): Promise<Mutated<PageGroup>>;
+  deletePageGroup(id: string): Promise<void>;
+
+  // M9 B1 — qarang §B1 («PIN to'plamlari»)
+  listPinSets(): Promise<Paged<PinSet>>;
+  createPinSet(payload: CreatePinSetPayload): Promise<Mutated<PinSet>>;
+  updatePinSet(id: string, payload: UpdatePinSetPayload): Promise<Mutated<PinSet>>;
+  deletePinSet(id: string): Promise<void>;
+  listPinSetPins(id: string): Promise<{ items: PinSetPin[] }>;
+  addPinSetPins(id: string, payload: AddPinsPayload): Promise<{ items: PinSetPin[] }>;
+  deletePinSetPin(id: string, pinId: string): Promise<void>;
+
+  // M9 B2 — qarang §B2 («Telefon kitobi» + CID Lookup)
+  listPhonebook(params: ListPhonebookParams): Promise<Paged<Contact>>;
+  createContact(payload: CreateContactPayload): Promise<Mutated<Contact>>;
+  updateContact(id: string, payload: UpdateContactPayload): Promise<Mutated<Contact>>;
+  deleteContact(id: string): Promise<void>;
+  exportPhonebookCsv(): Promise<Blob>;
+  importPhonebookCsv(params: ImportPhonebookParams): Promise<ImportPhonebookResult>;
+  listCidSources(): Promise<Paged<CidSource>>;
+  createCidSource(payload: CreateCidSourcePayload): Promise<Mutated<CidSource>>;
+  updateCidSource(id: string, payload: UpdateCidSourcePayload): Promise<Mutated<CidSource>>;
+  deleteCidSource(id: string): Promise<void>;
+  testCidSource(id: string, number: string): Promise<CidSourceTestResult>;
+
+  // M9 B4 — qarang §B4 (ichki raqamlar CSV import/eksport)
+  exportExtensionsCsv(): Promise<Blob>;
+  importExtensionsCsv(params: ImportExtensionsParams): Promise<ImportExtensionsResult>;
 }
 
 export const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));

@@ -188,6 +188,17 @@ start_stack() {
     journalctl -u innova-pbx -n 30 --no-pager >&2; die "innova-pbx ishga tushmadi"; }
 }
 
+# Yangilashda (innova-update): agar asterisk konteyneri obraz o'zgarmagani uchun
+# qayta yaratilmasa, yangi `cdr` ustunlari (masalan `pin_label`, 0032) `cdr_pgsql`
+# moduli ESKI sxemani ko'rib qolishi mumkin — modul faqat yuklanganda ustunlarni
+# o'qiydi. Xatoga chidamli (`|| true`): konteyner yo'q/hali tayyor bo'lmasa ham
+# o'rnatish TO'XTAMAYDI (keyingi `systemctl restart innova-pbx` baribir tuzatadi).
+reload_cdr_module() {
+  log "cdr_pgsql moduli qayta yuklanmoqda (yangi ustunlar uchun)"
+  docker exec innova-m0-asterisk-1 asterisk -rx 'module unload cdr_pgsql.so' >/dev/null 2>&1 || true
+  docker exec innova-m0-asterisk-1 asterisk -rx 'module load cdr_pgsql.so' >/dev/null 2>&1 || true
+}
+
 wait_ready() {
   local port _
   port=$(sed -n 's/^WEB_HOST_PORT=//p' "$DEST/deploy/.env")
@@ -216,6 +227,7 @@ main() {
   install_files
   provide_images
   start_stack
+  reload_cdr_module
   wait_ready
 }
 

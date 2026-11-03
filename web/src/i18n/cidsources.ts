@@ -1,0 +1,70 @@
+// "cidsources" namespace — CidSourcesPage (CID qidirish manbalari). Qarang ../../replica/m9-freepbx-gaps-contract.md §B2.
+
+export const uz = {
+  title: 'CID qidirish manbalari',
+  readOnlyNotice: 'Sizda bu manbalarni boshqarish ruxsati yoʻq — faqat koʻrish mumkin.',
+  column: { name: 'Nom', kind: 'Turi', enabled: 'Yoqilgan', usedBy: 'Qayerda ishlatiladi' },
+  kind: { phonebook: 'Telefon kitobi', crm: 'CRM', http: 'HTTP (JSON)' },
+  caption: 'CID qidirish manbalari',
+  empty: { title: 'Hali manba yoʻq', body: 'CID qidirish manbasi — kiruvchi qoʻngʻiroqda chaqiruvchi nomini topadi.', action: 'Manba qoʻshish' },
+  newSource: 'Yangi manba',
+  toast: { added: 'Manba qoʻshildi', saved: 'Manba saqlandi', deleted: '{{name}} oʻchirildi', deleteFailed: 'Oʻchirib boʻlmadi' },
+  deleteModal: { title: '{{name}}ni oʻchirish', body: '«{{name}}» butunlay oʻchiriladi.', usagePrefix: '«{{name}}» hali ishlatilmoqda — avval ulardan olib tashlang:' },
+  cancel: 'Bekor qilish', delete: 'Oʻchirish', save: 'Saqlash', add: 'Qoʻshish',
+  editAriaLabel: '{{name}}ni tahrirlash', deleteAriaLabel: '{{name}}ni oʻchirish', testAriaLabel: '{{name}}ni sinash',
+  form: {
+    newTitle: 'Yangi CID manbasi', editTitle: '{{name}}ni tahrirlash',
+    nameLabel: 'Nom', kindLabel: 'Turi', enabledLabel: 'Yoqilgan',
+    httpUrlLabel: 'HTTP manzil', httpUrlHint: '{number} oʻrniga raqam qoʻyiladi — https://crm.local/lookup?q={number}',
+    httpJsonPathLabel: 'JSON yoʻl', httpJsonPathHint: 'Javobdan nomni olish yoʻli — masalan data.name',
+    timeoutLabel: 'Taymaut (ms)', cacheTtlLabel: 'Keshlash muddati (soniya)',
+  },
+  test: { button: 'Sinash', numberLabel: 'Sinov raqami', numberPlaceholder: '998901234567', run: 'Ishga tushirish',
+    found: 'Topildi: {{name}} ({{ms}} ms)', notFound: 'Topilmadi ({{ms}} ms)', error: 'Xato: {{error}}' },
+};
+
+export const ru = {
+  title: 'Источники поиска CID',
+  readOnlyNotice: 'У вас нет прав на управление этими источниками — доступен только просмотр.',
+  column: { name: 'Имя', kind: 'Тип', enabled: 'Включён', usedBy: 'Где используется' },
+  kind: { phonebook: 'Телефонная книга', crm: 'CRM', http: 'HTTP (JSON)' },
+  caption: 'Источники поиска CID',
+  empty: { title: 'Источников пока нет', body: 'Источник поиска CID находит имя звонящего по входящему номеру.', action: 'Добавить источник' },
+  newSource: 'Новый источник',
+  toast: { added: 'Источник добавлен', saved: 'Источник сохранён', deleted: '{{name}} удалён', deleteFailed: 'Не удалось удалить' },
+  deleteModal: { title: 'Удаление {{name}}', body: '«{{name}}» будет удалён полностью.', usagePrefix: '«{{name}}» всё ещё используется — сначала удалите отсюда:' },
+  cancel: 'Отмена', delete: 'Удалить', save: 'Сохранить', add: 'Добавить',
+  editAriaLabel: 'Редактировать {{name}}', deleteAriaLabel: 'Удалить {{name}}', testAriaLabel: 'Проверить {{name}}',
+  form: {
+    newTitle: 'Новый источник CID', editTitle: 'Редактирование {{name}}',
+    nameLabel: 'Имя', kindLabel: 'Тип', enabledLabel: 'Включён',
+    httpUrlLabel: 'HTTP-адрес', httpUrlHint: '{number} будет заменён номером — https://crm.local/lookup?q={number}',
+    httpJsonPathLabel: 'Путь JSON', httpJsonPathHint: 'Путь к имени в ответе — например data.name',
+    timeoutLabel: 'Таймаут (мс)', cacheTtlLabel: 'Время кеша (сек)',
+  },
+  test: { button: 'Проверить', numberLabel: 'Тестовый номер', numberPlaceholder: '998901234567', run: 'Запустить',
+    found: 'Найдено: {{name}} ({{ms}} мс)', notFound: 'Не найдено ({{ms}} мс)', error: 'Ошибка: {{error}}' },
+};
+
+export const en = {
+  title: 'CID lookup sources',
+  readOnlyNotice: "You don't have permission to manage these sources — view only.",
+  column: { name: 'Name', kind: 'Kind', enabled: 'Enabled', usedBy: 'Used by' },
+  kind: { phonebook: 'Phonebook', crm: 'CRM', http: 'HTTP (JSON)' },
+  caption: 'CID lookup sources',
+  empty: { title: 'No sources yet', body: "A CID lookup source finds the caller's name for an inbound call.", action: 'Add source' },
+  newSource: 'New source',
+  toast: { added: 'Source added', saved: 'Source saved', deleted: '{{name}} deleted', deleteFailed: 'Could not delete' },
+  deleteModal: { title: 'Delete {{name}}', body: '"{{name}}" will be permanently deleted.', usagePrefix: '"{{name}}" is still in use — remove it from these first:' },
+  cancel: 'Cancel', delete: 'Delete', save: 'Save', add: 'Add',
+  editAriaLabel: 'Edit {{name}}', deleteAriaLabel: 'Delete {{name}}', testAriaLabel: 'Test {{name}}',
+  form: {
+    newTitle: 'New CID source', editTitle: 'Edit {{name}}',
+    nameLabel: 'Name', kindLabel: 'Kind', enabledLabel: 'Enabled',
+    httpUrlLabel: 'HTTP URL', httpUrlHint: '{number} is replaced with the number — https://crm.local/lookup?q={number}',
+    httpJsonPathLabel: 'JSON path', httpJsonPathHint: 'Path to the name in the response — e.g. data.name',
+    timeoutLabel: 'Timeout (ms)', cacheTtlLabel: 'Cache TTL (seconds)',
+  },
+  test: { button: 'Test', numberLabel: 'Test number', numberPlaceholder: '998901234567', run: 'Run',
+    found: 'Found: {{name}} ({{ms}} ms)', notFound: 'Not found ({{ms}} ms)', error: 'Error: {{error}}' },
+};

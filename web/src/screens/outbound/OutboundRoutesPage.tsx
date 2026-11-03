@@ -2,11 +2,11 @@ import { useEffect, useId, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { AlertTriangle, FlaskConical, Pencil, Phone, Plus, ShieldAlert, Trash2 } from 'lucide-react';
 import {
-  useCreateOutboundRoute, useDeleteOutboundRoute, useExtensions, useOutboundRoutes, useReorderOutboundRoutes,
+  useCreateOutboundRoute, useDeleteOutboundRoute, useExtensions, useOutboundRoutes, usePinSets, useReorderOutboundRoutes,
   useSimulateOutboundRoute, useTrunks, useUpdateOutboundRoute,
 } from '@/api/queries';
 import { isApiError } from '@/api/errors';
-import type { CreateOutboundRoutePayload, OutboundExtensionRef, OutboundPattern, OutboundRoute, OutboundSimulateResult, Trunk } from '@/api/types';
+import type { CreateOutboundRoutePayload, OutboundExtensionRef, OutboundPattern, OutboundRoute, OutboundSimulateResult, PinSet, Trunk } from '@/api/types';
 import { useCanEdit } from '@/auth/permissions';
 import { applyToast } from '@/lib/applyToast';
 import { usagesOf } from '@/lib/usageError';
@@ -39,6 +39,7 @@ export function OutboundRoutesPage() {
   const { data, isLoading, isError, refetch } = useOutboundRoutes();
   const { data: trunksData } = useTrunks();
   const { data: extensionsData } = useExtensions({ size: 200 });
+  const { data: pinSetsData } = usePinSets();
   const canManage = useCanEdit('connect');
   const toast = useToast();
   const [editing, setEditing] = useState<OutboundRoute | 'new' | null>(null);
@@ -55,6 +56,7 @@ export function OutboundRoutesPage() {
   const routes = useMemo(() => [...(data?.items ?? [])].sort((a, b) => a.priority - b.priority), [data]);
   const trunks = trunksData?.items ?? [];
   const extensions = extensionsData?.items ?? [];
+  const pinSets = pinSetsData?.items ?? [];
 
   return (
     <AppShellPage title={t('title')}>
@@ -132,6 +134,7 @@ export function OutboundRoutesPage() {
           route={editing === 'new' ? undefined : editing}
           trunks={trunks}
           extensions={extensions}
+          pinSets={pinSets}
           pending={mutation.isPending}
           errorField={isApiError(mutation.error) ? mutation.error.field : undefined}
           errorMessage={isApiError(mutation.error) ? mutation.error.message : undefined}
@@ -273,11 +276,12 @@ function SimResult({ result }: { result: OutboundSimulateResult }) {
 type TrunkChainItem = { id: string; name: string; health_state: Trunk['health']['state'] };
 
 function OutboundRouteDrawer({
-  route, trunks, extensions, onClose, onSubmit, pending, errorField, errorMessage, errorDetails,
+  route, trunks, extensions, pinSets, onClose, onSubmit, pending, errorField, errorMessage, errorDetails,
 }: {
   route?: OutboundRoute;
   trunks: Trunk[];
   extensions: { id: string; number: string; name: string }[];
+  pinSets: PinSet[];
   onClose: () => void;
   onSubmit: (payload: CreateOutboundRoutePayload) => void;
   pending: boolean;
@@ -294,6 +298,7 @@ function OutboundRouteDrawer({
   const [overrideCallerid, setOverrideCallerid] = useState(route?.override_extension_callerid ?? false);
   const [pinOn, setPinOn] = useState(route?.has_pin ?? false);
   const [pin, setPin] = useState('');
+  const [pinSetId, setPinSetId] = useState(route?.pin_set?.id ?? '');
   const [international, setInternational] = useState(route?.international ?? false);
   const [extMode, setExtMode] = useState<'all' | 'selected'>(route?.extensions === 'all' || !route ? 'all' : 'selected');
   const [selectedExt, setSelectedExt] = useState<OutboundExtensionRef[]>(() => (route && route.extensions !== 'all' ? route.extensions : []));
@@ -313,6 +318,7 @@ function OutboundRouteDrawer({
       callerid: callerid.trim() || null, override_extension_callerid: overrideCallerid, international,
       extensions: extMode === 'all' ? 'all' : selectedExt.map((e) => e.id),
       ...(pinOn ? (pin.trim() ? { pin: pin.trim() } : {}) : { pin: null }),
+      pin_set_id: pinSetId || null,
     });
   };
 
@@ -346,6 +352,16 @@ function OutboundRouteDrawer({
         <Toggle checked={overrideCallerid} onCheckedChange={setOverrideCallerid} label={t('form.overrideCalleridLabel')} description={t('form.overrideCalleridDesc')} />
 
         <PinField pinOn={pinOn} onPinOnChange={setPinOn} pin={pin} onPinChange={setPin} error={pinError} hasExistingPin={route?.has_pin} />
+        <Field label={t('form.pinSetLabel')} hint={t('form.pinSetHint')}>
+          {(a) => (
+            <Select
+              {...a}
+              value={pinSetId}
+              onValueChange={setPinSetId}
+              options={[{ value: '', label: t('form.pinSetNone') }, ...pinSets.map((p) => ({ value: p.id, label: p.name }))]}
+            />
+          )}
+        </Field>
         <InternationalField checked={international} onChange={setInternational} />
 
         <ExtensionsPicker mode={extMode} onModeChange={setExtMode} selected={selectedExt} onSelectedChange={setSelectedExt} available={availableExt} />

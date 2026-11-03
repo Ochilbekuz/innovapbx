@@ -13,6 +13,7 @@ export const TARGET_KINDS = [
   'busy',
   'voicemail',
   'announcement',
+  'misc',
 ] as const;
 export type TargetKind = (typeof TARGET_KINDS)[number];
 export type DestKind = TargetKind | 'external';

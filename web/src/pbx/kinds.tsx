@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { Clock3, Grid3x3, ListOrdered, Megaphone, Mic2, Phone, PhoneIncoming, PhoneMissed, PhoneOff, PhoneOutgoing, Users, Voicemail } from 'lucide-react';
+import { Clock3, Grid3x3, ListOrdered, Megaphone, Mic2, Phone, PhoneIncoming, PhoneMissed, PhoneOff, PhoneOutgoing, Shuffle, Users, Voicemail } from 'lucide-react';
 import type { DestKind } from '@/domain/destination';
 import { useEnumText } from '@/lib/useEnumText';
 
@@ -14,20 +14,22 @@ export const KIND_ICON: Record<DestKind | 'did', ReactNode> = {
   conference: <Mic2 />,
   voicemail: <Voicemail />,
   announcement: <Megaphone />,
+  misc: <Shuffle />,
   external: <PhoneOutgoing />,
   hangup: <PhoneOff />,
   busy: <PhoneMissed />,
 };
 
 export const KIND_ORDER: DestKind[] = [
-  'extension', 'ring_group', 'queue', 'ivr', 'time_condition', 'conference', 'voicemail', 'announcement', 'external', 'hangup', 'busy',
+  'extension', 'ring_group', 'queue', 'ivr', 'time_condition', 'conference', 'voicemail', 'announcement', 'misc', 'external', 'hangup', 'busy',
 ];
 
 /**
  * M1a bosqichida DestinationPicker'da ko'rsatiladigan turlar (`../../replica/m1a-contract.md`): announcement/voicemail/external keyingi bosqich.
  * M2a (`../../replica/m2a-contract.md` §4) konferensiyani qo'shadi — nom o'zgarmaydi, tarkibi kengaygan.
+ * M9 (`../../replica/m9-freepbx-gaps-contract.md` §A1/§A2) e'lon va boshqa manzillarni qo'shadi.
  */
-export const M1A_KINDS: DestKind[] = ['extension', 'ring_group', 'queue', 'ivr', 'time_condition', 'conference', 'hangup', 'busy'];
+export const M1A_KINDS: DestKind[] = ['extension', 'ring_group', 'queue', 'ivr', 'time_condition', 'conference', 'hangup', 'busy', 'announcement', 'misc'];
 
 /** Har manzil turining tarjima qilingan nomi (`common.kind.*`) — til almashganda darhol yangilanadi. */
 export function useKindLabel(): Record<DestKind, string> {

@@ -72,7 +72,7 @@ def env(monkeypatch):
         # qo'llanadi — soxta sessiyada ORQAGA o'xshatiladi (sof, DB'siz).
         base = dict(enabled=True, outbound_allowed=True, outbound_callerid=None, dnd=False,
                     forward_always=None, forward_busy=None, pickup_group=None, toll_blocked_at=None,
-                    toll_block_reason=None, updated_at=NOW, id="e-created")
+                    toll_block_reason=None, updated_at=NOW, id="e-created", call_waiting=True)
         base.update(fields, codecs=codecs or [])
         return SimpleNamespace(**base)
 

@@ -24,7 +24,7 @@ import { Toggle } from '@/ui/Toggle';
 import { useToast } from '@/ui/Toast';
 
 const NAME_MAX = 60;
-const M1A_TARGETS = ['extension', 'ring_group', 'queue', 'ivr', 'time_condition', 'conference', 'hangup', 'busy'] as const;
+const M1A_TARGETS = ['extension', 'ring_group', 'queue', 'ivr', 'time_condition', 'conference', 'hangup', 'busy', 'announcement', 'misc'] as const;
 
 /** S10 — Navbatlar: operatorlar orasida qoʻngʻiroqni taqsimlash, kutish/SLA, jonli holat. */
 export function QueuesPage() {
@@ -283,7 +283,7 @@ function QueueDrawer({
           )}
         </div>
 
-        <DestinationPicker label={t('form.timeoutLabel')} required kinds={['extension', 'ring_group', 'queue', 'ivr', 'time_condition', 'conference', 'hangup', 'busy']} value={timeoutTarget} onChange={setTimeoutTarget} catalog={catalog} />
+        <DestinationPicker label={t('form.timeoutLabel')} required kinds={['extension', 'ring_group', 'queue', 'ivr', 'time_condition', 'conference', 'hangup', 'busy', 'announcement', 'misc']} value={timeoutTarget} onChange={setTimeoutTarget} catalog={catalog} />
 
         <Field label={t('form.mohLabel')} aside={t('form.mohAside')} hint={t('form.mohHint')}>
           {({ id }) => (

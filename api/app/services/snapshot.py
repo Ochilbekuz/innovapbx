@@ -8,6 +8,7 @@ from sqlalchemy.orm import selectinload
 
 from app.core.config import settings
 from app.db.models import (
+    Announcement,
     AudioFile,
     CallTarget,
     Conference,
@@ -18,8 +19,12 @@ from app.db.models import (
     Holiday,
     InboundRoute,
     Ivr,
+    MiscApplication,
+    MiscDestination,
     OutboundRoute,
     OutboundRouteTrunk,
+    PageGroup,
+    PageGroupMember,
     Queue,
     RingGroup,
     RingGroupMember,
@@ -30,6 +35,7 @@ from app.db.models import (
     VoicemailBox,
 )
 from app.services.compiler import (
+    AnnouncementSnapshot,
     ConferenceSnapshot,
     DialNumberSnapshot,
     DialplanSnapshot,
@@ -38,9 +44,12 @@ from app.services.compiler import (
     InboundRouteSnapshot,
     IvrOptionSnapshot,
     IvrSnapshot,
+    MiscApplicationSnapshot,
+    MiscDestinationSnapshot,
     OutboundPatternSnapshot,
     OutboundRouteSnapshot,
     OutboundTrunkSnapshot,
+    PageGroupSnapshot,
     QueueSnapshot,
     RingGroupMemberSnapshot,
     RingGroupSnapshot,
@@ -49,6 +58,7 @@ from app.services.compiler import (
     TimeRangeSnapshot,
     VoicemailBoxSnapshot,
 )
+from app.services.parking_settings import get_parking_settings
 from app.services.security_config import parse_toll_fraud
 
 
@@ -102,6 +112,21 @@ async def build_snapshot(session: AsyncSession, tenant_id: str) -> DialplanSnaps
     system_settings = await session.get(SystemSettings, tenant_id)
     toll_fraud_cfg = parse_toll_fraud(system_settings.toll_fraud if system_settings else None)
 
+    # M9 A1/A2/A3/A4.
+    announcements = (await session.execute(
+        select(Announcement).where(Announcement.tenant_id == tenant_id))).scalars().all()
+    misc_destinations = (await session.execute(
+        select(MiscDestination).where(MiscDestination.tenant_id == tenant_id))).scalars().all()
+    misc_applications = (await session.execute(
+        select(MiscApplication).where(MiscApplication.tenant_id == tenant_id,
+                                       MiscApplication.enabled))).scalars().all()
+    page_groups = (await session.execute(
+        select(PageGroup)
+        .where(PageGroup.tenant_id == tenant_id)
+        .options(selectinload(PageGroup.members).selectinload(PageGroupMember.extension)),
+    )).scalars().all()
+    parking = await get_parking_settings(session, tenant_id)
+
     return DialplanSnapshot(
         tenant_code=tenant.code,
         extensions=[
@@ -119,6 +144,8 @@ async def build_snapshot(session: AsyncSession, tenant_id: str) -> DialplanSnaps
             InboundRouteSnapshot(
                 id=str(r.id), did=r.did, callerid_pattern=r.callerid_pattern,
                 target_id=str(r.target_id), enabled=r.enabled,
+                cid_name_prefix=r.callerid_name_prefix or None, alert_info=r.alert_info or None,
+                cid_lookup_source_id=str(r.cid_lookup_source_id) if r.cid_lookup_source_id else None,
             )
             for r in routes
         ],
@@ -205,6 +232,33 @@ async def build_snapshot(session: AsyncSession, tenant_id: str) -> DialplanSnaps
         toll_max_concurrent_outbound=(
             toll_fraud_cfg.max_concurrent_outbound if toll_fraud_cfg.enabled else 0
         ),
+        announcements=[
+            AnnouncementSnapshot(
+                id=str(a.id), target_id=str(a.target_id), name=a.name,
+                audio_file_id=str(a.audio_file_id), next_target_id=str(a.next_target_id),
+                allow_skip=a.allow_skip, repeat_key=a.repeat_key or None, answer=a.answer,
+            )
+            for a in announcements
+        ],
+        misc_destinations=[
+            MiscDestinationSnapshot(id=str(m.id), target_id=str(m.target_id), name=m.name, dial=m.dial)
+            for m in misc_destinations
+        ],
+        misc_applications=[
+            MiscApplicationSnapshot(
+                id=str(m.id), name=m.name, code=m.code, target_id=str(m.target_id), enabled=m.enabled,
+            )
+            for m in misc_applications
+        ],
+        page_groups=[
+            PageGroupSnapshot(
+                id=str(pg.id), name=pg.name, number=pg.number,
+                member_numbers=tuple(m.extension.number for m in pg.members if m.extension),
+                duplex=pg.duplex, skip_busy=pg.skip_busy, beep=pg.beep,
+            )
+            for pg in page_groups
+        ],
+        parking=parking,
     )
 
 
@@ -231,4 +285,5 @@ def _outbound_route_snapshot(r: OutboundRoute) -> OutboundRouteSnapshot:
         ),
         callerid=r.callerid, override_extension_callerid=r.override_extension_callerid,
         has_pin=r.pin_hash is not None, allowed_extension_numbers=allowed,
+        pin_set_id=str(r.pin_set_id) if r.pin_set_id else None,
     )

@@ -23,6 +23,7 @@ Kontekstlar:
 from __future__ import annotations
 
 from collections.abc import Callable
+from dataclasses import dataclass
 
 from app.services.dialplan_recording import recorded_dial_lines
 
@@ -30,7 +31,8 @@ EXT_STATE_FAMILY = "ext_state"
 BLACKLIST_FAMILY = "blacklist"  # m2a-contract.md §5 — faqat o'qish (API yozadi).
 AGENT_STATE_FAMILY = "agent_state"  # m2b-contract.md §0/§1 — navbat login/pauza.
 
-# Park joyi (m2a-contract.md §3): tenant bo'yicha bitta lot, raqamlar band qilingan.
+# Park joyi (m2a-contract.md §3; M9 A3 — endi `ParkingSettingsData` bilan
+# SOZLANADI, bu konstantalar faqat SUKUT qiymatlar / eski chaqiruvchilar uchun).
 PARK_LOT_NUMBER = "700"
 PARK_FIRST_SLOT = 701
 PARK_LAST_SLOT = 720
@@ -43,6 +45,32 @@ MAX_FORWARD_HOPS = 3
 # (`T`) — trunk'dan kelgan tashqi chaqiruvchi `##` bilan transfer qilib
 # chiquvchi marshrutga kira olmasligi uchun (toll fraud).
 XFER_OPTIONS = 't${IF($["${INNOVA_FROM_TRUNK}"="1"]?:T)}'
+
+# M9 A4 — Dial()'ning `b()` oldindan-terish ilgagi: HAR BIR maqsad kanaliga
+# (parallel Dial() uchun ham) bitta marta ishga tushadi, B bo'lagi (kiruvchi
+# marshrut CID prefiksi/Alert-Info, `__INNOVA_ALERT_INFO`) VA A4 (intercom,
+# `__INNOVA_AUTOANSWER`) ikkalasi shu BITTA gosub orqali sarlavha qo'shadi
+# (baham ko'rilgan kontekst — compiler.py uni BIR MARTA yozadi).
+PREDIAL_HDR_CONTEXT = "innova-predial-hdr"
+PREDIAL_OPTION = f"b({PREDIAL_HDR_CONTEXT}^s^1)"
+XFER_OPTIONS_HDR = XFER_OPTIONS + PREDIAL_OPTION
+
+
+def predial_hdr_context_lines() -> list[str]:
+    """`Gosub()` BITTA umumiy bo'lim — maqsad kanalida ishga tushadi (hali
+    INVITE yuborilmagan). `INNOVA_ALERT_INFO` — B bo'lagi `__`(meros)bilan
+    o'rnatadi (`compiler.py::_cid_prefix_alert_lines`), shu sabab bu yerda
+    PREFIKSSIZ o'qiladi. `INNOVA_AUTOANSWER=1` — A4 intercom/paging."""
+    return [
+        f"[{PREDIAL_HDR_CONTEXT}]",
+        "exten => s,1,NoOp(Innova: pre-dial sarlavhalar)",
+        ' same => n,ExecIf($["${INNOVA_ALERT_INFO}"!=""]?Set(PJSIP_HEADER(add,Alert-Info)=${INNOVA_ALERT_INFO}))',
+        ' same => n,ExecIf($["${INNOVA_AUTOANSWER}"="1"]?'
+        "Set(PJSIP_HEADER(add,Call-Info)=<sip:innova-autoanswer>;answer-after=0))",
+        ' same => n,ExecIf($["${INNOVA_AUTOANSWER}"="1"]?'
+        "Set(PJSIP_HEADER(add,Alert-Info)=info=alert-autoanswer))",
+        " same => n,Return()",
+    ]
 
 
 def park_lot_name(code: str) -> str:
@@ -81,6 +109,21 @@ def ext_generic_lines(code: str) -> list[str]:
     ]
 
 
+def _call_waiting_check_lines(code: str) -> list[str]:
+    """M9 A5: `call_waiting=false` VA `DEVICE_STATE` band/jiringlab-band bo'lsa —
+    jiringlamasdan to'g'ridan-to'g'ri band oqimiga (`busycheck`, `forward_busy`
+    keyin `Busy()`) o'tadi; aks holda oddiy `dial`ga davom etadi."""
+    cw = realtime_read(code, "${EXTEN}", "call_waiting")
+    dev = "${DEVICE_STATE(PJSIP/${EXTEN})}"
+    return [
+        f' same => n,GotoIf($["{cw}"="f"]?cwcheck:dial)',
+        f' same => n(cwcheck),GotoIf($["{dev}"="INUSE"]?busycheck)',
+        f' same => n,GotoIf($["{dev}"="BUSY"]?busycheck)',
+        f' same => n,GotoIf($["{dev}"="RINGINUSE"]?busycheck)',
+        " same => n,Goto(dial)",
+    ]
+
+
 def ext_call_lines(code: str) -> list[str]:
     seen_limit = MAX_FORWARD_HOPS + 1  # FIELDQTY: bosh bo'sh maydon + ko'rilgan raqamlar
     return [
@@ -91,12 +134,13 @@ def ext_call_lines(code: str) -> list[str]:
         f" same => n,Set(INNOVA_FWD={realtime_read(code, '${EXTEN}', 'forward_always')})",
         " same => n,Set(INNOVA_FWD_STOP=dial)",
         ' same => n,GotoIf($["${INNOVA_FWD}"!=""]?fwd)',
+        *_call_waiting_check_lines(code),
         f" same => n(dial),Set(__PICKUPMARK={code}-${{EXTEN}})",
         f" same => n,Set(__TRANSFER_CONTEXT={code}-from-internal)",
         # SIP endpoint id — prefikssiz (`sip_identity.endpoint_id`), ${EXTEN} shu bilan BIR XIL.
-        *recorded_dial_lines("PJSIP/${EXTEN}", "${INNOVA_RING}", XFER_OPTIONS),
+        *recorded_dial_lines("PJSIP/${EXTEN}", "${INNOVA_RING}", XFER_OPTIONS_HDR),
         ' same => n,GotoIf($["${DIALSTATUS}"!="BUSY"]?noans)',
-        f" same => n,Set(INNOVA_FWD={realtime_read(code, '${EXTEN}', 'forward_busy')})",
+        f" same => n(busycheck),Set(INNOVA_FWD={realtime_read(code, '${EXTEN}', 'forward_busy')})",
         " same => n,Set(INNOVA_FWD_STOP=noans)",
         ' same => n,GotoIf($["${INNOVA_FWD}"!=""]?fwd)',
         # M5b: javobsiz / band / mavjud emas → Follow Me (yoqilgan bo'lsa), keyin javobsiz manzil.
@@ -175,7 +219,7 @@ def fm_leg_lines(code: str) -> list[str]:
         f" same => n,Set(__PICKUPMARK={code}-${{EXTEN}})",
         f" same => n,Set(__TRANSFER_CONTEXT={code}-from-internal)",
         # SIP endpoint id — prefikssiz (`sip_identity.endpoint_id`), ${EXTEN} shu bilan BIR XIL.
-        *recorded_dial_lines("PJSIP/${EXTEN}", "", XFER_OPTIONS),
+        *recorded_dial_lines("PJSIP/${EXTEN}", "", XFER_OPTIONS_HDR),
         " same => n,Hangup()",
         " same => n(skip),Hangup(17)",
         # Tashqi: ruxsat/toll — Follow Me EGASINIKI (`INNOVA_FWD_FROM`, yo'naltirish kabi);
@@ -228,7 +272,7 @@ def ring_group_set_lines(code: str, idx: int, members: list[tuple[str, bool]], r
         lines.append(f' same => n,ExecIf($["{dnd}"!="t"]?Set(INNOVA_RG=${{INNOVA_RG}}&PJSIP/{number}))')
     lines += [
         f' same => n,GotoIf($["${{INNOVA_RG}}"=""]?rg{idx}_skip)',
-        *recorded_dial_lines("${INNOVA_RG:1}", str(ring_seconds), XFER_OPTIONS),
+        *recorded_dial_lines("${INNOVA_RG:1}", str(ring_seconds), XFER_OPTIONS_HDR),
         f" same => n(rg{idx}_skip),NoOp(Innova: guruh to'plami {idx} tugadi)",
     ]
     return lines
@@ -354,6 +398,43 @@ def _simple(*apps: str) -> Callable[[str, str], list[str]]:
     return build
 
 
+def _cw_set(value: str) -> Callable[[str, str], list[str]]:
+    """M9 A5 — `*56`/`*57`: ALMASHTIRISH emas, to'g'ridan-to'g'ri `t`/`f`
+    YOZISH (`_toggle_realtime_lines` moslamasi — toggle emasligi uchun mos
+    kelmaydi, shu sabab alohida, lekin BIR XIL "yoz -> qayta o'qib tasdiqla"
+    qolipda)."""
+    def build(code: str, fc: str) -> list[str]:
+        ep = "${INNOVA_EP}"
+        read = f"${{REALTIME_FIELD({EXT_STATE_FAMILY},endpoint,{ep},call_waiting)}}"
+        label = "yoqish" if value == "t" else "o'chirish"
+        return [
+            f"exten => {fc},1,NoOp(Innova: kutish qo'ng'irog'i {label})",
+            " same => n,Answer()",
+            " same => n,Set(INNOVA_EP=${CHANNEL(endpoint)})",
+            f" same => n,Set(REALTIME({EXT_STATE_FAMILY},endpoint,{ep},call_waiting)={value})",
+            f' same => n,GotoIf($["{read}"!="{value}"]?err)',
+            f" same => n,Playback({'activated' if value == 't' else 'de-activated'})",
+            " same => n,Hangup()",
+            " same => n(err),Playback(invalid)",
+            " same => n,Hangup()",
+        ]
+    return build
+
+
+def _intercom(code: str, fc: str) -> list[str]:
+    """M9 A4 — `*80<raqam>`: maqsad ichki raqam avtomatik javob beradi
+    (`__INNOVA_AUTOANSWER` -> `PREDIAL_HDR_CONTEXT` sarlavha qo'shadi)."""
+    rest = f"${{EXTEN:{len(fc)}}}"
+    return [
+        f"exten => _{fc}X.,1,NoOp(Innova: intercom {rest})",
+        f" same => n,Set(INNOVA_NUM={rest})",
+        " same => n,Set(__INNOVA_AUTOANSWER=1)",
+        f" same => n,Set(__TRANSFER_CONTEXT={code}-from-internal)",
+        f" same => n,Dial(PJSIP/${{INNOVA_NUM}},20,{PREDIAL_OPTION})",
+        " same => n,Hangup()",
+    ]
+
+
 FEATURE_BUILDERS: dict[str, Callable[[str, str], list[str]]] = {
     "voicemail": _vm_own,
     "voicemail_other": _vm_other,
@@ -370,6 +451,9 @@ FEATURE_BUILDERS: dict[str, Callable[[str, str], list[str]]] = {
     "queue_login": _queue_login,
     "queue_pause": _queue_pause,
     "followme_toggle": _followme_toggle,
+    "intercom": _intercom,
+    "cw_on": _cw_set("t"),
+    "cw_off": _cw_set("f"),
 }
 
 # API'da ko'rsatiladigan va dialplan'ga yoziladigan tartib (m2a-contract.md §2).
@@ -412,37 +496,65 @@ def cf_context_lines(code: str) -> list[str]:
     return lines
 
 
-# ------------------------------------------------------------ park
-def park_lines(code: str) -> list[str]:
-    """Lot raqami 700 — priority 1 da `Park()` SHART: `##700` blind transfer'ni
-    res_parking aynan shu bo'yicha park deb taniydi. 701–720 — qaytarib olish."""
+# ------------------------------------------------------------ park (M9 A3 — sozlanadigan)
+@dataclass(frozen=True)
+class ParkingSettingsData:
+    """`parking_settings` jadvalidan o'qilgan (yoki sukut) qiymatlar — `##700`
+    blind transfer, `*70` funksiya kodi va `/parking/calls` ulardan DINAMIK
+    foydalanadi. `timeout_target_id` — `call_targets.id` (compiler.py uni
+    generik `{code}-dest-{id}` qoidasiga ko'ra Goto manziliga aylantiradi,
+    shu modul DB/target bilmaydi); `moh_class_name` — OLDINDAN hal qilingan
+    nom (id emas — `res_parking.conf`ga to'g'ridan-to'g'ri yoziladi)."""
+    lot_number: str = PARK_LOT_NUMBER
+    first_slot: int = PARK_FIRST_SLOT
+    slot_count: int = PARK_LAST_SLOT - PARK_FIRST_SLOT + 1
+    timeout_s: int = PARK_TIMEOUT_S
+    on_timeout: str = "origin"
+    timeout_target_id: str | None = None
+    moh_class_name: str | None = None
+
+    @property
+    def last_slot(self) -> int:
+        return self.first_slot + self.slot_count - 1
+
+
+def park_numbers(settings: ParkingSettingsData | None = None) -> frozenset[str]:
+    s = settings or ParkingSettingsData()
+    return frozenset({s.lot_number} | {str(n) for n in range(s.first_slot, s.last_slot + 1)})
+
+
+def is_park_number(number: str, settings: ParkingSettingsData | None = None) -> bool:
+    return number in park_numbers(settings)
+
+
+def park_lines(code: str, settings: ParkingSettingsData | None = None) -> list[str]:
+    """Lot raqami — priority 1 da `Park()` SHART: blind transfer'ni res_parking
+    aynan shu bo'yicha park deb taniydi. Sloti oraliq — qaytarib olish."""
+    s = settings or ParkingSettingsData()
     lot = park_lot_name(code)
-    lines = [f"exten => {PARK_LOT_NUMBER},1,Park({lot})", " same => n,Hangup()"]
-    for slot in range(PARK_FIRST_SLOT, PARK_LAST_SLOT + 1):
+    lines = [f"exten => {s.lot_number},1,Park({lot})", " same => n,Hangup()"]
+    for slot in range(s.first_slot, s.last_slot + 1):
         lines.append(f"exten => {slot},1,ParkedCall({lot},{slot})")
         lines.append(" same => n,Hangup()")
     return lines
 
 
-def parking_conf_text(code: str) -> str:
+def parking_conf_text(code: str, settings: ParkingSettingsData | None = None) -> str:
     """`res_parking.conf` #include qiladigan lot fayli (`/srv/dialplan`)."""
+    s = settings or ParkingSettingsData()
+    comeback = "yes" if s.on_timeout == "origin" else "no"
+    moh_line = f"parkedmusicclass => {s.moh_class_name}\n" if s.moh_class_name else ""
     return (
         "; Innova PBX — avtomatik yaratilgan fayl. QO'LDA TAHRIRLAMANG.\n"
         f"[{park_lot_name(code)}]\n"
-        f"parkpos => {PARK_FIRST_SLOT}-{PARK_LAST_SLOT}\n"
+        f"parkpos => {s.first_slot}-{s.last_slot}\n"
         f"context => {code}-parkedcalls\n"
-        f"parkingtime => {PARK_TIMEOUT_S}\n"
-        "comebacktoorigin => yes\n"
+        f"parkingtime => {s.timeout_s}\n"
+        f"comebacktoorigin => {comeback}\n"
         "parkedcalltransfers => both\n"
         "findslot => first\n"
+        f"{moh_line}"
     )
-
-
-PARK_NUMBERS = frozenset({PARK_LOT_NUMBER} | {str(s) for s in range(PARK_FIRST_SLOT, PARK_LAST_SLOT + 1)})
-
-
-def is_park_number(number: str) -> bool:
-    return number in PARK_NUMBERS
 
 
 # ------------------------------------------------------------ konferensiya (§4)
@@ -487,4 +599,30 @@ def blacklist_check_lines(code: str) -> list[str]:
         " same => n,Set(CDR(userfield)=blacklisted)",
         " same => n,Hangup(21)",
         " same => n(s-return),Return()",
+    ]
+
+
+# ------------------------------------------------------------ paging/intercom (M9 A4)
+def page_group_lines(number: str, member_numbers: tuple[str, ...], *,
+                      duplex: bool, skip_busy: bool, beep: bool) -> list[str]:
+    """`Page()` — `i` (yo'naltirishlarni e'tiborsiz qoldirish) doim bor;
+    `d`=duplex, `s`=band kanallarni o'tkazib yuborish, `q`=sovuq (signal
+    yo'q). ESLATMA (cheklov): `Page()`da `Dial()`ning `b()` oldindan-terish
+    ilgagi YO'Q — `__INNOVA_AUTOANSWER` meros orqali uzatiladi, lekin
+    maqsad endpoint buni albatta avtomatik javobga aylantirishi KAFOLATLANMAYDI
+    (yakuniy hisobotda cheklov sifatida qayd etilgan)."""
+    opts = "i"
+    if duplex:
+        opts += "d"
+    if skip_busy:
+        opts += "s"
+    if not beep:
+        opts += "q"
+    targets = "&".join(f"PJSIP/{m}" for m in member_numbers)
+    return [
+        f"exten => {number},1,NoOp(Innova: paging {number})",
+        " same => n,Answer()",
+        " same => n,Set(__INNOVA_AUTOANSWER=1)",
+        f" same => n,Page({targets},{opts})",
+        " same => n,Hangup()",
     ]

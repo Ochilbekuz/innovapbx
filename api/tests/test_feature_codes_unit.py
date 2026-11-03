@@ -102,7 +102,10 @@ async def test_list_in_contract_order_without_unused(env):
     env["codes"]["followme_toggle"] = SimpleNamespace(feature="followme_toggle", code="*21", enabled=True)
     del env["codes"]["echo_test"]
     out = await fcr.list_feature_codes(session=_Session(), user=USER)
-    assert [i.feature for i in out.items] == [f for f in FEATURE_ORDER if f != "echo_test"]
+    # M9 A4/A5: `intercom`/`cw_on`/`cw_off` FEATURE_ORDER'da bor, lekin `env["codes"]`da yo'q
+    # (`_load_codes` ularni yuklamagan) — `list_feature_codes` ularni chiqarmaydi, test ham shunday kutadi.
+    skip = {"echo_test", "intercom", "cw_on", "cw_off"}
+    assert [i.feature for i in out.items] == [f for f in FEATURE_ORDER if f not in skip]
     assert out.items[0].model_dump() == {"feature": "voicemail", "code": "*97", "default_code": "*97",
                                          "enabled": True}
 
@@ -178,21 +181,39 @@ async def test_get_parking_route(monkeypatch):
         seen["tenant"] = tenant_id
         return "t9"
 
-    async def fake_status(ami, code):
+    async def fake_parking_settings(session, tenant_id):
+        return "parking-cfg"
+
+    async def fake_status(ami, code, parking=None):
         seen["code"] = code
+        seen["parking"] = parking
         return {"lot": "700", "slots": "701-720", "timeout_s": 60,
                 "parked": [{"slot": "701", "callerid": "202", "parked_by": "201", "since": "x"}]}
 
     monkeypatch.setattr(pr, "get_tenant_code", fake_code)
+    monkeypatch.setattr(pr, "get_parking_settings", fake_parking_settings)
     monkeypatch.setattr(pr, "parking_status", fake_status)
-    out = await pr.get_parking(session=None, user=USER, ami=None)
-    assert out.parked[0].slot == "701" and seen == {"tenant": "t1", "code": "t9"}
+    out = await pr.list_parked_calls(session=None, user=USER, ami=None)
+    assert out.parked[0].slot == "701"
+    assert seen == {"tenant": "t1", "code": "t9", "parking": "parking-cfg"}
 
 
 # ------------------------------------------------------------------ raqam bandligi
+@pytest.fixture
+def default_parking(monkeypatch):
+    """M9 A3: `ensure_number_free` endi JONLI `parking_settings`ni o'qiydi —
+    DB'siz testlarda sukut (700 lot, 701-720) qiymatlarni qaytaruvchi soxta."""
+    from app.services.dialplan_features import ParkingSettingsData
+
+    async def fake(session, tenant_id):
+        return ParkingSettingsData()
+
+    monkeypatch.setattr(numbers, "get_parking_settings", fake)
+
+
 @pytest.mark.asyncio
 @pytest.mark.parametrize("number", ["700", "701", "720"])
-async def test_park_numbers_reserved(number):
+async def test_park_numbers_reserved(number, default_parking):
     with pytest.raises(ApiError) as e:
         await numbers.ensure_number_free(None, "t1", number)
     assert (e.value.status_code, e.value.code, e.value.field) == (409, "number_taken", "number")
@@ -201,7 +222,7 @@ async def test_park_numbers_reserved(number):
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("taken", [True, False])
-async def test_number_taken_plain(monkeypatch, taken):
+async def test_number_taken_plain(monkeypatch, taken, default_parking):
     seen = {}
 
     async def fake_taken(session, tenant_id, number, *, exclude_target_id=None):

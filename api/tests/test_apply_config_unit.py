@@ -39,7 +39,7 @@ def env(monkeypatch):
         st["calls"].append("lock")
 
     async def snapshot(session, tenant_id):
-        return SimpleNamespace(tenant_code="t1")
+        return SimpleNamespace(tenant_code="t1", parking=SimpleNamespace(lot_number="700"))
 
     def compile_(snap):
         if "compile" in st["fail"]:
@@ -49,7 +49,7 @@ def env(monkeypatch):
     async def last(session, tenant_id, status):
         return st["last"]
 
-    async def park(ami, code):
+    async def park(ami, code, parking=None):
         st["calls"].append(f"park:{code}")
         if "park" in st["fail"]:
             raise RuntimeError("park lot ko'rinmadi")
@@ -130,6 +130,10 @@ class _ListSession:
     async def execute(self, stmt):
         rows = self.lists.pop(0)
         return SimpleNamespace(scalars=lambda: SimpleNamespace(all=lambda: rows))
+
+    async def get(self, model, pk):
+        """M9 A3: `get_parking_settings` chaqiradi — yozuv yo'q, sukut park oralig'i (701-720)."""
+        return None
 
 
 @pytest.mark.asyncio

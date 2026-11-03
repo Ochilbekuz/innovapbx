@@ -35,6 +35,10 @@ CONFIG_TABLES: frozenset[str] = frozenset({
     "api_keys", "crm_users", "crm_user_map", "devices", "device_keys",
     "migration_jobs", "migration_items",
     "campaigns", "campaign_contacts", "campaign_optouts",  # M6
+    "misc_destinations", "misc_applications", "parking_settings",  # M9 A2/A3
+    "page_groups", "page_group_members",  # M9 A4
+    "pin_sets", "pin_set_pins",  # M9 B1
+    "phonebook_contacts", "phonebook_numbers", "cid_lookup_sources",  # M9 B2
 })
 
 # Fayl qismlari — api konteynerida ulangan hajm ildizlari (`deploy/docker-compose.yml`).

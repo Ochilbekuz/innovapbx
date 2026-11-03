@@ -22,7 +22,7 @@ from app.core.security import (
     validate_password,
     verify_password,
 )
-from app.db.models import AudioFile, RefreshToken, Role, SystemSettings, Tenant, User
+from app.db.models import AudioFile, ParkingSettings, RefreshToken, Role, SystemSettings, Tenant, User
 from app.schemas import (
     AuthResult,
     ExtensionRef,
@@ -122,6 +122,11 @@ async def setup(payload: SetupPayload, request: Request, session: AsyncSession =
     sip_cfg = current_sip_config(sip_row)
     write_sip_files(sip_cfg)
     sip_row.restart_required = needs_restart(BOOT_DEFAULT, sip_cfg)
+
+    # M9 A3: park sozlamalari — `SystemSettings` namunasi, sukut qiymatlar
+    # DB ustun default'laridan (0031 migratsiyasi) keladi.
+    session.add(ParkingSettings(tenant_id=tenant.id))
+    await session.flush()
 
     # Tizim «salomlashuv» namunasi — sof Python bilan generatsiya qilingan
     # ohang (Asterisk/FreePBX ovoz fayllari NUSXALANMAYDI, m1a-contract.md S11).

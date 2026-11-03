@@ -39,6 +39,13 @@ import { BackupPage } from '@/screens/backup/BackupPage';
 import { MigrationPage } from '@/screens/migration/MigrationPage';
 import { StatusPage } from '@/screens/status/StatusPage';
 import { NetworkPage } from '@/screens/network/NetworkPage';
+import { AnnouncementsPage } from '@/screens/announcements/AnnouncementsPage';
+import { MiscPage } from '@/screens/misc/MiscPage';
+import { ParkingPage } from '@/screens/parking/ParkingPage';
+import { PagingPage } from '@/screens/paging/PagingPage';
+import { PhonebookPage } from '@/screens/phonebook/PhonebookPage';
+import { PinSetsPage } from '@/screens/pinsets/PinSetsPage';
+import { CidSourcesPage } from '@/screens/cidsources/CidSourcesPage';
 
 /** M0/M1a/M2b'da to'liq qurilgan ekranlar — qolganlari `ScreenStub` orqali "tez orada". */
 const FULL_PAGES: Record<string, ComponentType> = {
@@ -72,6 +79,13 @@ const FULL_PAGES: Record<string, ComponentType> = {
   migration: MigrationPage,
   status: StatusPage,
   network: NetworkPage,
+  announcements: AnnouncementsPage,
+  misc: MiscPage,
+  parking: ParkingPage,
+  paging: PagingPage,
+  phonebook: PhonebookPage,
+  pinsets: PinSetsPage,
+  cidsources: CidSourcesPage,
 };
 
 /** `/` va noma'lum yo'llar uchun ruxsatga mos boshlang'ich sahifa (M7 §4 — qarang `homeFor`). */

@@ -87,16 +87,28 @@ _PREFIX_REGION: tuple[tuple[str, str], ...] = (
     ("/trunks", "connect"),
     ("/inbound-routes", "connect"),
     ("/outbound-routes", "connect"),
+    # M9 B1/B2: PIN to'plamlari va CID Lookup manbalari — `connect` (chiquvchi/
+    # kiruvchi marshrutlar bilan bir hudud); telefon kitobi — `apps` (B2).
+    ("/pin-sets", "connect"),
+    ("/cid-sources", "connect"),
+    ("/phonebook", "apps"),
     ("/time-groups", "routing"),
     ("/holidays", "routing"),
     ("/time-conditions", "routing"),
     ("/ivrs", "routing"),
     ("/queues", "routing"),
     ("/ring-groups", "routing"),
+    # M9 A1/A2: e'lonlar va boshqa manzillar/ilovalar — marshrutlash
+    # satellitlari (IVR/navbat kabi) — `routing`.
+    ("/announcements", "routing"),
+    ("/misc-destinations", "routing"),
+    ("/misc-applications", "routing"),
     ("/audio", "apps"),
     ("/moh-classes", "apps"),
     ("/conferences", "apps"),
     ("/parking", "apps"),
+    # M9 A4: paging/intercom guruhlari — `apps` (konferensiya/parking kabi).
+    ("/page-groups", "apps"),
     ("/blacklist", "apps"),
     ("/campaigns", "apps"),
     ("/calls", "reports"),

@@ -8,6 +8,7 @@ from __future__ import annotations
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, Query
+from fastapi.responses import Response
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -17,6 +18,7 @@ from app.core.permissions import ALL, CALLS_READ_OWN, has_permission, has_region
 from app.db.models import Cdr, Extension, User
 from app.schemas import CallDirection, CallOut
 from app.services.cdr_grouping import calls_from_rows, trunk_names
+from app.services.cdr_search import EXPORT_LIMIT, CallSearch, build_search, calls_csv, filter_calls
 from app.services.recordings import attach_recordings
 
 router = APIRouter(prefix="/calls", tags=["calls"])
@@ -74,25 +76,60 @@ async def paginate_with_recordings(session: AsyncSession, tenant_id: str, calls:
     return result
 
 
+def call_search_params(
+    src: str | None = None, src_mode: str | None = None, src_not: bool = False,
+    dst: str | None = None, dst_mode: str | None = None, dst_not: bool = False,
+    did: str | None = None, did_mode: str | None = None, did_not: bool = False,
+    name: str | None = None, ext: str | None = None, trunk: str | None = None,
+    account: str | None = None, disposition: str | None = None,
+    min_duration: int | None = None, max_duration: int | None = None, recording: str | None = None,
+) -> CallSearch:
+    """M9 — FreePBX «CDR Reports» qidiruv shabloni (`app/services/cdr_search.py`)."""
+    return build_search(
+        src=src, src_mode=src_mode, src_not=src_not, dst=dst, dst_mode=dst_mode, dst_not=dst_not,
+        did=did, did_mode=did_mode, did_not=did_not, name=name, ext=ext, trunk=trunk, account=account,
+        disposition=disposition, min_duration=min_duration, max_duration=max_duration, recording=recording,
+    )
+
+
+async def _searched_calls(session: AsyncSession, user: User, *, from_: str | None, to: str | None,
+                          q: str | None, direction: CallDirection | None, search: CallSearch) -> list[CallOut]:
+    """Ruxsat + tenant + sana/q (SQL) → yig'ish → o'z qo'ng'iroqlari/yo'nalish/qidiruv (Python)."""
+    is_admin = _require_calls_permission(user)
+    tenant_code = await _tenant_code(session, user)
+    rows = (await session.execute(_build_calls_query(tenant_code, from_=from_, to=to, q=q))).scalars().all()
+    calls = calls_from_rows(list(rows), await trunk_names(session, str(user.tenant_id)))
+    if not is_admin:
+        calls = _filter_own_calls(calls, await _own_extension_number(session, user))
+    calls = [c for c in calls if direction in (None, c.direction)]
+    if search.needs_recordings:
+        await attach_recordings(session, str(user.tenant_id), calls)
+    return filter_calls(search, calls)
+
+
 @router.get("")
 async def list_calls(
     from_: str | None = Query(default=None, alias="from"), to: str | None = None, q: str | None = None,
     direction: CallDirection | None = None, page: int = 1, size: int = 50,
+    search: CallSearch = Depends(call_search_params),
     session: AsyncSession = Depends(get_session), user: User = Depends(get_current_user),
 ) -> dict:
-    is_admin = _require_calls_permission(user)
-    tenant_code = await _tenant_code(session, user)
-    stmt = _build_calls_query(tenant_code, from_=from_, to=to, q=q)
-
-    rows = (await session.execute(stmt)).scalars().all()
-    calls = calls_from_rows(list(rows), await trunk_names(session, str(user.tenant_id)))
-
-    if not is_admin:
-        calls = _filter_own_calls(calls, await _own_extension_number(session, user))
-    if direction:
-        calls = [c for c in calls if c.direction == direction]
-
+    calls = await _searched_calls(session, user, from_=from_, to=to, q=q, direction=direction, search=search)
     return await paginate_with_recordings(session, str(user.tenant_id), calls, page, size)
+
+
+@router.get("/export.csv")
+async def export_calls_csv(
+    from_: str | None = Query(default=None, alias="from"), to: str | None = None, q: str | None = None,
+    direction: CallDirection | None = None, search: CallSearch = Depends(call_search_params),
+    session: AsyncSession = Depends(get_session), user: User = Depends(get_current_user),
+) -> Response:
+    """Joriy qidiruv natijasi CSV (ko'pi bilan `EXPORT_LIMIT` qator, yozuvlar soni bilan)."""
+    calls = (await _searched_calls(session, user, from_=from_, to=to, q=q, direction=direction,
+                                   search=search))[:EXPORT_LIMIT]
+    await attach_recordings(session, str(user.tenant_id), calls)
+    return Response(calls_csv(calls), media_type="text/csv; charset=utf-8",
+                    headers={"Content-Disposition": 'attachment; filename="calls.csv"'})
 
 
 async def _tenant_code(session: AsyncSession, user: User) -> str:

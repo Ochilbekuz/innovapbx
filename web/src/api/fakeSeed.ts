@@ -15,6 +15,8 @@ import type {
   Backup, BackupSettings, RestoreJob,
   // M5a — qarang ../../replica/m5a-contract.md
   MigrationJob,
+  // M9 — qarang ../../replica/m9-freepbx-gaps-contract.md
+  Announcement, CidSource, Contact, MiscApplication, MiscDestination, PageGroup, ParkingSettings, PinSet,
 } from './types';
 
 export const SIM_ROLLBACK_MARK = 'SIMULYATSIYA_XATO';
@@ -60,6 +62,8 @@ export function seedExtensions(): Extension[] {
     toll_blocked_at: null, toll_block_reason: null, webrtc: false, codecs: [] as string[],
     // M3c §1 — demo: 101 kiruvchi "always", chiquvchi "on_demand" (ikkisi mustaqil ekanini ko'rsatadi).
     recording: 'never' as const, recording_in: 'never' as const, recording_out: 'never' as const,
+    // M9 A5 — qarang ../../replica/m9-freepbx-gaps-contract.md §A5. Sukut — yoqilgan.
+    call_waiting: true,
   };
   // M3a §4 — demo uchun 101 va 102 brauzer softfoni (webrtc); operator (102) ham shu bilan sinaladi.
   const webrtcCodecs = ['opus', 'ulaw', 'alaw'];
@@ -103,12 +107,17 @@ export function seedTrunks(): Trunk[] {
 
 export function seedInboundRoutes(): InboundRoute[] {
   const now = '2026-10-27T05:00:00Z';
+  // M9 B3 — qarang ../../replica/m9-freepbx-gaps-contract.md §B3. Eski qatorlar — sukut (null/null/null).
+  const base = { cid_name_prefix: null, alert_info: null, cid_lookup_source: null };
   return [
-    { id: 'r-1', name: 'Asosiy raqam', did: '998712000000', cid: null, target: { id: 'e-101', kind: 'extension', label: '101 · Dilnoza Karimova', number: '101', broken: false }, enabled: true, updated_at: now },
-    { id: 'r-2', name: 'Qabul (hammasi)', did: null, cid: null, target: { id: 'e-108', kind: 'extension', label: '108 · Qabulxona', number: '108', broken: false }, enabled: true, updated_at: now },
-    { id: 'r-3', name: 'VIP mijoz', did: '998712000001', cid: '998901234567', target: { id: 'e-104', kind: 'extension', label: '104 · Malika Tosheva', number: '104', broken: false }, enabled: true, updated_at: now },
-    { id: 'r-4', name: 'Eski aksiya raqami', did: '998712000099', cid: null, target: { id: 'e-199', kind: 'extension', label: 'Oʻchirilgan ichki raqam', number: '199', broken: true }, enabled: true, updated_at: now },
-    { id: 'r-5', name: 'Qoʻllab-quvvatlash', did: '998712000005', cid: null, target: { id: 'tc-ish-vaqti', kind: 'time_condition', label: 'Ish vaqti', number: null, broken: false }, enabled: true, updated_at: now },
+    { id: 'r-1', name: 'Asosiy raqam', did: '998712000000', cid: null, target: { id: 'e-101', kind: 'extension', label: '101 · Dilnoza Karimova', number: '101', broken: false }, enabled: true, updated_at: now, ...base },
+    { id: 'r-2', name: 'Qabul (hammasi)', did: null, cid: null, target: { id: 'e-108', kind: 'extension', label: '108 · Qabulxona', number: '108', broken: false }, enabled: true, updated_at: now, ...base },
+    {
+      id: 'r-3', name: 'VIP mijoz', did: '998712000001', cid: '998901234567', target: { id: 'e-104', kind: 'extension', label: '104 · Malika Tosheva', number: '104', broken: false }, enabled: true, updated_at: now,
+      cid_name_prefix: 'VIP: ', alert_info: 'info=alert-autoanswer', cid_lookup_source: { id: 'cs-telefon-kitobi', name: 'Telefon kitobi' },
+    },
+    { id: 'r-4', name: 'Eski aksiya raqami', did: '998712000099', cid: null, target: { id: 'e-199', kind: 'extension', label: 'Oʻchirilgan ichki raqam', number: '199', broken: true }, enabled: true, updated_at: now, ...base },
+    { id: 'r-5', name: 'Qoʻllab-quvvatlash', did: '998712000005', cid: null, target: { id: 'tc-ish-vaqti', kind: 'time_condition', label: 'Ish vaqti', number: null, broken: false }, enabled: true, updated_at: now, ...base },
   ];
 }
 
@@ -117,6 +126,10 @@ function callAt(hoursAgo: number): string {
   d.setHours(d.getHours() - hoursAgo);
   return d.toISOString();
 }
+
+const CALLER_NAMES = ['Anvar Yusupov', 'Dildora Nazarova', 'Botir Rashidov'];
+// M9 CDR — PIN-to'plam yorlig'i: faqat ba'zi chiquvchi qo'ng'iroqlarda (accountcode) bor.
+const PIN_LABELS = ['Mijoz — Tashkent', 'Mijoz — Samarqand'];
 
 export function seedCalls(): Call[] {
   const rows: Call[] = [];
@@ -142,6 +155,10 @@ export function seedCalls(): Call[] {
       billsec,
       trunk: dir === 'internal' ? null : i % 5 === 0 ? 'Beeline — zaxira' : 'Uztelecom — asosiy',
       recordings: hasRecording ? [{ id: `rec-${i}`, duration_s: billsec }] : [],
+      // M9 CDR — faqat kiruvchida CallerID ismi tashqi AzBook'dan tanilgan bo'lishi mumkin.
+      src_name: dir === 'in' && i % 6 === 0 ? CALLER_NAMES[i % CALLER_NAMES.length] ?? null : null,
+      // M9 CDR — faqat chiquvchida (PIN-to'plam ishlatilgan bo'lsa) accountcode qayd etiladi.
+      pin_label: dir === 'out' && i % 5 === 0 ? PIN_LABELS[i % PIN_LABELS.length] ?? null : null,
     });
   }
   return rows;
@@ -288,7 +305,7 @@ export function seedOutboundRoutes(trunks: Trunk[]): OutboundRoute[] {
       ],
       trunks: trunkRefs,
       callerid: null, override_extension_callerid: false, has_pin: false, international: false,
-      extensions: 'all', updated_at: now,
+      extensions: 'all', updated_at: now, pin_set: null,
     },
   ];
 }
@@ -760,5 +777,74 @@ export function seedDeviceModels(): DeviceModel[] {
     { vendor: 'fanvil', model: 'X5U', keys: 20, family: 'X5' },
     { vendor: 'fanvil', model: 'X6U', keys: 40, family: 'X6' },
     { vendor: 'fanvil', model: 'X7', keys: 60, family: 'X7' },
+  ];
+}
+
+// ─────────────────────────── M9 seed — qarang ../../replica/m9-freepbx-gaps-contract.md ───────────────────────────
+
+export function seedAnnouncements(): Announcement[] {
+  const now = '2026-10-27T05:00:00Z';
+  return [
+    {
+      id: 'an-tanaffus', name: 'Tushlik tanaffusi', audio_file_id: 'au-notice', audio_name: 'Ish vaqtidan tashqari eʼlon',
+      next_target: { id: 'tc-ish-vaqti', kind: 'time_condition', label: 'Ish vaqti', number: null, broken: false },
+      allow_skip: true, repeat_key: '*', answer: true, target_id: 'tgt-an-tanaffus', updated_at: now,
+    },
+  ];
+}
+
+export function seedMiscDestinations(): MiscDestination[] {
+  const now = '2026-10-27T05:00:00Z';
+  return [{ id: 'md-faks', name: 'Faks liniyasi', dial: '0022', target_id: 'tgt-md-faks', updated_at: now }];
+}
+
+export function seedMiscApplications(): MiscApplication[] {
+  const now = '2026-10-27T05:00:00Z';
+  return [
+    {
+      id: 'ma-sardor', name: 'Direktorga toʻgʻridan-toʻgʻri', code: '*501',
+      target: { id: 'e-101', kind: 'extension', label: '101 · Dilnoza Karimova', number: '101', broken: false },
+      enabled: true, updated_at: now,
+    },
+  ];
+}
+
+export function seedParkingSettings(): ParkingSettings {
+  return {
+    lot_number: '700', first_slot: 701, slot_count: 20, timeout_s: 60, on_timeout: 'origin',
+    timeout_target: null, moh_class_id: null, updated_at: '2026-10-27T05:00:00Z',
+  };
+}
+
+export function seedPageGroups(): PageGroup[] {
+  const now = '2026-10-27T05:00:00Z';
+  return [
+    {
+      id: 'pg-ofis', name: 'Butun ofis', number: '800', duplex: false, skip_busy: true, beep: true,
+      members: [{ id: 'e-101', number: '101', name: 'Dilnoza Karimova' }, { id: 'e-102', number: '102', name: 'Sherzod Yusupov' }],
+      updated_at: now,
+    },
+  ];
+}
+
+export function seedPinSets(): PinSet[] {
+  const now = '2026-10-27T05:00:00Z';
+  return [
+    { id: 'ps-xalqaro', name: 'Xalqaro qoʻngʻiroqlar', record_in_cdr: true, pin_count: 2, used_by: [], updated_at: now },
+  ];
+}
+
+export function seedContacts(): Contact[] {
+  const now = '2026-10-27T05:00:00Z';
+  return [
+    { id: 'ct-1', name: 'Oqiljon Rustamov', company: '«Tezkor Yetkazib Berish» MChJ', note: 'Yetkazib beruvchi', numbers: [{ number: '998901112233', label: 'Mobil' }], updated_at: now },
+    { id: 'ct-2', name: 'Dildora Ergasheva', company: null, note: null, numbers: [{ number: '998712223344', label: 'Ofis' }, { number: '998933334455', label: 'Mobil' }], updated_at: now },
+  ];
+}
+
+export function seedCidSources(): CidSource[] {
+  const now = '2026-10-27T05:00:00Z';
+  return [
+    { id: 'cs-telefon-kitobi', name: 'Telefon kitobi', kind: 'phonebook', http_url: null, http_json_path: null, timeout_ms: 1500, cache_ttl_s: 3600, enabled: true, used_by: [], updated_at: now },
   ];
 }

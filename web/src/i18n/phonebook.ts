@@ -1,0 +1,88 @@
+// "phonebook" namespace — PhonebookPage (telefon kitobi). Qarang ../../replica/m9-freepbx-gaps-contract.md §B2.
+
+export const uz = {
+  title: 'Telefon kitobi',
+  readOnlyNotice: 'Sizda telefon kitobini boshqarish ruxsati yoʻq — faqat koʻrish mumkin.',
+  column: { name: 'Nom', company: 'Tashkilot', numbers: 'Raqamlar', note: 'Izoh' },
+  caption: 'Kontaktlar',
+  empty: { title: 'Hali kontakt yoʻq', body: 'Kontaktlar chaqiruvchi raqamni nom bilan koʻrsatish uchun ishlatiladi.', action: 'Kontakt qoʻshish' },
+  newContact: 'Yangi kontakt',
+  searchPlaceholder: 'Qidirish: nom, tashkilot, raqam…',
+  toast: { added: 'Kontakt qoʻshildi', saved: 'Kontakt saqlandi', deleted: '{{name}} oʻchirildi', deleteFailed: 'Oʻchirib boʻlmadi' },
+  deleteModal: { title: '{{name}}ni oʻchirish', body: '«{{name}}» butunlay oʻchiriladi.' },
+  cancel: 'Bekor qilish', delete: 'Oʻchirish', save: 'Saqlash', add: 'Qoʻshish',
+  editAriaLabel: '{{name}}ni tahrirlash', deleteAriaLabel: '{{name}}ni oʻchirish',
+  form: {
+    newTitle: 'Yangi kontakt', editTitle: '{{name}}ni tahrirlash',
+    nameLabel: 'Nom', companyLabel: 'Tashkilot (ixtiyoriy)', noteLabel: 'Izoh (ixtiyoriy)',
+    numbersLabel: 'Raqamlar', numberPlaceholder: '998901234567', labelPlaceholder: 'Mobil',
+    numberFieldAriaLabel: 'Raqam {{index}}', labelFieldAriaLabel: 'Belgi {{index}}',
+    addNumber: 'Raqam qoʻshish', removeNumberAriaLabel: 'Raqamni olib tashlash',
+  },
+  importExport: {
+    importButton: 'CSV import', exportButton: 'CSV eksport',
+    dialogTitle: 'Telefon kitobini import qilish',
+    chooseFile: 'Fayl tanlash', dryRunHint: 'Avval oʻzgarishlar oldindan koʻriladi, hech narsa saqlanmaydi.',
+    preview: 'Oldindan koʻrish', created: 'Yangi: {{count}}', updated: 'Yangilanadi: {{count}}', skipped: 'Oʻtkazib yuborildi: {{count}}', errorsCount: 'Xatolar: {{count}}',
+    apply: "Qoʻllash", cancel: 'Bekor qilish', applied: 'Import qoʻllandi',
+    rowError: '{{row}}-qator: {{message}}',
+  },
+};
+
+export const ru = {
+  title: 'Телефонная книга',
+  readOnlyNotice: 'У вас нет прав на управление телефонной книгой — доступен только просмотр.',
+  column: { name: 'Имя', company: 'Организация', numbers: 'Номера', note: 'Заметка' },
+  caption: 'Контакты',
+  empty: { title: 'Контактов пока нет', body: 'Контакты используются, чтобы показывать имя звонящего номера.', action: 'Добавить контакт' },
+  newContact: 'Новый контакт',
+  searchPlaceholder: 'Поиск: имя, организация, номер…',
+  toast: { added: 'Контакт добавлен', saved: 'Контакт сохранён', deleted: '{{name}} удалён', deleteFailed: 'Не удалось удалить' },
+  deleteModal: { title: 'Удаление {{name}}', body: '«{{name}}» будет удалён полностью.' },
+  cancel: 'Отмена', delete: 'Удалить', save: 'Сохранить', add: 'Добавить',
+  editAriaLabel: 'Редактировать {{name}}', deleteAriaLabel: 'Удалить {{name}}',
+  form: {
+    newTitle: 'Новый контакт', editTitle: 'Редактирование {{name}}',
+    nameLabel: 'Имя', companyLabel: 'Организация (необязательно)', noteLabel: 'Заметка (необязательно)',
+    numbersLabel: 'Номера', numberPlaceholder: '998901234567', labelPlaceholder: 'Мобильный',
+    numberFieldAriaLabel: 'Номер {{index}}', labelFieldAriaLabel: 'Метка {{index}}',
+    addNumber: 'Добавить номер', removeNumberAriaLabel: 'Удалить номер',
+  },
+  importExport: {
+    importButton: 'Импорт CSV', exportButton: 'Экспорт CSV',
+    dialogTitle: 'Импорт телефонной книги',
+    chooseFile: 'Выбрать файл', dryRunHint: 'Сначала изменения будут показаны предварительно, ничего не сохранится.',
+    preview: 'Предпросмотр', created: 'Новых: {{count}}', updated: 'Обновится: {{count}}', skipped: 'Пропущено: {{count}}', errorsCount: 'Ошибок: {{count}}',
+    apply: 'Применить', cancel: 'Отмена', applied: 'Импорт применён',
+    rowError: 'Строка {{row}}: {{message}}',
+  },
+};
+
+export const en = {
+  title: 'Phonebook',
+  readOnlyNotice: "You don't have permission to manage the phonebook — view only.",
+  column: { name: 'Name', company: 'Company', numbers: 'Numbers', note: 'Note' },
+  caption: 'Contacts',
+  empty: { title: 'No contacts yet', body: "Contacts are used to show the caller's number as a name.", action: 'Add contact' },
+  newContact: 'New contact',
+  searchPlaceholder: 'Search: name, company, number…',
+  toast: { added: 'Contact added', saved: 'Contact saved', deleted: '{{name}} deleted', deleteFailed: 'Could not delete' },
+  deleteModal: { title: 'Delete {{name}}', body: '"{{name}}" will be permanently deleted.' },
+  cancel: 'Cancel', delete: 'Delete', save: 'Save', add: 'Add',
+  editAriaLabel: 'Edit {{name}}', deleteAriaLabel: 'Delete {{name}}',
+  form: {
+    newTitle: 'New contact', editTitle: 'Edit {{name}}',
+    nameLabel: 'Name', companyLabel: 'Company (optional)', noteLabel: 'Note (optional)',
+    numbersLabel: 'Numbers', numberPlaceholder: '998901234567', labelPlaceholder: 'Mobile',
+    numberFieldAriaLabel: 'Number {{index}}', labelFieldAriaLabel: 'Label {{index}}',
+    addNumber: 'Add number', removeNumberAriaLabel: 'Remove number',
+  },
+  importExport: {
+    importButton: 'CSV import', exportButton: 'CSV export',
+    dialogTitle: 'Import phonebook',
+    chooseFile: 'Choose file', dryRunHint: 'Changes are previewed first — nothing is saved yet.',
+    preview: 'Preview', created: 'New: {{count}}', updated: 'Updated: {{count}}', skipped: 'Skipped: {{count}}', errorsCount: 'Errors: {{count}}',
+    apply: 'Apply', cancel: 'Cancel', applied: 'Import applied',
+    rowError: 'Row {{row}}: {{message}}',
+  },
+};

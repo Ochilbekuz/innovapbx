@@ -37,6 +37,11 @@ class _Session:
         entity = stmt.column_descriptions[0]["entity"]
         return _Result(self._rows[entity])
 
+    async def get(self, model, pk):
+        """M9 A3: `get_parking_settings` `session.get(ParkingSettings, tenant_id)` chaqiradi —
+        yozuv yo'q deb hisoblanadi, sukut (700 lot, 701-720) qiymatlar qaytadi."""
+        return None
+
 
 # ------------------------------------------------------------ number_taken
 async def test_number_taken_true_for_extension_match():

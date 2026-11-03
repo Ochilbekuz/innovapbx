@@ -23,8 +23,11 @@ export const uz = {
     cidLabel: 'CallerID (CID)', cidPlaceholder: '+998901234567',
     destinationLabel: 'Manzil', destinationHint: "Ichki raqam, qoʻng'iroq guruhi, navbat, IVR yoki ish vaqti jadvaliga yoʻnaltiring.",
     enabledLabel: 'Yoqilgan',
+    cidLookupSourceLabel: 'CID qidirish manbasi', cidLookupSourceHint: 'Chaqiruvchi raqam nomini shu manbadan topadi', cidLookupSourceNone: 'Tanlanmagan',
+    cidNamePrefixLabel: 'CID nom prefiksi', cidNamePrefixHint: 'Masalan "Qabul: " — chaqiruvchi nomi oldiga qoʻshiladi', cidNamePrefixPlaceholder: 'Qabul: ',
+    alertInfoLabel: 'Alert-Info', alertInfoHint: 'Maxsus qoʻngʻiroq ohangi/LED uchun SIP sarlavhasi (ixtiyoriy)', alertInfoPlaceholder: 'Bellcore-dr2',
   },
-  error: { didFormat: 'DID 3–15 ta raqamdan iborat boʻlsin.', cidFormat: 'CallerID notoʻgʻri formatda.' },
+  error: { didFormat: 'DID 3–15 ta raqamdan iborat boʻlsin.', cidFormat: 'CallerID notoʻgʻri formatda.', alertInfoFormat: 'Alert-Info notoʻgʻri formatda.' },
 };
 
 export const ru = {
@@ -50,8 +53,11 @@ export const ru = {
     cidLabel: 'CallerID (CID)', cidPlaceholder: '+998901234567',
     destinationLabel: 'Назначение', destinationHint: 'Направьте на внутренний номер, группу вызова, очередь, IVR или расписание рабочего времени.',
     enabledLabel: 'Включён',
+    cidLookupSourceLabel: 'Источник поиска CID', cidLookupSourceHint: 'Ищет имя звонящего номера в этом источнике', cidLookupSourceNone: 'Не выбрано',
+    cidNamePrefixLabel: 'Префикс имени CID', cidNamePrefixHint: 'Например "Приём: " — добавляется перед именем звонящего', cidNamePrefixPlaceholder: 'Приём: ',
+    alertInfoLabel: 'Alert-Info', alertInfoHint: 'Заголовок SIP для особого сигнала/индикатора (необязательно)', alertInfoPlaceholder: 'Bellcore-dr2',
   },
-  error: { didFormat: 'DID должен состоять из 3–15 цифр.', cidFormat: 'Неверный формат CallerID.' },
+  error: { didFormat: 'DID должен состоять из 3–15 цифр.', cidFormat: 'Неверный формат CallerID.', alertInfoFormat: 'Неверный формат Alert-Info.' },
 };
 
 export const en = {
@@ -77,6 +83,9 @@ export const en = {
     cidLabel: 'CallerID (CID)', cidPlaceholder: '+998901234567',
     destinationLabel: 'Destination', destinationHint: 'Route to an extension, ring group, queue, IVR, or business hours schedule.',
     enabledLabel: 'Enabled',
+    cidLookupSourceLabel: 'CID lookup source', cidLookupSourceHint: "Looks up the caller's name from this source", cidLookupSourceNone: 'Not selected',
+    cidNamePrefixLabel: 'CID name prefix', cidNamePrefixHint: 'E.g. "Front desk: " — prepended to the caller name', cidNamePrefixPlaceholder: 'Front desk: ',
+    alertInfoLabel: 'Alert-Info', alertInfoHint: 'SIP header for a distinctive ring/LED (optional)', alertInfoPlaceholder: 'Bellcore-dr2',
   },
-  error: { didFormat: 'The DID must be 3–15 digits.', cidFormat: 'Invalid CallerID format.' },
+  error: { didFormat: 'The DID must be 3–15 digits.', cidFormat: 'Invalid CallerID format.', alertInfoFormat: 'Invalid Alert-Info format.' },
 };

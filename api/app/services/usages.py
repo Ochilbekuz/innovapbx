@@ -6,12 +6,15 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import (
+    Announcement,
     Extension,
     InboundRoute,
     Ivr,
     IvrOption,
+    MiscApplication,
     OutboundRoute,
     OutboundRouteTrunk,
+    ParkingSettings,
     Queue,
     RingGroup,
     TimeCondition,
@@ -68,6 +71,24 @@ async def usages_for_target(session: AsyncSession, tenant_id: str, target_id: st
                                   Extension.no_answer_target_id == target_id))).scalars().all()
     items += [{"kind": "extension", "id": str(e.id), "label": f"{e.number} · {e.name}", "field": "no_answer"}
               for e in extensions]
+
+    # M9 A1: e'lon "keyingi manzil" (`next_target_id`).
+    anns = (await session.execute(
+        select(Announcement).where(Announcement.tenant_id == tenant_id,
+                                     Announcement.next_target_id == target_id))).scalars().all()
+    items += [{"kind": "announcement", "id": str(a.id), "label": a.name, "field": "next"} for a in anns]
+
+    # M9 A2: boshqa ilova maqsadi (`target_id` — RESTRICT, lekin GET /usages orqali ham ko'rsatiladi).
+    apps_ = (await session.execute(
+        select(MiscApplication).where(MiscApplication.tenant_id == tenant_id,
+                                        MiscApplication.target_id == target_id))).scalars().all()
+    items += [{"kind": "misc_application", "id": str(m.id), "label": m.name, "field": "target"} for m in apps_]
+
+    # M9 A3: parking muddati tugagach manzil (`on_timeout="target"`).
+    park = await session.get(ParkingSettings, tenant_id)
+    if park is not None and str(park.timeout_target_id) == target_id:
+        items.append({"kind": "parking_settings", "id": tenant_id, "label": "Parking sozlamalari",
+                      "field": "timeout_target"})
 
     return items
 

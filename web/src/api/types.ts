@@ -65,6 +65,8 @@ export type Extension = {
   // M3c §1 — yo'nalish bo'yicha MUSTAQIL siyosat: shu raqamga KELGAN / shu raqamdan CHIQQAN qo'ng'iroq.
   recording_in: RecordingPolicy;
   recording_out: RecordingPolicy;
+  // M9 A5 — qarang ../../replica/m9-freepbx-gaps-contract.md §A5. Sukut — yoqilgan.
+  call_waiting: boolean;
 };
 
 /** M3b §1 — `always`: har doim yoziladi; `never`: hech qachon; `on_demand`: `*1` bilan yoqiladi/oʻchiriladi. */
@@ -104,7 +106,11 @@ export type Trunk = {
 
 export type TrunkTestResult = { ok: boolean; rtt_ms: number | null; detail: string };
 
-export const TARGET_KINDS = ['extension', 'ring_group', 'queue', 'ivr', 'time_condition', 'conference', 'hangup', 'busy'] as const;
+export const TARGET_KINDS = [
+  'extension', 'ring_group', 'queue', 'ivr', 'time_condition', 'conference', 'hangup', 'busy',
+  // M9 A1/A2 — qarang ../../replica/m9-freepbx-gaps-contract.md §A1/§A2.
+  'announcement', 'misc',
+] as const;
 export type TargetKind = (typeof TARGET_KINDS)[number];
 export type Target = { id: string; kind: TargetKind; label: string; number: string | null; broken: boolean };
 /** @deprecated — `Target` ga koʻchirildi (M1a: faqat ichki raqamdan koʻp turlar). */
@@ -118,6 +124,10 @@ export type InboundRoute = {
   target: Target;
   enabled: boolean;
   updated_at: string;
+  // M9 B3 — qarang ../../replica/m9-freepbx-gaps-contract.md §B3.
+  cid_name_prefix: string | null;
+  alert_info: string | null;
+  cid_lookup_source: { id: string; name: string } | null;
 };
 
 export type CallDirection = 'in' | 'out' | 'internal';
@@ -136,6 +146,10 @@ export type Call = {
   trunk: string | null;
   // M3b §1 — qo'ngiroq bilan bog'langan yozuvlar (bo'lmasa — bo'sh massiv).
   recordings: CallRecordingRef[];
+  // CDR kengaytirilgan qidiruv — qo'ng'iroq qiluvchining CallerID ismi (bo'lmasa — null).
+  src_name: string | null;
+  // CDR kengaytirilgan qidiruv — PIN-to'plam yorlig'i / accountcode (bo'lmasa — null).
+  pin_label: string | null;
 };
 
 /** M3b §1 — qo'ngiroqlar roʻyxatida koʻrsatiladigan yozuv havolasi (toʻliq audio — alohida soʻrov bilan). */
@@ -164,7 +178,32 @@ export type RestoreRevisionResult = { item: ConfigRevision; apply: ApplyResult; 
 export type Paged<T> = { items: T[]; total: number };
 
 export type ListExtensionsParams = { q?: string; page?: number; size?: number };
-export type ListCallsParams = { from?: string; to?: string; q?: string; direction?: CallDirection; page?: number; size?: number };
+
+/** CDR kengaytirilgan qidiruv — matn maydoni uchun solishtirish usuli (sukut — `contains`). */
+export type CallTextMatchMode = 'contains' | 'begins' | 'ends' | 'exact';
+/** CDR kengaytirilgan qidiruv — yozuv bo'yicha filtr (sukut — `any`, ya'ni cheklovsiz). */
+export type CallRecordingFilter = 'any' | 'with' | 'without';
+
+/** FreePBX «CDR Reports» uslubidagi kengaytirilgan qidiruv — barchasi ixtiyoriy (M9 CDR). */
+export type ListCallsParams = {
+  from?: string; to?: string; q?: string; direction?: CallDirection; page?: number; size?: number;
+  src?: string; src_mode?: CallTextMatchMode; src_not?: boolean;
+  dst?: string; dst_mode?: CallTextMatchMode; dst_not?: boolean;
+  did?: string; did_mode?: CallTextMatchMode; did_not?: boolean;
+  /** Qo'ng'iroq qiluvchi ismi (CallerID name), har doim `contains`. */
+  name?: string;
+  /** Ichki raqam — `src` YOKI `dst` ga aniq teng. */
+  ext?: string;
+  /** Trunk nomi, aniq teng. */
+  trunk?: string;
+  /** PIN-to'plam yorlig'i / accountcode, `contains`. */
+  account?: string;
+  /** Vergul bilan ajratilgan `CallDisposition` ro'yxati (masalan `"answered,busy"`). */
+  disposition?: string;
+  min_duration?: number;
+  max_duration?: number;
+  recording?: CallRecordingFilter;
+};
 /** `kind` — vergul bilan ajratilgan roʻyxat (`"extension,queue"`), boʻsh — hammasi. */
 export type ListTargetsParams = { kind?: string; q?: string };
 
@@ -186,6 +225,7 @@ export type CreateExtensionPayload = {
   recording?: RecordingPolicy;
   recording_in?: RecordingPolicy;
   recording_out?: RecordingPolicy;
+  call_waiting?: boolean;
 };
 export type UpdateExtensionPayload = {
   name?: string;
@@ -204,8 +244,28 @@ export type UpdateExtensionPayload = {
   recording?: RecordingPolicy;
   recording_in?: RecordingPolicy;
   recording_out?: RecordingPolicy;
+  call_waiting?: boolean;
   updated_at: string;
 };
+
+// ─────────────────────────── M9 — qarang ../../replica/m9-freepbx-gaps-contract.md ───────────────────────────
+
+/** B4 §4 — `/extensions/export.csv` ustunlari aynan shu tartibda. */
+export const EXTENSIONS_CSV_COLUMNS = [
+  'number', 'name', 'email', 'outbound_cid', 'language', 'voicemail', 'record_in', 'record_out',
+  'max_contacts', 'call_waiting', 'enabled',
+] as const;
+export type ExtensionImportRowAction = 'create' | 'update' | 'skip' | 'error';
+export type ExtensionImportRow = { row: number; number: string; action: ExtensionImportRowAction; message: string | null };
+export type ImportExtensionsResult = {
+  rows: ExtensionImportRow[];
+  created: number;
+  updated: number;
+  errors: number;
+  /** Faqat `dry_run=false` va yangi yaratilganlar bo'lsa — BIR MARTA qaytadi (number,sip_password). */
+  secrets_csv: string | null;
+};
+export type ImportExtensionsParams = { file: File; dry_run: boolean };
 
 export type CreateTrunkPayload = {
   name: string;
@@ -224,7 +284,10 @@ export type CreateTrunkPayload = {
 };
 export type UpdateTrunkPayload = Partial<CreateTrunkPayload> & { updated_at: string };
 
-export type CreateInboundRoutePayload = { name: string; did: string | null; cid: string | null; target_id: string; enabled: boolean };
+export type CreateInboundRoutePayload = {
+  name: string; did: string | null; cid: string | null; target_id: string; enabled: boolean;
+  cid_name_prefix?: string | null; alert_info?: string | null; cid_lookup_source_id?: string | null;
+};
 export type UpdateInboundRoutePayload = Partial<CreateInboundRoutePayload> & { updated_at: string };
 
 // ─────────────────────────── M1a — qarang ../../replica/m1a-contract.md ───────────────────────────
@@ -383,6 +446,8 @@ export type OutboundRoute = {
   international: boolean;
   extensions: 'all' | OutboundExtensionRef[];
   updated_at: string;
+  // M9 B1 — qarang ../../replica/m9-freepbx-gaps-contract.md §B1. Yakka PIN bilan birga ishlaydi — istalgani yetadi.
+  pin_set: { id: string; name: string } | null;
 };
 
 export type CreateOutboundRoutePayload = {
@@ -396,6 +461,7 @@ export type CreateOutboundRoutePayload = {
   pin?: string | null;
   international: boolean;
   extensions: 'all' | string[];
+  pin_set_id?: string | null;
 };
 export type UpdateOutboundRoutePayload = Partial<CreateOutboundRoutePayload> & { updated_at: string };
 export type OutboundOrderPayload = { ids: string[] };
@@ -1469,3 +1535,129 @@ export type ImportCampaignContactsResult = {
   invalid: { line: number; value: string }[];
   item: Campaign;
 };
+
+// ─────────────────────────── M9 A1 — E'lon (Announcements) ───────────────────────────
+
+export type RepeatKey = '0' | '1' | '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9' | '*' | '#';
+export type Announcement = {
+  id: string;
+  name: string;
+  audio_file_id: string;
+  audio_name: string;
+  next_target: Target;
+  allow_skip: boolean;
+  repeat_key: RepeatKey | null;
+  answer: boolean;
+  /** `call_targets`dagi o'z yozuvi — boshqa manzillardan shu e'longa ishora qilish uchun. */
+  target_id: string;
+  updated_at: string;
+};
+export type CreateAnnouncementPayload = {
+  name: string;
+  audio_file_id: string;
+  next_target_id: string;
+  allow_skip?: boolean;
+  repeat_key?: RepeatKey | null;
+  answer?: boolean;
+};
+export type UpdateAnnouncementPayload = Partial<CreateAnnouncementPayload> & { updated_at: string };
+
+// ─────────────────────────── M9 A2 — Boshqa manzillar / Maxsus kodlar ───────────────────────────
+
+export type MiscDestination = { id: string; name: string; dial: string; target_id: string; updated_at: string };
+export type CreateMiscDestinationPayload = { name: string; dial: string };
+export type UpdateMiscDestinationPayload = Partial<CreateMiscDestinationPayload> & { updated_at: string };
+
+export type MiscApplication = { id: string; name: string; code: string; target: Target; enabled: boolean; updated_at: string };
+export type CreateMiscApplicationPayload = { name: string; code: string; target_id: string; enabled?: boolean };
+export type UpdateMiscApplicationPayload = Partial<CreateMiscApplicationPayload> & { updated_at: string };
+
+// ─────────────────────────── M9 A3 — Parkovka sozlamalari ───────────────────────────
+
+export type ParkingOnTimeout = 'origin' | 'target';
+export type ParkingSettings = {
+  lot_number: string;
+  first_slot: number;
+  slot_count: number;
+  timeout_s: number;
+  on_timeout: ParkingOnTimeout;
+  timeout_target: Target | null;
+  moh_class_id: string | null;
+  updated_at: string;
+};
+export type UpdateParkingSettingsPayload = {
+  lot_number: string;
+  first_slot: number;
+  slot_count: number;
+  timeout_s: number;
+  on_timeout: ParkingOnTimeout;
+  timeout_target_id: string | null;
+  moh_class_id: string | null;
+  updated_at: string;
+};
+/** @note Mavjud `ParkedCall`/`Parking` (dashboard vidjeti) dan ataylab farqlanadi — M9 A3 shartnomasi aniq shakl beradi. */
+export type ParkingCall = { slot: number; caller_num: string; caller_name: string | null; parked_by: string; parked_seconds: number; timeout_s: number };
+
+// ─────────────────────────── M9 A4 — Paging / Intercom ───────────────────────────
+
+export type PageGroupMember = { id: string; number: string; name: string };
+export type PageGroup = {
+  id: string;
+  name: string;
+  number: string;
+  duplex: boolean;
+  skip_busy: boolean;
+  beep: boolean;
+  members: PageGroupMember[];
+  updated_at: string;
+};
+export type CreatePageGroupPayload = {
+  name: string; number: string; duplex: boolean; skip_busy: boolean; beep: boolean; member_ids: string[];
+};
+export type UpdatePageGroupPayload = Partial<CreatePageGroupPayload> & { updated_at: string };
+
+// ─────────────────────────── M9 B1 — PIN to'plamlari ───────────────────────────
+
+export type PinSet = {
+  id: string;
+  name: string;
+  record_in_cdr: boolean;
+  pin_count: number;
+  used_by: { id: string; name: string }[];
+  updated_at: string;
+};
+export type CreatePinSetPayload = { name: string; record_in_cdr?: boolean };
+export type UpdatePinSetPayload = Partial<CreatePinSetPayload> & { updated_at: string };
+export type PinSetPin = { id: string; label: string };
+/** PIN — 4–12 raqam; takror → 409 `pin_taken`. Ochiq PIN hech qachon serverdan qaytmaydi. */
+export type AddPinsPayload = { pins: { pin: string; label: string }[] };
+
+// ─────────────────────────── M9 B2 — Telefon kitobi + CID Lookup ───────────────────────────
+
+export type PhonebookNumber = { number: string; label: string };
+export type Contact = { id: string; name: string; company: string | null; note: string | null; numbers: PhonebookNumber[]; updated_at: string };
+export type CreateContactPayload = { name: string; company?: string | null; note?: string | null; numbers: PhonebookNumber[] };
+export type UpdateContactPayload = Partial<CreateContactPayload> & { updated_at: string };
+export type ListPhonebookParams = { q?: string; page?: number; page_size?: number };
+export type ImportPhonebookResult = { created: number; updated: number; skipped: number; errors: { row: number; message: string }[] };
+export type ImportPhonebookParams = { file: File; dry_run: boolean };
+
+export type CidSourceKind = 'phonebook' | 'crm' | 'http';
+export type CidSource = {
+  id: string;
+  name: string;
+  kind: CidSourceKind;
+  http_url: string | null;
+  http_json_path: string | null;
+  timeout_ms: number;
+  cache_ttl_s: number;
+  enabled: boolean;
+  used_by: { id: string; name: string }[];
+  updated_at: string;
+};
+export type CreateCidSourcePayload = {
+  name: string; kind: CidSourceKind; http_url?: string | null; http_json_path?: string | null;
+  timeout_ms?: number; cache_ttl_s?: number; enabled?: boolean;
+};
+export type UpdateCidSourcePayload = Partial<CreateCidSourcePayload> & { updated_at: string };
+export type CidSourceTestResult = { name: string | null; ms: number; error: string | null };

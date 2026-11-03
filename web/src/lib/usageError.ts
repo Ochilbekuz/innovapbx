@@ -13,4 +13,6 @@ export const USAGE_PATH: Partial<Record<string, string>> = {
   ivr: '/ivr',
   ring_group: '/ringgroups',
   queue: '/queues',
+  announcement: '/announcements',
+  misc: '/misc',
 };

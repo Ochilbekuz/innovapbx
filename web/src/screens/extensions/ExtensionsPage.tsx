@@ -1,17 +1,18 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { formatDateTimeShort } from '@/lib/time';
 import {
-  BellOff, ChevronDown, Copy, Eye, EyeOff, Headset, KeyRound, Mail, Pencil, PhoneForwarded, Plus, QrCode, RefreshCw,
-  RotateCw, ShieldAlert, ShieldOff, Smartphone, Trash2, Voicemail,
+  BellOff, ChevronDown, Copy, Download, Eye, EyeOff, Headset, KeyRound, Mail, Pencil, PhoneForwarded, Plus, QrCode,
+  RefreshCw, RotateCw, ShieldAlert, ShieldOff, Smartphone, Trash2, Upload, Voicemail,
 } from 'lucide-react';
+import { apiClient } from '@/api';
 import {
-  useCreateExtension, useCreateVoicemailBox, useDeleteExtension, useDevices, useExtensions, useRotateExtensionSecret,
-  useSetExtensionSecret, useUpdateExtension, useVoicemailBoxes,
+  useCreateExtension, useCreateVoicemailBox, useDeleteExtension, useDevices, useExtensions, useImportExtensionsCsv,
+  useRotateExtensionSecret, useSetExtensionSecret, useUpdateExtension, useVoicemailBoxes,
 } from '@/api/queries';
 import { isApiError } from '@/api/errors';
-import type { CreateExtensionPayload, Extension, SipCredentials, UpdateExtensionPayload } from '@/api/types';
+import type { CreateExtensionPayload, Extension, ImportExtensionsResult, SipCredentials, UpdateExtensionPayload } from '@/api/types';
 import { useCanEdit } from '@/auth/permissions';
 import { applyToast } from '@/lib/applyToast';
 import { AppShellPage } from '@/shell/AppShellPage';
@@ -34,6 +35,16 @@ import { FollowMeSection } from './FollowMeSection';
 import { QrConnectModal } from './QrConnectModal';
 import type { RecordingPolicy } from '@/api/types';
 import { copyText } from '@/lib/browser';
+
+function downloadCsvBlob(content: Blob | string, filename: string) {
+  const blob = typeof content === 'string' ? new Blob([content], { type: 'text/csv;charset=utf-8' }) : content;
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
 
 const RECORDING_POLICIES: RecordingPolicy[] = ['always', 'never', 'on_demand'];
 
@@ -163,7 +174,7 @@ function fieldError(
 }
 
 function CallSettingsFields({
-  calls, setDnd, setForwardAlways, setForwardBusy, setPickupGroup, setOutboundAllowed, setOutboundCallerid, errorField, errorMessage,
+  calls, setDnd, setForwardAlways, setForwardBusy, setPickupGroup, setOutboundAllowed, setOutboundCallerid, setCallWaiting, errorField, errorMessage,
 }: {
   calls: CallSettingsState;
   setDnd: (v: boolean) => void;
@@ -172,6 +183,7 @@ function CallSettingsFields({
   setPickupGroup: (v: string) => void;
   setOutboundAllowed: (v: boolean) => void;
   setOutboundCallerid: (v: string) => void;
+  setCallWaiting: (v: boolean) => void;
   errorField?: string;
   errorMessage?: string;
 }) {
@@ -209,6 +221,7 @@ function CallSettingsFields({
       >
         {(a) => <Input {...a} mono value={calls.outboundCallerid} onChange={(e) => setOutboundCallerid(e.target.value)} />}
       </Field>
+      <Toggle checked={calls.callWaiting} onCheckedChange={setCallWaiting} label={t('calls.callWaitingLabel')} description={t('calls.callWaitingDesc')} />
       <p className="text-xs text-muted">{t('calls.realtimeNotice')}</p>
     </div>
   );
@@ -278,6 +291,7 @@ export function ExtensionsPage() {
   const [deleting, setDeleting] = useState<Extension | null>(null);
   const [qrFor, setQrFor] = useState<Extension | null>(null);
   const [sipReveal, setSipReveal] = useState<{ title: string; sip: SipCredentials } | null>(null);
+  const [importing, setImporting] = useState(false);
 
   const createM = useCreateExtension();
   const updateM = useUpdateExtension();
@@ -343,7 +357,13 @@ export function ExtensionsPage() {
         onRetry={() => void refetch()}
         onRowOpen={canManage ? (r) => setEditing(r) : undefined}
         empty={{ title: t('empty.title'), body: t('empty.body'), action: canManage ? <Button size="sm" onClick={() => setCreateOpen(true)}>{t('empty.action')}</Button> : undefined }}
-        toolbar={canManage ? <Button size="sm" variant="primary" icon={<Plus />} onClick={() => setCreateOpen(true)}>{t('newExtension')}</Button> : undefined}
+        toolbar={canManage ? (
+          <div className="flex gap-2">
+            <Button size="sm" variant="ghost" icon={<Download />} onClick={() => void apiClient.exportExtensionsCsv().then((blob) => downloadCsvBlob(blob, 'extensions.csv'))}>{t('importExport.exportButton')}</Button>
+            <Button size="sm" variant="ghost" icon={<Upload />} onClick={() => setImporting(true)}>{t('importExport.importButton')}</Button>
+            <Button size="sm" variant="primary" icon={<Plus />} onClick={() => setCreateOpen(true)}>{t('newExtension')}</Button>
+          </div>
+        ) : undefined}
       />
 
       <CreateExtensionModal
@@ -419,7 +439,93 @@ export function ExtensionsPage() {
       >
         {sipReveal && <SipFields sip={sipReveal.sip} />}
       </Modal>
+
+      {importing && <ExtensionsImportDialog onClose={() => setImporting(false)} onDone={() => void refetch()} />}
     </AppShellPage>
+  );
+}
+
+function ExtensionsImportDialog({ onClose, onDone }: { onClose: () => void; onDone: () => void }) {
+  const { t } = useTranslation('extensions');
+  const toast = useToast();
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [file, setFile] = useState<File | null>(null);
+  const [preview, setPreview] = useState<ImportExtensionsResult | null>(null);
+  const [secretsCsv, setSecretsCsv] = useState<string | null>(null);
+  const importM = useImportExtensionsCsv();
+
+  const pickFile = (f: File) => {
+    setFile(f);
+    setPreview(null);
+    importM.mutate({ file: f, dry_run: true }, { onSuccess: setPreview });
+  };
+
+  const apply = () => {
+    if (!file) return;
+    importM.mutate({ file, dry_run: false }, {
+      onSuccess: (res) => {
+        toast({ kind: 'success', title: t('importExport.applied') });
+        onDone();
+        if (res.secrets_csv) setSecretsCsv(res.secrets_csv);
+        else onClose();
+      },
+    });
+  };
+
+  if (secretsCsv) {
+    return (
+      <Modal
+        open
+        onOpenChange={(v) => !v && onClose()}
+        title={t('importExport.passwordsTitle')}
+        footer={<Button variant="primary" onClick={onClose}>{t('importExport.done')}</Button>}
+      >
+        <div className="flex flex-col gap-3">
+          <p className="text-sm text-danger">{t('importExport.passwordsWarning')}</p>
+          <Button variant="secondary" icon={<Download />} onClick={() => downloadCsvBlob(secretsCsv, 'extensions-passwords.csv')}>{t('importExport.downloadPasswords')}</Button>
+        </div>
+      </Modal>
+    );
+  }
+
+  const errorRows = preview?.rows.filter((r) => r.action === 'error') ?? [];
+
+  return (
+    <Modal
+      open
+      onOpenChange={(v) => !v && onClose()}
+      title={t('importExport.dialogTitle')}
+      footer={
+        <>
+          <Button variant="ghost" onClick={onClose}>{t('importExport.cancel')}</Button>
+          <Button variant="primary" loading={importM.isPending} disabled={!preview || preview.errors > 0} onClick={apply}>
+            {t('importExport.apply')}
+          </Button>
+        </>
+      }
+    >
+      <div className="flex flex-col gap-3">
+        <p className="text-sm text-muted">{t('importExport.dryRunHint')}</p>
+        <Button size="sm" variant="secondary" loading={importM.isPending && !preview} onClick={() => inputRef.current?.click()}>{t('importExport.chooseFile')}</Button>
+        <input
+          ref={inputRef} type="file" accept=".csv,text/csv" className="sr-only"
+          onChange={(e) => { const f = e.target.files?.[0]; if (f) pickFile(f); e.target.value = ''; }}
+        />
+        {file && <p className="text-sm text-fg">{file.name}</p>}
+
+        {preview && (
+          <div className="flex flex-col gap-2 rounded-md border border-line bg-surface-2/40 p-3">
+            <p className="text-sm font-medium text-fg">{t('importExport.preview')}</p>
+            <p className="text-sm text-muted">{t('importExport.created', { count: preview.created })} · {t('importExport.updated', { count: preview.updated })} · {t('importExport.errorsCount', { count: preview.errors })}</p>
+            {errorRows.length > 0 && (
+              <ul className="flex flex-col gap-0.5 text-sm text-danger">
+                {errorRows.slice(0, 10).map((r) => <li key={r.row}>{t('importExport.rowError', { row: r.row, message: r.message })}</li>)}
+              </ul>
+            )}
+          </div>
+        )}
+      </div>
+    </Modal>
   );
 }
 
@@ -505,7 +611,7 @@ function CreateExtensionModal({
             <RecordingSelect direction="out" value={recordingOut} onChange={setRecordingOut} />
             <CallSettingsFields
               calls={calls.state} setDnd={calls.setDnd} setForwardAlways={calls.setForwardAlways} setForwardBusy={calls.setForwardBusy}
-              setPickupGroup={calls.setPickupGroup} setOutboundAllowed={calls.setOutboundAllowed} setOutboundCallerid={calls.setOutboundCallerid}
+              setPickupGroup={calls.setPickupGroup} setOutboundAllowed={calls.setOutboundAllowed} setOutboundCallerid={calls.setOutboundCallerid} setCallWaiting={calls.setCallWaiting}
               errorField={errorField} errorMessage={errorMessage}
             />
           </div>
@@ -603,7 +709,7 @@ function EditExtensionDrawer({
           <p className="mb-1 flex items-center gap-1.5 text-sm font-medium text-fg"><BellOff aria-hidden className="size-4 text-brand" /> {t('calls.title')}</p>
           <CallSettingsFields
             calls={calls.state} setDnd={calls.setDnd} setForwardAlways={calls.setForwardAlways} setForwardBusy={calls.setForwardBusy}
-            setPickupGroup={calls.setPickupGroup} setOutboundAllowed={calls.setOutboundAllowed} setOutboundCallerid={calls.setOutboundCallerid}
+            setPickupGroup={calls.setPickupGroup} setOutboundAllowed={calls.setOutboundAllowed} setOutboundCallerid={calls.setOutboundCallerid} setCallWaiting={calls.setCallWaiting}
             errorField={errorField} errorMessage={errorMessage}
           />
         </div>

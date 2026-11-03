@@ -57,6 +57,14 @@ import type {
   CleanupIn, CleanupResult, SystemStatus,
   // M8 — qarang ../../replica/m8-network-contract.md
   NetworkConfigIn, NetworkStateOut, NetworkValidateResult,
+  // M9 — qarang ../../replica/m9-freepbx-gaps-contract.md
+  AddPinsPayload, Announcement, CidSource, CidSourceTestResult, Contact, CreateAnnouncementPayload,
+  CreateCidSourcePayload, CreateContactPayload, CreateMiscApplicationPayload, CreateMiscDestinationPayload,
+  CreatePageGroupPayload, CreatePinSetPayload, ImportExtensionsParams, ImportExtensionsResult,
+  ImportPhonebookParams, ImportPhonebookResult, ListPhonebookParams, MiscApplication, MiscDestination, PageGroup,
+  ParkingCall, ParkingSettings, PinSet, PinSetPin, UpdateAnnouncementPayload, UpdateCidSourcePayload,
+  UpdateContactPayload, UpdateMiscApplicationPayload, UpdateMiscDestinationPayload, UpdatePageGroupPayload,
+  UpdateParkingSettingsPayload, UpdatePinSetPayload,
 } from './types';
 import type { ApplyResult } from './types';
 
@@ -65,6 +73,19 @@ function qs(params: Record<string, string | number | undefined>): string {
   Object.entries(params).forEach(([k, v]) => { if (v !== undefined && v !== '') p.set(k, String(v)); });
   const s = p.toString();
   return s ? `?${s}` : '';
+}
+
+/** `ListCallsParams` → query-string. Bitta joyda — `listCalls` va `exportCallsCsv` ikkisi ham shu yerdan foydalanadi. */
+function callsQs(params: ListCallsParams): string {
+  return qs({
+    from: params.from, to: params.to, q: params.q, direction: params.direction, page: params.page, size: params.size,
+    src: params.src, src_mode: params.src_mode, src_not: params.src_not ? 'true' : undefined,
+    dst: params.dst, dst_mode: params.dst_mode, dst_not: params.dst_not ? 'true' : undefined,
+    did: params.did, did_mode: params.did_mode, did_not: params.did_not ? 'true' : undefined,
+    name: params.name, ext: params.ext, trunk: params.trunk, account: params.account,
+    disposition: params.disposition, min_duration: params.min_duration, max_duration: params.max_duration,
+    recording: params.recording,
+  });
 }
 
 /** Haqiqiy backend (`../api`) — HTTP orqali. Shartnoma: `../../replica/m0-contract.md`. */
@@ -103,7 +124,8 @@ export const realClient: ApiClient = {
   flow: (inboundRouteId: string) => request<FlowResult>(`/flow/${inboundRouteId}`),
   numbersFree: (params: NumbersFreeParams) => request<{ items: string[] }>(`/numbers/free${qs(params)}`),
 
-  listCalls: (params: ListCallsParams) => request<Paged<Call>>(`/calls${qs(params)}`),
+  listCalls: (params: ListCallsParams) => request<Paged<Call>>(`/calls${callsQs(params)}`),
+  exportCallsCsv: (params: ListCallsParams) => requestBlob(`/calls/export.csv${callsQs(params)}`),
 
   systemHealth: () => request<SystemHealth>('/system/health'),
   configRevisions: (limit = 20) => request<{ items: ConfigRevision[] }>(`/config/revisions${qs({ limit })}`),
@@ -244,7 +266,7 @@ export const realClient: ApiClient = {
   meSoftphoneStatus: () => request<void>('/me/softphone/status'),
   meQueueAction: (queueId: string, action: QueueMemberAction, payload?: QueueMemberActionPayload) =>
     request<{ item: MeOverview['queues'][number] }>(`/me/queues/${queueId}/${action}`, { method: 'POST', body: payload ?? {} }),
-  meCalls: (params: ListCallsParams) => request<Paged<Call>>(`/me/calls${qs(params)}`),
+  meCalls: (params: ListCallsParams) => request<Paged<Call>>(`/me/calls${callsQs(params)}`),
   meVoicemailMessages: () => request<{ items: VoicemailMessage[] }>('/me/voicemail'),
   meVoicemailAudio: (msg: string) => requestBlob(`/me/voicemail/${msg}/audio`),
   meVoicemailHeard: (msg: string) => request<void>(`/me/voicemail/${msg}/heard`, { method: 'POST' }),
@@ -410,4 +432,67 @@ export const realClient: ApiClient = {
   applyNetwork: (payload: NetworkConfigIn) => request<NetworkStateOut>('/network/apply', { method: 'POST', body: payload }),
   confirmNetwork: (pendingId: string) => request<NetworkStateOut>('/network/confirm', { method: 'POST', body: { pending_id: pendingId } }),
   rollbackNetwork: (pendingId: string) => request<NetworkStateOut>('/network/rollback', { method: 'POST', body: { pending_id: pendingId } }),
+
+  // M9 A1 — qarang ../../replica/m9-freepbx-gaps-contract.md §A1 («E'lon»)
+  listAnnouncements: () => request<Paged<Announcement>>('/announcements'),
+  createAnnouncement: (payload: CreateAnnouncementPayload) => request<Mutated<Announcement>>('/announcements', { method: 'POST', body: payload }),
+  updateAnnouncement: (id: string, payload: UpdateAnnouncementPayload) => request<Mutated<Announcement>>(`/announcements/${id}`, { method: 'PATCH', body: payload }),
+  deleteAnnouncement: (id: string) => request<void>(`/announcements/${id}`, { method: 'DELETE' }),
+
+  // M9 A2 — qarang §A2 («Boshqa manzillar» / «Maxsus kodlar»)
+  listMiscDestinations: () => request<Paged<MiscDestination>>('/misc-destinations'),
+  createMiscDestination: (payload: CreateMiscDestinationPayload) => request<Mutated<MiscDestination>>('/misc-destinations', { method: 'POST', body: payload }),
+  updateMiscDestination: (id: string, payload: UpdateMiscDestinationPayload) => request<Mutated<MiscDestination>>(`/misc-destinations/${id}`, { method: 'PATCH', body: payload }),
+  deleteMiscDestination: (id: string) => request<void>(`/misc-destinations/${id}`, { method: 'DELETE' }),
+  listMiscApplications: () => request<Paged<MiscApplication>>('/misc-applications'),
+  createMiscApplication: (payload: CreateMiscApplicationPayload) => request<Mutated<MiscApplication>>('/misc-applications', { method: 'POST', body: payload }),
+  updateMiscApplication: (id: string, payload: UpdateMiscApplicationPayload) => request<Mutated<MiscApplication>>(`/misc-applications/${id}`, { method: 'PATCH', body: payload }),
+  deleteMiscApplication: (id: string) => request<void>(`/misc-applications/${id}`, { method: 'DELETE' }),
+
+  // M9 A3 — qarang §A3 («Parkovka»)
+  parkingSettings: () => request<ParkingSettings>('/parking/settings'),
+  updateParkingSettings: (payload: UpdateParkingSettingsPayload) => request<Mutated<ParkingSettings>>('/parking/settings', { method: 'PUT', body: payload }),
+  parkedCalls: () => request<Paged<ParkingCall>>('/parking/calls'),
+
+  // M9 A4 — qarang §A4 («Paging / Intercom»)
+  listPageGroups: () => request<Paged<PageGroup>>('/page-groups'),
+  createPageGroup: (payload: CreatePageGroupPayload) => request<Mutated<PageGroup>>('/page-groups', { method: 'POST', body: payload }),
+  updatePageGroup: (id: string, payload: UpdatePageGroupPayload) => request<Mutated<PageGroup>>(`/page-groups/${id}`, { method: 'PATCH', body: payload }),
+  deletePageGroup: (id: string) => request<void>(`/page-groups/${id}`, { method: 'DELETE' }),
+
+  // M9 B1 — qarang §B1 («PIN to'plamlari»)
+  listPinSets: () => request<Paged<PinSet>>('/pin-sets'),
+  createPinSet: (payload: CreatePinSetPayload) => request<Mutated<PinSet>>('/pin-sets', { method: 'POST', body: payload }),
+  updatePinSet: (id: string, payload: UpdatePinSetPayload) => request<Mutated<PinSet>>(`/pin-sets/${id}`, { method: 'PATCH', body: payload }),
+  deletePinSet: (id: string) => request<void>(`/pin-sets/${id}`, { method: 'DELETE' }),
+  listPinSetPins: (id: string) => request<{ items: PinSetPin[] }>(`/pin-sets/${id}/pins`),
+  addPinSetPins: (id: string, payload: AddPinsPayload) => request<{ items: PinSetPin[] }>(`/pin-sets/${id}/pins`, { method: 'POST', body: payload }),
+  deletePinSetPin: (id: string, pinId: string) => request<void>(`/pin-sets/${id}/pins/${pinId}`, { method: 'DELETE' }),
+
+  // M9 B2 — qarang §B2 («Telefon kitobi» + CID Lookup)
+  listPhonebook: (params: ListPhonebookParams) => request<Paged<Contact>>(`/phonebook${qs(params)}`),
+  createContact: (payload: CreateContactPayload) => request<Mutated<Contact>>('/phonebook', { method: 'POST', body: payload }),
+  updateContact: (id: string, payload: UpdateContactPayload) => request<Mutated<Contact>>(`/phonebook/${id}`, { method: 'PATCH', body: payload }),
+  deleteContact: (id: string) => request<void>(`/phonebook/${id}`, { method: 'DELETE' }),
+  exportPhonebookCsv: () => requestBlob('/phonebook/export.csv'),
+  importPhonebookCsv: (params: ImportPhonebookParams) => {
+    const form = new FormData();
+    form.append('file', params.file);
+    form.append('dry_run', String(params.dry_run));
+    return requestMultipart<ImportPhonebookResult>('/phonebook/import', form);
+  },
+  listCidSources: () => request<Paged<CidSource>>('/cid-sources'),
+  createCidSource: (payload: CreateCidSourcePayload) => request<Mutated<CidSource>>('/cid-sources', { method: 'POST', body: payload }),
+  updateCidSource: (id: string, payload: UpdateCidSourcePayload) => request<Mutated<CidSource>>(`/cid-sources/${id}`, { method: 'PATCH', body: payload }),
+  deleteCidSource: (id: string) => request<void>(`/cid-sources/${id}`, { method: 'DELETE' }),
+  testCidSource: (id: string, number: string) => request<CidSourceTestResult>(`/cid-sources/${id}/test`, { method: 'POST', body: { number } }),
+
+  // M9 B4 — qarang §B4 (ichki raqamlar CSV import/eksport)
+  exportExtensionsCsv: () => requestBlob('/extensions/export.csv'),
+  importExtensionsCsv: (params: ImportExtensionsParams) => {
+    const form = new FormData();
+    form.append('file', params.file);
+    form.append('dry_run', String(params.dry_run));
+    return requestMultipart<ImportExtensionsResult>('/extensions/import', form);
+  },
 };

@@ -21,6 +21,9 @@ RecordingPolicy = Literal["always", "never", "on_demand"]
 CallDisposition = Literal["answered", "no_answer", "busy", "failed"]
 TargetKind = Literal[
     "extension", "ring_group", "queue", "ivr", "time_condition", "hangup", "busy", "voicemail",
+    # Avval ham `call_targets`/`target_resolution.py`da mavjud edi (conference — M2a),
+    # lekin shu Literal'da yo'q edi — M9 A bilan birga tuzatildi.
+    "conference", "announcement", "misc",
 ]
 RingGroupStrategy = Literal["ringall", "hunt", "memoryhunt"]
 QueueStrategy = Literal[
@@ -29,7 +32,7 @@ QueueStrategy = Literal[
 TimeConditionOverride = Literal["auto", "force_open", "force_closed"]
 TimeConditionState = Literal["open", "closed"]
 UsageKind = Literal["inbound_route", "ivr", "ivr_option", "time_condition", "ring_group", "queue", "outbound_route",
-                    "extension"]
+                    "extension", "announcement", "misc_application", "parking_settings"]
 AuthMode = Literal["ip", "register"]
 RegistrationState = Literal["registered", "rejected", "unregistered", "null"]
 SimulateStepResult = Literal["match", "no_pattern", "ext_not_allowed", "international_blocked", "disabled"]
@@ -132,6 +135,8 @@ class ExtensionOut(BaseModel):
     recording: RecordingPolicy = "always"
     recording_in: RecordingPolicy = "always"
     recording_out: RecordingPolicy = "always"
+    # M9 A5 — kutish holatidagi qo'ng'iroq (realtime, apply shart emas).
+    call_waiting: bool = True
     updated_at: datetime
 
 
@@ -166,6 +171,7 @@ class CreateExtensionPayload(BaseModel):
     forward_always: str | None = None
     forward_busy: str | None = None
     pickup_group: str | None = None
+    call_waiting: bool | None = None
 
 
 class UpdateExtensionPayload(BaseModel):
@@ -185,6 +191,7 @@ class UpdateExtensionPayload(BaseModel):
     recording: RecordingPolicy | None = None
     recording_in: RecordingPolicy | None = None
     recording_out: RecordingPolicy | None = None
+    call_waiting: bool | None = None
     updated_at: datetime
 
 
@@ -301,6 +308,15 @@ class TargetUsage(BaseModel):
     field: str
 
 
+class CidLookupSourceRef(BaseModel):
+    id: str
+    name: str
+
+
+# M9 B3: SIP Alert-Info — faqat xavfsiz belgilar (sarlavha qiymati sifatida yuboriladi).
+_ALERT_INFO_PATTERN = r"^[A-Za-z0-9=<>:;/._@-]{1,128}$"
+
+
 class InboundRouteOut(BaseModel):
     id: str
     name: str
@@ -309,6 +325,10 @@ class InboundRouteOut(BaseModel):
     target: RouteTarget
     enabled: bool
     updated_at: datetime
+    # M9 B3 (0032): CID nom prefiksi + Alert-Info + CID Lookup manbai.
+    cid_name_prefix: str | None = None
+    alert_info: str | None = None
+    cid_lookup_source: CidLookupSourceRef | None = None
 
 
 class CreateInboundRoutePayload(BaseModel):
@@ -317,6 +337,9 @@ class CreateInboundRoutePayload(BaseModel):
     cid: str | None = None
     target_id: str
     enabled: bool = True
+    cid_name_prefix: str | None = Field(default=None, max_length=64)
+    alert_info: str | None = Field(default=None, pattern=_ALERT_INFO_PATTERN)
+    cid_lookup_source_id: str | None = None
 
 
 class UpdateInboundRoutePayload(BaseModel):
@@ -325,6 +348,12 @@ class UpdateInboundRoutePayload(BaseModel):
     cid: str | None = None
     target_id: str | None = None
     enabled: bool | None = None
+    cid_name_prefix: str | None = Field(default=None, max_length=64)
+    alert_info: str | None = Field(default=None, pattern=_ALERT_INFO_PATTERN)
+    cid_lookup_source_id: str | None = None
+    cid_name_prefix_clear: bool = False
+    alert_info_clear: bool = False
+    cid_lookup_source_clear: bool = False
     updated_at: datetime
 
 
@@ -350,6 +379,9 @@ class CallOut(BaseModel):
     duration: int
     billsec: int
     trunk: str | None
+    # M9 — CallerID ismi (`cdr.clid`) va PIN-to'plam yorlig'i (`cdr.pin_label`, FreePBX accountcode).
+    src_name: str | None = None
+    pin_label: str | None = None
     # M3b §1 — `linkedid` bo'yicha yozuvlar (transfer — bir nechta fayl).
     linkedid: str | None = None
     recordings: list[CallRecordingRef] = Field(default_factory=list)
@@ -925,6 +957,11 @@ class ExtensionAllowRef(BaseModel):
     name: str
 
 
+class PinSetRef(BaseModel):
+    id: str
+    name: str
+
+
 class OutboundRouteOut(BaseModel):
     id: str
     name: str
@@ -938,6 +975,8 @@ class OutboundRouteOut(BaseModel):
     international: bool
     extensions: Literal["all"] | list[ExtensionAllowRef]
     updated_at: datetime
+    # M9 B1 (0032): PIN to'plami — yagona `pin`dan tashqari ishlaydi.
+    pin_set: PinSetRef | None = None
 
 
 class CreateOutboundRoutePayload(BaseModel):
@@ -951,6 +990,7 @@ class CreateOutboundRoutePayload(BaseModel):
     pin: str | None = Field(default=None, pattern=r"^\d{4,8}$")
     international: bool = False
     extension_ids: Literal["all"] | list[str] = "all"
+    pin_set_id: str | None = None
 
 
 class UpdateOutboundRoutePayload(BaseModel):
@@ -964,6 +1004,8 @@ class UpdateOutboundRoutePayload(BaseModel):
     pin_clear: bool = False
     international: bool | None = None
     extension_ids: Literal["all"] | list[str] | None = None
+    pin_set_id: str | None = None
+    pin_set_id_clear: bool = False
     updated_at: datetime
 
 
@@ -1390,8 +1432,178 @@ class NetworkStateOut(BaseModel):
     default_gateway: NetworkDefaultGatewayOut
     interfaces: list[NetworkInterfaceOut]
     routes: NetworkRoutesOut
-    pending: NetworkPendingOut | None
-    last_result: NetworkLastResultOut | None
+
+
+# ============================================================ M9 B1: PIN to'plamlari
+class PinSetUsageRef(BaseModel):
+    id: str
+    name: str
+
+
+class PinSetOut(BaseModel):
+    id: str
+    name: str
+    record_in_cdr: bool
+    pin_count: int
+    used_by: list[PinSetUsageRef]
+    updated_at: datetime
+
+
+class CreatePinSetPayload(BaseModel):
+    name: str = Field(min_length=1, max_length=128)
+    record_in_cdr: bool = True
+
+
+class UpdatePinSetPayload(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=128)
+    record_in_cdr: bool | None = None
+    updated_at: datetime
+
+
+class PinItemOut(BaseModel):
+    id: str
+    label: str
+
+
+class PinItemsOut(BaseModel):
+    # DIQQAT: frontend (`web/src/api/real.ts`/`client.ts`) PIN ro'yxatini
+    # HAR DOIM `{items: [...]}` shaklida kutadi (xuddi `list_pin_sets` kabi) --
+    # ILGARI bu yer`da `response_model=list[PinItemOut]` (yalang'och massiv)
+    # qaytarilardi, shu sabab brauzerda `res.items` -> `undefined` bo'lib,
+    # `<PinsDrawer>`ni "Cannot read properties of undefined (reading 'length')"
+    # xatosi bilan qulatardi (jonli isbotda topilgan haqiqiy ildiz sabab).
+    items: list[PinItemOut]
+
+
+class PinItemIn(BaseModel):
+    pin: str = Field(pattern=r"^\d{4,12}$")
+    label: str = Field(min_length=1, max_length=128)
+
+
+class AddPinsPayload(BaseModel):
+    pins: list[PinItemIn] = Field(min_length=1)
+
+
+# ============================================================ M9 B2: Telefon kitobi
+class PhonebookNumberIn(BaseModel):
+    number: str = Field(min_length=1, max_length=40)
+    label: str | None = Field(default=None, max_length=64)
+
+
+class PhonebookNumberOut(BaseModel):
+    id: str
+    number: str
+    label: str | None = None
+
+
+class PhonebookContactOut(BaseModel):
+    id: str
+    name: str
+    company: str | None = None
+    note: str | None = None
+    numbers: list[PhonebookNumberOut]
+    updated_at: datetime
+
+
+class CreatePhonebookContactPayload(BaseModel):
+    name: str = Field(min_length=1, max_length=128)
+    company: str | None = Field(default=None, max_length=128)
+    note: str | None = Field(default=None, max_length=512)
+    numbers: list[PhonebookNumberIn] = Field(default_factory=list)
+
+
+class UpdatePhonebookContactPayload(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=128)
+    company: str | None = None
+    note: str | None = None
+    numbers: list[PhonebookNumberIn] | None = None
+    updated_at: datetime
+
+
+class PhonebookContactMutated(BaseModel):
+    item: PhonebookContactOut
+
+
+class PhonebookImportError(BaseModel):
+    row: int
+    message: str
+
+
+class PhonebookImportResult(BaseModel):
+    created: int
+    updated: int
+    skipped: int
+    errors: list[PhonebookImportError]
+
+
+# ============================================================ M9 B2: CID Lookup manbalari
+class CidSourceUsageRef(BaseModel):
+    id: str
+    name: str
+
+
+class CidSourceOut(BaseModel):
+    id: str
+    name: str
+    kind: Literal["phonebook", "crm", "http"]
+    http_url: str | None = None
+    http_json_path: str | None = None
+    timeout_ms: int
+    cache_ttl_s: int
+    enabled: bool
+    used_by: list[CidSourceUsageRef]
+    updated_at: datetime
+
+
+class CreateCidSourcePayload(BaseModel):
+    name: str = Field(min_length=1, max_length=128)
+    kind: Literal["phonebook", "crm", "http"]
+    http_url: str | None = None
+    http_json_path: str | None = Field(default=None, max_length=256)
+    timeout_ms: int = Field(default=1500, ge=300, le=3000)
+    cache_ttl_s: int = Field(default=3600, ge=0, le=86400)
+    enabled: bool = True
+
+
+class UpdateCidSourcePayload(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=128)
+    kind: Literal["phonebook", "crm", "http"] | None = None
+    http_url: str | None = None
+    http_json_path: str | None = Field(default=None, max_length=256)
+    timeout_ms: int | None = Field(default=None, ge=300, le=3000)
+    cache_ttl_s: int | None = Field(default=None, ge=0, le=86400)
+    enabled: bool | None = None
+    updated_at: datetime
+
+
+class CidSourceMutated(BaseModel):
+    item: CidSourceOut
+
+
+class CidSourceTestPayload(BaseModel):
+    number: str = Field(min_length=1, max_length=40)
+
+
+class CidSourceTestResult(BaseModel):
+    name: str | None = None
+    ms: int
+    error: str | None = None
+
+
+# ============================================================ M9 B4: ichki raqamlar CSV
+class ExtensionImportRow(BaseModel):
+    row: int
+    number: str
+    action: Literal["create", "update", "skip", "error"]
+    message: str | None = None
+
+
+class ExtensionImportResult(BaseModel):
+    rows: list[ExtensionImportRow]
+    created: int
+    updated: int
+    errors: int
+    secrets_csv: str | None = None
 
 
 class NetworkFieldErrorOut(BaseModel):
@@ -1404,6 +1616,160 @@ class NetworkValidateOut(BaseModel):
     errors: list[NetworkFieldErrorOut]
     warnings: list[str]
     diff: list[str]
+
+
+# ================================================================== M9 A1: e'lonlar
+class AnnouncementOut(BaseModel):
+    id: str
+    name: str
+    audio: AudioOut
+    allow_skip: bool
+    repeat_key: str | None
+    answer: bool
+    next_target: RouteTarget
+    updated_at: datetime
+
+
+class CreateAnnouncementPayload(BaseModel):
+    name: str = Field(min_length=1, max_length=128)
+    audio_file_id: str
+    allow_skip: bool = False
+    repeat_key: str | None = Field(default=None, pattern=r"^[0-9*#]$")
+    answer: bool = True
+    next_target_id: str
+
+
+class UpdateAnnouncementPayload(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=128)
+    audio_file_id: str | None = None
+    allow_skip: bool | None = None
+    repeat_key: str | None = Field(default=None, pattern=r"^[0-9*#]$")
+    answer: bool | None = None
+    next_target_id: str | None = None
+    updated_at: datetime
+
+
+class AnnouncementMutated(BaseModel):
+    item: AnnouncementOut
+    apply: ApplyResult
+
+
+# ============================================================ M9 A2: boshqa manzil/ilova
+class MiscDestinationOut(BaseModel):
+    id: str
+    name: str
+    dial: str
+    updated_at: datetime
+
+
+class CreateMiscDestinationPayload(BaseModel):
+    name: str = Field(min_length=1, max_length=128)
+    dial: str = Field(pattern=r"^[0-9*#+]{1,32}$")
+
+
+class UpdateMiscDestinationPayload(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=128)
+    dial: str | None = Field(default=None, pattern=r"^[0-9*#+]{1,32}$")
+    updated_at: datetime
+
+
+class MiscDestinationMutated(BaseModel):
+    item: MiscDestinationOut
+    apply: ApplyResult
+
+
+class MiscApplicationOut(BaseModel):
+    id: str
+    name: str
+    code: str
+    target: RouteTarget
+    enabled: bool
+    updated_at: datetime
+
+
+class CreateMiscApplicationPayload(BaseModel):
+    name: str = Field(min_length=1, max_length=128)
+    code: str = Field(pattern=r"^(\*[0-9*#]{1,6}|[0-9]{1,10})$")
+    target_id: str
+    enabled: bool = True
+
+
+class UpdateMiscApplicationPayload(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=128)
+    code: str | None = Field(default=None, pattern=r"^(\*[0-9*#]{1,6}|[0-9]{1,10})$")
+    target_id: str | None = None
+    enabled: bool | None = None
+    updated_at: datetime
+
+
+class MiscApplicationMutated(BaseModel):
+    item: MiscApplicationOut
+    apply: ApplyResult
+
+
+# =============================================================== M9 A3: parking sozlamalari
+class ParkingSettingsOut(BaseModel):
+    """Yagona (tenant uchun bitta) yozuv — `POST` yo'q, faqat `GET`/`PUT`."""
+    lot_number: str
+    first_slot: int
+    slot_count: int
+    timeout_s: int
+    on_timeout: Literal["origin", "target"]
+    timeout_target: RouteTarget | None
+    moh_class: MohClassRef | None
+    updated_at: datetime
+
+
+class UpdateParkingSettingsPayload(BaseModel):
+    lot_number: str | None = Field(default=None, pattern=r"^[0-9*#]{1,10}$")
+    first_slot: int | None = Field(default=None, ge=1)
+    slot_count: int | None = Field(default=None, ge=1, le=100)
+    timeout_s: int | None = Field(default=None, ge=10, le=3600)
+    on_timeout: Literal["origin", "target"] | None = None
+    timeout_target_id: str | None = None
+    moh_class_id: str | None = None
+    updated_at: datetime
+
+
+class ParkingSettingsMutated(BaseModel):
+    item: ParkingSettingsOut
+    apply: ApplyResult
+
+
+# ================================================================ M9 A4: paging/intercom
+class PageGroupOut(BaseModel):
+    id: str
+    name: str
+    number: str
+    members: list[ExtensionRef]
+    duplex: bool
+    skip_busy: bool
+    beep: bool
+    updated_at: datetime
+
+
+class CreatePageGroupPayload(BaseModel):
+    name: str = Field(min_length=1, max_length=128)
+    number: str = Field(pattern=r"^[0-9*#]{1,10}$")
+    member_extension_ids: list[str] = Field(default_factory=list)
+    duplex: bool = False
+    skip_busy: bool = True
+    beep: bool = True
+
+
+class UpdatePageGroupPayload(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=128)
+    number: str | None = Field(default=None, pattern=r"^[0-9*#]{1,10}$")
+    member_extension_ids: list[str] | None = None
+    duplex: bool | None = None
+    skip_busy: bool | None = None
+    beep: bool | None = None
+    updated_at: datetime
+
+
+class PageGroupMutated(BaseModel):
+    item: PageGroupOut
+    apply: ApplyResult
 
 
 QueueOut.model_rebuild()

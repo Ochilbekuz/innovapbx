@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.errors import ApiError
 from app.db.models import DialNumber, Extension, VoicemailBox
 from app.services.dialplan_features import is_park_number
+from app.services.parking_settings import get_parking_settings
 
 
 async def _shared_mailbox_taken(session: AsyncSession, tenant_id: str, number: str) -> bool:
@@ -44,8 +45,10 @@ async def ensure_number_free(
 ) -> None:
     """409 `number_taken`: park raqamlari (700–720, m2a-contract.md §3) — `details.reason="reserved"`;
     ichki raqam/manzil raqami/umumiy ovozli pochta qutisi bilan to'qnashuv — oddiy. `field` —
-    409 javobidagi forma maydoni (chaqiruvchining payload shakliga mos: `number` yoki `mailbox`)."""
-    if is_park_number(number):
+    409 javobidagi forma maydoni (chaqiruvchining payload shakliga mos: `number` yoki `mailbox`).
+    M9 A3: band diapazon endi JONLI `parking_settings`dan (sukut emas)."""
+    parking = await get_parking_settings(session, tenant_id)
+    if is_park_number(number, parking):
         raise ApiError(409, "number_taken", "Bu raqam park uchun band qilingan", field=field,
                        details={"reason": "reserved"})
     if await number_taken(session, tenant_id, number, exclude_target_id=exclude_target_id):
@@ -78,11 +81,12 @@ async def free_numbers(
         select(VoicemailBox.mailbox).where(VoicemailBox.tenant_id == tenant_id,
                                            VoicemailBox.extension_id.is_(None)))).scalars().all()
     taken = set(ext_numbers) | set(dial_numbers) | set(mailbox_numbers)
+    parking = await get_parking_settings(session, tenant_id)
 
     items: list[str] = []
     for n in range(from_n, to_n + 1):
         candidate = str(n)
-        if candidate not in taken and not is_park_number(candidate):
+        if candidate not in taken and not is_park_number(candidate, parking):
             items.append(candidate)
         if len(items) >= limit:
             break

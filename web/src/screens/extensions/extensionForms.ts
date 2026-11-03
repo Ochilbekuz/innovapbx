@@ -22,16 +22,19 @@ export function pickupGroupValid(v: string): boolean {
 export type CallSettingsState = {
   dnd: boolean; forwardAlways: string; forwardBusy: string; pickupGroup: string;
   outboundAllowed: boolean; outboundCallerid: string;
+  // M9 A5 — qarang ../../../replica/m9-freepbx-gaps-contract.md §A5. Realtime (apply/reload talab qilmaydi).
+  callWaiting: boolean;
 };
 
 export const DEFAULT_CALL_SETTINGS: CallSettingsState = {
-  dnd: false, forwardAlways: '', forwardBusy: '', pickupGroup: '', outboundAllowed: true, outboundCallerid: '',
+  dnd: false, forwardAlways: '', forwardBusy: '', pickupGroup: '', outboundAllowed: true, outboundCallerid: '', callWaiting: true,
 };
 
 export function callSettingsFromExtension(ext: Extension): CallSettingsState {
   return {
     dnd: ext.dnd, forwardAlways: ext.forward_always ?? '', forwardBusy: ext.forward_busy ?? '',
     pickupGroup: ext.pickup_group ?? '', outboundAllowed: ext.outbound_allowed, outboundCallerid: ext.outbound_callerid ?? '',
+    callWaiting: ext.call_waiting,
   };
 }
 
@@ -51,6 +54,7 @@ export function useCallSettings(initial: CallSettingsState) {
     setPickupGroup: (v: string) => setState((p) => ({ ...p, pickupGroup: v })),
     setOutboundAllowed: (v: boolean) => setState((p) => ({ ...p, outboundAllowed: v })),
     setOutboundCallerid: (v: string) => setState((p) => ({ ...p, outboundCallerid: v })),
+    setCallWaiting: (v: boolean) => setState((p) => ({ ...p, callWaiting: v })),
   };
 }
 
@@ -81,6 +85,7 @@ export function createExtensionPayload(f: CreateExtensionFields): CreateExtensio
     pickup_group: f.calls.pickupGroup.trim() || undefined,
     outbound_allowed: f.calls.outboundAllowed,
     outbound_callerid: f.calls.outboundCallerid.trim() || undefined,
+    call_waiting: f.calls.callWaiting,
   };
 }
 
@@ -135,5 +140,6 @@ export function updateExtensionPayload(f: EditExtensionFields, ext: Extension): 
   setIfChanged(payload, 'pickup_group', trimmedOrNull(f.calls.pickupGroup), ext.pickup_group ?? null);
   setIfChanged(payload, 'outbound_allowed', f.calls.outboundAllowed, ext.outbound_allowed);
   setIfChanged(payload, 'outbound_callerid', trimmedOrNull(f.calls.outboundCallerid), ext.outbound_callerid ?? null);
+  setIfChanged(payload, 'call_waiting', f.calls.callWaiting, ext.call_waiting);
   return payload;
 }

@@ -329,7 +329,7 @@ function TimeConditionsTab({ canManage }: { canManage: boolean }) {
   };
   const { data, isLoading, isError, refetch } = useTimeConditions();
   const { data: groups } = useTimeGroups();
-  const { data: targets } = useTargets({ kind: 'extension,ring_group,queue,ivr,conference,hangup,busy' });
+  const { data: targets } = useTargets({ kind: 'extension,ring_group,queue,ivr,conference,hangup,busy,announcement,misc' });
   const toast = useToast();
   const [editing, setEditing] = useState<TimeCondition | 'new' | null>(null);
   const [deleting, setDeleting] = useState<TimeCondition | null>(null);
@@ -505,8 +505,8 @@ function TimeConditionDrawer({
           )}
         </Field>
         <Toggle checked={form.honorHolidays} onCheckedChange={(v) => set('honorHolidays', v)} label={t('conditions.drawer.honorHolidaysLabel')} description={t('conditions.drawer.honorHolidaysDesc')} />
-        <DestinationPicker label={t('conditions.drawer.openLabel')} required kinds={['extension', 'ring_group', 'queue', 'ivr', 'conference', 'hangup', 'busy']} value={form.open} onChange={(d) => set('open', d)} catalog={catalog} />
-        <DestinationPicker label={t('conditions.drawer.closedLabel')} required kinds={['extension', 'ring_group', 'queue', 'ivr', 'conference', 'hangup', 'busy']} value={form.closed} onChange={(d) => set('closed', d)} catalog={catalog} />
+        <DestinationPicker label={t('conditions.drawer.openLabel')} required kinds={['extension', 'ring_group', 'queue', 'ivr', 'conference', 'hangup', 'busy', 'announcement', 'misc']} value={form.open} onChange={(d) => set('open', d)} catalog={catalog} />
+        <DestinationPicker label={t('conditions.drawer.closedLabel')} required kinds={['extension', 'ring_group', 'queue', 'ivr', 'conference', 'hangup', 'busy', 'announcement', 'misc']} value={form.closed} onChange={(d) => set('closed', d)} catalog={catalog} />
         <Field
           label={t('conditions.drawer.toggleCodeLabel')} aside={t('conditions.drawer.toggleCodeAside')}
           hint={errorField === 'toggle_code' ? undefined : t('conditions.drawer.toggleCodeHint')}

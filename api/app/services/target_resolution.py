@@ -11,11 +11,13 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import (
+    Announcement,
     CallTarget,
     Conference,
     DialNumber,
     Extension,
     Ivr,
+    MiscDestination,
     Queue,
     RingGroup,
     TimeCondition,
@@ -30,6 +32,9 @@ _SATELLITE_MODELS = {
     "queue": Queue,
     "voicemail": VoicemailBox,
     "conference": Conference,
+    # M9 A1/A2.
+    "announcement": Announcement,
+    "misc": MiscDestination,
 }
 
 

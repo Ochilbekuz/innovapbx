@@ -1,10 +1,10 @@
 import { createElement, type ReactNode } from 'react';
 import { hasPermission } from '@/auth/permissions';
 import {
-  Activity, ArrowRightLeft, AudioLines, BadgeCheck, BellRing, CalendarClock, ChartNoAxesColumn, CircleUserRound, ClipboardCheck,
-  DatabaseBackup, EthernetPort, Grid3x3, Hash, History, LayoutDashboard, ListOrdered, Megaphone, Mic2, Network, ParkingSquare,
-  PhoneIncoming, PhoneOutgoing, Plug, ScrollText, ServerCog, Shuffle, ShieldCheck, ShieldOff, Smartphone, UserCog,
-  Users, Voicemail, Waypoints,
+  Activity, ArrowRightLeft, AudioLines, BadgeCheck, BellRing, BookUser, CalendarClock, ChartNoAxesColumn, CircleUserRound,
+  ClipboardCheck, DatabaseBackup, EthernetPort, Grid3x3, Hash, History, IdCard, KeyRound, LayoutDashboard, ListOrdered,
+  Megaphone, Mic2, Network, ParkingSquare, PhoneIncoming, PhoneOutgoing, Plug, RadioTower, ScrollText, ServerCog,
+  Shuffle, ShieldCheck, ShieldOff, Smartphone, UserCog, Users, Voicemail, Waypoints,
 } from 'lucide-react';
 
 /**
@@ -39,19 +39,27 @@ export const SCREENS: ScreenDef[] = [
   { id: 'trunks', reconId: 'S06', path: '/trunks', icon: icon(Network), group: 'connect', full: true },
   { id: 'inbound', reconId: 'S07', path: '/inbound', icon: icon(PhoneIncoming), group: 'connect', full: true },
   { id: 'outbound', reconId: 'S22', path: '/outbound', icon: icon(PhoneOutgoing), group: 'connect', full: true },
+  // M9: shartnomada S-raqam berilmagan — yangi qo'shilgan ekranlar (M8 bilan bir xil izoh).
+  { id: 'pinsets', reconId: 'S42', path: '/pinsets', icon: icon(KeyRound), group: 'connect', full: true },
+  { id: 'cidsources', reconId: 'S43', path: '/cidsources', icon: icon(IdCard), group: 'connect', full: true },
 
   { id: 'timegroups', reconId: 'S08', path: '/timegroups', icon: icon(CalendarClock), group: 'routing', full: true },
   { id: 'ivr', reconId: 'S09', path: '/ivr', icon: icon(Grid3x3), group: 'routing', full: true },
   { id: 'queues', reconId: 'S10', path: '/queues', icon: icon(ListOrdered), group: 'routing', full: true },
   { id: 'ringgroups', reconId: 'S21', path: '/ringgroups', icon: icon(Waypoints), group: 'routing', full: true },
-  { id: 'misc', reconId: 'S28', path: '/misc', icon: icon(Shuffle), group: 'routing' },
+  { id: 'misc', reconId: 'S28', path: '/misc', icon: icon(Shuffle), group: 'routing', full: true },
+  // M9: shartnomada (m9-freepbx-gaps-contract.md) S-raqam berilmagan — recon ro'yxatiga yangi qo'shilgan ekran (M8 bilan bir xil izoh).
+  { id: 'announcements', reconId: 'S39', path: '/announcements', icon: icon(Megaphone), group: 'routing', full: true },
 
   { id: 'audio', reconId: 'S11', path: '/audio', icon: icon(AudioLines), group: 'apps', full: true },
   { id: 'voicemail', reconId: 'S23', path: '/voicemail', icon: icon(Voicemail), group: 'apps' },
   { id: 'conference', reconId: 'S25', path: '/conference', icon: icon(Mic2), group: 'apps', full: true },
-  { id: 'parking', reconId: 'S26', path: '/parking', icon: icon(ParkingSquare), group: 'apps' },
+  { id: 'parking', reconId: 'S26', path: '/parking', icon: icon(ParkingSquare), group: 'apps', full: true },
   { id: 'blacklist', reconId: 'S27', path: '/blacklist', icon: icon(ShieldOff), group: 'apps', full: true },
   { id: 'campaigns', reconId: 'S18', path: '/campaigns', icon: icon(Megaphone), group: 'apps', full: true },
+  // M9: shartnomada S-raqam berilmagan — yangi qo'shilgan ekranlar (M8 bilan bir xil izoh).
+  { id: 'paging', reconId: 'S40', path: '/paging', icon: icon(RadioTower), group: 'apps', full: true },
+  { id: 'phonebook', reconId: 'S41', path: '/phonebook', icon: icon(BookUser), group: 'apps', full: true },
 
   { id: 'cdr', reconId: 'S12', path: '/cdr', icon: icon(History), group: 'reports', full: true },
   { id: 'analytics', reconId: 'S13', path: '/analytics', icon: icon(ChartNoAxesColumn), group: 'reports', full: true },
@@ -95,9 +103,9 @@ export const HUDUD_LIST: Hudud[] = ['monitor', 'extensions', 'connect', 'routing
 export const SCREEN_HUDUD: Partial<Record<string, Hudud>> = {
   dashboard: 'monitor', live: 'monitor',
   extensions: 'extensions', devices: 'extensions', voicemail: 'extensions',
-  trunks: 'connect', inbound: 'connect', outbound: 'connect',
-  timegroups: 'routing', ivr: 'routing', queues: 'routing', ringgroups: 'routing', misc: 'routing',
-  audio: 'apps', conference: 'apps', parking: 'apps', blacklist: 'apps', campaigns: 'apps',
+  trunks: 'connect', inbound: 'connect', outbound: 'connect', pinsets: 'connect', cidsources: 'connect',
+  timegroups: 'routing', ivr: 'routing', queues: 'routing', ringgroups: 'routing', misc: 'routing', announcements: 'routing',
+  audio: 'apps', conference: 'apps', parking: 'apps', blacklist: 'apps', campaigns: 'apps', paging: 'apps', phonebook: 'apps',
   cdr: 'reports', analytics: 'reports', quality: 'reports',
 };
 

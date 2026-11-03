@@ -40,6 +40,13 @@ import * as followme from '@/i18n/followme';
 import * as campaigns from '@/i18n/campaigns';
 import * as status from '@/i18n/status';
 import * as network from '@/i18n/network';
+import * as announcements from '@/i18n/announcements';
+import * as misc from '@/i18n/misc';
+import * as parking from '@/i18n/parking';
+import * as paging from '@/i18n/paging';
+import * as phonebook from '@/i18n/phonebook';
+import * as pinsets from '@/i18n/pinsets';
+import * as cidsources from '@/i18n/cidsources';
 import { apiClient } from '@/api';
 
 export const LANGS = ['uz', 'ru', 'en'] as const;
@@ -51,6 +58,7 @@ const NAMESPACES = {
   voicemail, notify, featurecodes, conferences, blacklist,
   users, me, live, analytics, security, alerts, integrations, recordings, devices, backup, migration, followme, campaigns,
   status, network,
+  announcements, misc, parking, paging, phonebook, pinsets, cidsources,
 } as const;
 
 function resourcesFor(lang: Lang) {

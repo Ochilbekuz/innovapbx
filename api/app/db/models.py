@@ -175,6 +175,9 @@ class Extension(Base):
     toll_block_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
     toll_unblocked_at: Mapped[datetime | None] = mapped_column(nullable=True)
     department: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # M9 A5 — o'chirilsa va holat INUSE/BUSY/RINGINUSE bo'lsa, ikkinchi kiruvchi
+    # qo'ng'iroq band deb yuboriladi (`dialplan_features.py::_call_waiting_check_lines`).
+    call_waiting: Mapped[bool] = mapped_column(default=True)
     created_at: Mapped[datetime] = mapped_column(server_default=text("now()"))
     updated_at: Mapped[datetime] = mapped_column(server_default=text("now()"))
 
@@ -325,8 +328,97 @@ class Announcement(Base):
         UUID(as_uuid=False), ForeignKey("audio_files.id", ondelete="RESTRICT"))
     next_target_id: Mapped[str] = mapped_column(
         UUID(as_uuid=False), ForeignKey("call_targets.id", ondelete="RESTRICT"))
+    # M9 A1 (0031) — `allow_skip`: Background+WaitExten(1) (istalgan raqam ⇒ keyingi
+    # manzilga o'tadi), aks holda Playback (o'tkazib bo'lmaydi). `repeat_key` — bu
+    # raqam bosilsa xabar qaytadan o'ynaladi. `answer` — avval Answer() qilinsinmi.
+    allow_skip: Mapped[bool] = mapped_column(default=False)
+    repeat_key: Mapped[str | None] = mapped_column(Text, nullable=True)
+    answer: Mapped[bool] = mapped_column(default=True)
     created_at: Mapped[datetime] = mapped_column(server_default=text("now()"))
     updated_at: Mapped[datetime] = mapped_column(server_default=text("now()"))
+
+
+class MiscDestination(Base):
+    """M9 A2 (0031) — "Boshqa manzil": oddiy ichki terish kabi `dial`ga Goto
+    qiladi (toll-fraud/PIN BYPASS qilinmaydi — `compiler.py::_misc_dest_lines`)."""
+    __tablename__ = "misc_destinations"
+
+    id: Mapped[str] = _uuid_pk()
+    tenant_id: Mapped[str] = mapped_column(UUID(as_uuid=False),
+                                                  ForeignKey("tenants.id", ondelete="CASCADE"))
+    target_id: Mapped[str] = mapped_column(
+        UUID(as_uuid=False), ForeignKey("call_targets.id", ondelete="CASCADE"), unique=True)
+    name: Mapped[str] = mapped_column(Text)
+    dial: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(server_default=text("now()"))
+    updated_at: Mapped[datetime] = mapped_column(server_default=text("now()"))
+
+
+class MiscApplication(Base):
+    """M9 A2 (0031) — "Boshqa ilova": ichki raqamlar `code`ni terib `target_id`ga
+    yetadi (feature kodlari/dial_numbers bilan kod to'qnashuvi — `feature_codes.py`)."""
+    __tablename__ = "misc_applications"
+
+    id: Mapped[str] = _uuid_pk()
+    tenant_id: Mapped[str] = mapped_column(UUID(as_uuid=False),
+                                                  ForeignKey("tenants.id", ondelete="CASCADE"))
+    name: Mapped[str] = mapped_column(Text)
+    code: Mapped[str] = mapped_column(Text)
+    target_id: Mapped[str] = mapped_column(
+        UUID(as_uuid=False), ForeignKey("call_targets.id", ondelete="RESTRICT"))
+    enabled: Mapped[bool] = mapped_column(default=True)
+    created_at: Mapped[datetime] = mapped_column(server_default=text("now()"))
+    updated_at: Mapped[datetime] = mapped_column(server_default=text("now()"))
+
+
+class ParkingSettings(Base):
+    """M9 A3 (0031) — tenant bo'yicha YAGONA qator (`system_settings` namunasi),
+    sehrgar (`POST /setup`) to'ldiradi. `##700`/`*70` shu yerdagi raqamlardan
+    foydalanadi (`dialplan_features.py::ParkingSettingsData`)."""
+    __tablename__ = "parking_settings"
+
+    tenant_id: Mapped[str] = mapped_column(
+        UUID(as_uuid=False), ForeignKey("tenants.id", ondelete="CASCADE"), primary_key=True)
+    lot_number: Mapped[str] = mapped_column(Text, default="700")
+    first_slot: Mapped[int] = mapped_column(Integer, default=701)
+    slot_count: Mapped[int] = mapped_column(Integer, default=20)
+    timeout_s: Mapped[int] = mapped_column(Integer, default=60)
+    on_timeout: Mapped[str] = mapped_column(Text, default="origin")
+    timeout_target_id: Mapped[str | None] = mapped_column(
+        UUID(as_uuid=False), ForeignKey("call_targets.id", ondelete="SET NULL"), nullable=True)
+    moh_class_id: Mapped[str | None] = mapped_column(
+        UUID(as_uuid=False), ForeignKey("moh_classes.id", ondelete="SET NULL"), nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(server_default=text("now()"))
+
+
+class PageGroup(Base):
+    """M9 A4 (0031) — Paging/Intercom guruhi (`Page()` ilovasi, `number`ni terish)."""
+    __tablename__ = "page_groups"
+
+    id: Mapped[str] = _uuid_pk()
+    tenant_id: Mapped[str] = mapped_column(UUID(as_uuid=False),
+                                                  ForeignKey("tenants.id", ondelete="CASCADE"))
+    name: Mapped[str] = mapped_column(Text)
+    number: Mapped[str] = mapped_column(Text)
+    duplex: Mapped[bool] = mapped_column(default=False)
+    skip_busy: Mapped[bool] = mapped_column(default=True)
+    beep: Mapped[bool] = mapped_column(default=True)
+    created_at: Mapped[datetime] = mapped_column(server_default=text("now()"))
+    updated_at: Mapped[datetime] = mapped_column(server_default=text("now()"))
+
+    members: Mapped[list["PageGroupMember"]] = relationship(
+        order_by="PageGroupMember.extension_id", cascade="all, delete-orphan")
+
+
+class PageGroupMember(Base):
+    __tablename__ = "page_group_members"
+
+    page_group_id: Mapped[str] = mapped_column(
+        UUID(as_uuid=False), ForeignKey("page_groups.id", ondelete="CASCADE"), primary_key=True)
+    extension_id: Mapped[str] = mapped_column(
+        UUID(as_uuid=False), ForeignKey("extensions.id", ondelete="CASCADE"), primary_key=True)
+
+    extension: Mapped["Extension"] = relationship()
 
 
 class Ivr(Base):
@@ -533,9 +625,17 @@ class InboundRoute(Base):
         UUID(as_uuid=False), ForeignKey("call_targets.id", ondelete="RESTRICT"))
     callerid_name_prefix: Mapped[str | None] = mapped_column(Text, nullable=True)
     record_override: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # M9 B3 (0032): SIP Alert-Info (masalan, ichki qo'ng'iroq ohangi) — qiymat
+    # faqat dialplan o'zgaruvchisiga qo'yiladi, sarlavhani A agent gosub'i qo'shadi.
+    alert_info: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # M9 B2 (0032): CID Lookup manbai — bo'sh/mavjud ism bo'lmasa shu manba so'raladi.
+    cid_lookup_source_id: Mapped[str | None] = mapped_column(
+        UUID(as_uuid=False), ForeignKey("cid_lookup_sources.id", ondelete="SET NULL"), nullable=True)
     enabled: Mapped[bool] = mapped_column(default=True)
     created_at: Mapped[datetime] = mapped_column(server_default=text("now()"))
     updated_at: Mapped[datetime] = mapped_column(server_default=text("now()"))
+
+    cid_lookup_source: Mapped["CidLookupSource | None"] = relationship()
 
 
 class OutboundRoute(Base):
@@ -553,6 +653,10 @@ class OutboundRoute(Base):
     callerid: Mapped[str | None] = mapped_column(Text, nullable=True)
     override_extension_callerid: Mapped[bool] = mapped_column(default=False)
     pin_hash: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # M9 B1 (0032): PIN to'plami — yagona pin_hash BILAN BIR QATORDA ishlaydi
+    # (ikkisidan birortasi mos kelsa yetarli).
+    pin_set_id: Mapped[str | None] = mapped_column(
+        UUID(as_uuid=False), ForeignKey("pin_sets.id", ondelete="RESTRICT"), nullable=True)
     international: Mapped[bool] = mapped_column(default=False)
     enabled: Mapped[bool] = mapped_column(default=True)
     created_at: Mapped[datetime] = mapped_column(server_default=text("now()"))
@@ -564,6 +668,7 @@ class OutboundRoute(Base):
         back_populates="route", cascade="all, delete-orphan", order_by="OutboundRouteTrunk.position")
     extension_links: Mapped[list["ExtensionOutboundRoute"]] = relationship(
         back_populates="route", cascade="all, delete-orphan")
+    pin_set: Mapped["PinSet | None"] = relationship()
 
 
 class OutboundRoutePattern(Base):
@@ -739,6 +844,9 @@ class Cdr(Base):
     peeraccount: Mapped[str | None] = mapped_column(Text, nullable=True)
     sequence: Mapped[int | None] = mapped_column(Integer, nullable=True)
     recordingfile: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # M9 B1 tuzatish (0032): PIN to'plami yorlig'i — `accountcode` (tenant kodi,
+    # /calls va hisobotlar shu bo'yicha filtrlaydi) BILAN ARALASHTIRILMAYDI.
+    pin_label: Mapped[str | None] = mapped_column(Text, nullable=True)
 
 
 class QueueLog(Base):
@@ -1308,3 +1416,83 @@ class CampaignOptout(Base):
     campaign_id: Mapped[str | None] = mapped_column(
         UUID(as_uuid=False), ForeignKey("campaigns.id", ondelete="SET NULL"), nullable=True)
     created_at: Mapped[datetime] = mapped_column(server_default=text("now()"))
+
+
+# ------------------------------------------------------------ M9 Bo'lak B (0032)
+class PinSet(Base):
+    """B1: PIN to'plami — chiquvchi marshrutga ulanadi (`outbound_routes.pin_set_id`)."""
+    __tablename__ = "pin_sets"
+    __table_args__ = (Index("ix_pin_sets_tenant_name", "tenant_id", "name", unique=True),)
+
+    id: Mapped[str] = _uuid_pk()
+    tenant_id: Mapped[str] = mapped_column(UUID(as_uuid=False),
+                                                  ForeignKey("tenants.id", ondelete="CASCADE"))
+    name: Mapped[str] = mapped_column(Text)
+    record_in_cdr: Mapped[bool] = mapped_column(default=True)
+    updated_at: Mapped[datetime] = mapped_column(server_default=text("now()"))
+
+    pins: Mapped[list["PinSetPin"]] = relationship(
+        back_populates="pin_set", cascade="all, delete-orphan", order_by="PinSetPin.id")
+
+
+class PinSetPin(Base):
+    """B1: to'plamdagi bitta PIN — ochiq matn saqlanmaydi, faqat HMAC-SHA256."""
+    __tablename__ = "pin_set_pins"
+
+    id: Mapped[str] = _uuid_pk()
+    pin_set_id: Mapped[str] = mapped_column(
+        UUID(as_uuid=False), ForeignKey("pin_sets.id", ondelete="CASCADE"))
+    pin_hmac: Mapped[str] = mapped_column(Text)
+    label: Mapped[str] = mapped_column(Text)
+
+    pin_set: Mapped[PinSet] = relationship(back_populates="pins")
+
+
+class PhonebookContact(Base):
+    """B2: telefon kitobi kontakti."""
+    __tablename__ = "phonebook_contacts"
+
+    id: Mapped[str] = _uuid_pk()
+    tenant_id: Mapped[str] = mapped_column(UUID(as_uuid=False),
+                                                  ForeignKey("tenants.id", ondelete="CASCADE"))
+    name: Mapped[str] = mapped_column(Text)
+    company: Mapped[str | None] = mapped_column(Text, nullable=True)
+    note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(server_default=text("now()"))
+
+    numbers: Mapped[list["PhonebookNumber"]] = relationship(
+        back_populates="contact", cascade="all, delete-orphan", order_by="PhonebookNumber.id")
+
+
+class PhonebookNumber(Base):
+    """B2: kontaktning raqami (CID lookup shu jadvaldan `number_norm` bo'yicha qidiradi)."""
+    __tablename__ = "phonebook_numbers"
+    __table_args__ = (Index("ix_phonebook_numbers_tenant_number", "tenant_id", "number_norm"),)
+
+    id: Mapped[str] = _uuid_pk()
+    tenant_id: Mapped[str] = mapped_column(UUID(as_uuid=False),
+                                                  ForeignKey("tenants.id", ondelete="CASCADE"))
+    contact_id: Mapped[str] = mapped_column(
+        UUID(as_uuid=False), ForeignKey("phonebook_contacts.id", ondelete="CASCADE"))
+    number_norm: Mapped[str] = mapped_column(Text)
+    label: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    contact: Mapped[PhonebookContact] = relationship(back_populates="numbers")
+
+
+class CidLookupSource(Base):
+    """B2: CID Lookup manbai — `phonebook` (ichki kitob), `crm` (hali amalga oshirilmagan,
+    §0.4 "mavjud bo'lsa qayta ishlatish" qoidasi bo'yicha hujjatlashtirilgan) yoki `http`."""
+    __tablename__ = "cid_lookup_sources"
+
+    id: Mapped[str] = _uuid_pk()
+    tenant_id: Mapped[str] = mapped_column(UUID(as_uuid=False),
+                                                  ForeignKey("tenants.id", ondelete="CASCADE"))
+    name: Mapped[str] = mapped_column(Text)
+    kind: Mapped[str] = mapped_column(Text)
+    http_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+    http_json_path: Mapped[str | None] = mapped_column(Text, nullable=True)
+    timeout_ms: Mapped[int] = mapped_column(Integer, default=1500)
+    cache_ttl_s: Mapped[int] = mapped_column(Integer, default=3600)
+    enabled: Mapped[bool] = mapped_column(default=True)
+    updated_at: Mapped[datetime] = mapped_column(server_default=text("now()"))

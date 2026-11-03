@@ -1,7 +1,9 @@
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link2Off, Pencil, Plus, Route as RouteIcon, ShieldAlert, Trash2 } from 'lucide-react';
-import { useCreateInboundRoute, useDeleteInboundRoute, useFlow, useInboundRoutes, useTargets, useUpdateInboundRoute } from '@/api/queries';
+import {
+  useCidSources, useCreateInboundRoute, useDeleteInboundRoute, useFlow, useInboundRoutes, useTargets, useUpdateInboundRoute,
+} from '@/api/queries';
 import { isApiError } from '@/api/errors';
 import type { InboundRoute } from '@/api/types';
 import { useCanEdit } from '@/auth/permissions';
@@ -15,7 +17,7 @@ import { M1A_KINDS } from '@/pbx/kinds';
 import { AppShellPage } from '@/shell/AppShellPage';
 import { Button } from '@/ui/Button';
 import { Drawer, Modal } from '@/ui/Dialog';
-import { Field, Input } from '@/ui/Field';
+import { Field, Input, Select } from '@/ui/Field';
 import { Badge } from '@/ui/Status';
 import { DataTable, type Column } from '@/ui/Table';
 import { Toggle } from '@/ui/Toggle';
@@ -23,8 +25,13 @@ import { useToast } from '@/ui/Toast';
 
 const DID_RE = /^\d{3,15}$/;
 const CID_RE = /^\+?\d{3,15}$/;
+// M9 B3 — qarang ../../../replica/m9-freepbx-gaps-contract.md §B3
+const ALERT_INFO_RE = /^[A-Za-z0-9=<>:;/._@-]{1,128}$/;
 
-type FormState = { name: string; didAny: boolean; did: string; cidAny: boolean; cid: string; destination: Destination | null; enabled: boolean };
+type FormState = {
+  name: string; didAny: boolean; did: string; cidAny: boolean; cid: string; destination: Destination | null; enabled: boolean;
+  cidLookupSourceId: string; cidNamePrefix: string; alertInfo: string;
+};
 
 function toForm(r?: InboundRoute): FormState {
   return {
@@ -35,6 +42,9 @@ function toForm(r?: InboundRoute): FormState {
     cid: r?.cid ?? '',
     destination: r ? { kind: r.target.kind, targetId: r.target.id } : null,
     enabled: r?.enabled ?? true,
+    cidLookupSourceId: r?.cid_lookup_source?.id ?? '',
+    cidNamePrefix: r?.cid_name_prefix ?? '',
+    alertInfo: r?.alert_info ?? '',
   };
 }
 
@@ -43,6 +53,7 @@ export function InboundRoutesPage() {
   const { t } = useTranslation('routes');
   const { data, isLoading, isError, refetch } = useInboundRoutes();
   const { data: targets } = useTargets({ kind: M1A_KINDS.join(',') });
+  const { data: cidSourcesData } = useCidSources();
   const canManage = useCanEdit('connect');
   const toast = useToast();
   const [editing, setEditing] = useState<InboundRoute | 'new' | null>(null);
@@ -106,6 +117,7 @@ export function InboundRoutesPage() {
         <RouteForm
           route={editing === 'new' ? undefined : editing}
           catalog={catalog}
+          cidSources={cidSourcesData?.items ?? []}
           pending={mutation.isPending}
           errorField={isApiError(mutation.error) ? mutation.error.field : undefined}
           errorMessage={isApiError(mutation.error) ? mutation.error.message : undefined}
@@ -173,12 +185,16 @@ function RouteFlowView({ route }: { route: InboundRoute }) {
 }
 
 function RouteForm({
-  route, catalog, onClose, onSubmit, pending, errorField, errorMessage,
+  route, catalog, cidSources, onClose, onSubmit, pending, errorField, errorMessage,
 }: {
   route?: InboundRoute;
   catalog: Catalog;
+  cidSources: { id: string; name: string }[];
   onClose: () => void;
-  onSubmit: (payload: { name: string; did: string | null; cid: string | null; target_id: string; enabled: boolean }) => void;
+  onSubmit: (payload: {
+    name: string; did: string | null; cid: string | null; target_id: string; enabled: boolean;
+    cid_lookup_source_id: string | null; cid_name_prefix: string | null; alert_info: string | null;
+  }) => void;
   pending: boolean;
   errorField?: string;
   errorMessage?: string;
@@ -189,10 +205,11 @@ function RouteForm({
 
   const didError = !form.didAny && form.did.trim() !== '' && !DID_RE.test(form.did.trim()) ? t('error.didFormat') : undefined;
   const cidError = !form.cidAny && form.cid.trim() !== '' && !CID_RE.test(form.cid.trim()) ? t('error.cidFormat') : undefined;
+  const alertInfoError = form.alertInfo.trim() !== '' && !ALERT_INFO_RE.test(form.alertInfo.trim()) ? t('error.alertInfoFormat') : undefined;
   const destResolved = resolveDestination(form.destination, catalog);
   const destOk = destResolved.state === 'ok';
 
-  const valid = form.name.trim().length > 0 && destOk && !didError && !cidError
+  const valid = form.name.trim().length > 0 && destOk && !didError && !cidError && !alertInfoError
     && (form.didAny || form.did.trim() !== '') && (form.cidAny || form.cid.trim() !== '');
 
   const submit = () => {
@@ -203,6 +220,9 @@ function RouteForm({
       cid: form.cidAny ? null : form.cid.trim(),
       target_id: form.destination.targetId,
       enabled: form.enabled,
+      cid_lookup_source_id: form.cidLookupSourceId || null,
+      cid_name_prefix: form.cidNamePrefix.trim() || null,
+      alert_info: form.alertInfo.trim() || null,
     });
   };
 
@@ -252,6 +272,25 @@ function RouteForm({
         />
 
         <Toggle checked={form.enabled} onCheckedChange={(v) => set('enabled', v)} label={t('form.enabledLabel')} />
+
+        <Field label={t('form.cidLookupSourceLabel')} hint={t('form.cidLookupSourceHint')}>
+          {(a) => (
+            <Select
+              {...a}
+              value={form.cidLookupSourceId}
+              onValueChange={(v) => set('cidLookupSourceId', v)}
+              options={[{ value: '', label: t('form.cidLookupSourceNone') }, ...cidSources.map((s) => ({ value: s.id, label: s.name }))]}
+            />
+          )}
+        </Field>
+
+        <Field label={t('form.cidNamePrefixLabel')} hint={t('form.cidNamePrefixHint')}>
+          {(a) => <Input {...a} value={form.cidNamePrefix} onChange={(e) => set('cidNamePrefix', e.target.value)} placeholder={t('form.cidNamePrefixPlaceholder')} />}
+        </Field>
+
+        <Field label={t('form.alertInfoLabel')} hint={t('form.alertInfoHint')} error={alertInfoError}>
+          {(a) => <Input {...a} mono value={form.alertInfo} onChange={(e) => set('alertInfo', e.target.value)} placeholder={t('form.alertInfoPlaceholder')} />}
+        </Field>
 
         {errorMessage && errorField !== 'did' ? <p className="text-sm text-danger">{errorMessage}</p> : null}
       </div>

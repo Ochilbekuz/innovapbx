@@ -12,7 +12,7 @@ function makeExt(patch: Partial<Extension> = {}): Extension {
     dnd: false, forward_always: null, forward_busy: null, pickup_group: null,
     outbound_allowed: true, outbound_callerid: null,
     updated_at: '2026-01-01T00:00:00Z', toll_blocked_at: null, toll_block_reason: null, webrtc: false, codecs: [],
-    recording: 'never', recording_in: 'never', recording_out: 'never',
+    recording: 'never', recording_in: 'never', recording_out: 'never', call_waiting: true,
     ...patch,
   };
 }
@@ -36,7 +36,7 @@ describe('callSettingsFromExtension / callSettingsValid', () => {
   it('ichki raqamdan holatni to\'g\'ri o\'qiydi', () => {
     const ext = makeExt({ dnd: true, forward_always: '101', outbound_allowed: false, outbound_callerid: '998712345678' });
     expect(callSettingsFromExtension(ext)).toEqual({
-      dnd: true, forwardAlways: '101', forwardBusy: '', pickupGroup: '', outboundAllowed: false, outboundCallerid: '998712345678',
+      dnd: true, forwardAlways: '101', forwardBusy: '', pickupGroup: '', outboundAllowed: false, outboundCallerid: '998712345678', callWaiting: true,
     });
   });
   it('notoʻgʻri forward_busy bo\'lsa — yaroqsiz', () => {
@@ -70,7 +70,7 @@ describe('createExtensionValid / createExtensionPayload', () => {
     expect(payload).toEqual({
       number: '150', name: 'Yangi', password: 'Secret123', webrtc: false, recording_in: 'never', recording_out: 'never',
       dnd: true, forward_always: undefined, forward_busy: undefined, pickup_group: undefined,
-      outbound_allowed: true, outbound_callerid: '998712345678',
+      outbound_allowed: true, outbound_callerid: '998712345678', call_waiting: true,
     });
   });
 });

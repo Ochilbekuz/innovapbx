@@ -17,6 +17,7 @@ from app.schemas_follow_me import FollowMe
 from app.services.audit import record_audit
 from app.services.dialplan_features import is_park_number
 from app.services.number_normalize import normalize_number
+from app.services.parking_settings import get_parking_settings
 
 _NUMBER_RE = re.compile(r"^[0-9]{2,15}$")
 EXTERNAL_MIN_DIGITS = 5
@@ -49,11 +50,12 @@ async def _classify(session: AsyncSession, tenant_id: str, numbers: list[str]) -
         Extension.tenant_id == tenant_id, Extension.number.in_(numbers)))).scalars())
     others = set((await session.execute(select(DialNumber.number).where(
         DialNumber.tenant_id == tenant_id, DialNumber.number.in_(numbers)))).scalars())
+    parking = await get_parking_settings(session, tenant_id)
     kinds: dict[str, str] = {}
     for index, number in enumerate(numbers):
         if number in exts:
             kinds[number] = "internal"
-        elif number in others or is_park_number(number):
+        elif number in others or is_park_number(number, parking):
             raise _bad("follow_me_bad_target", "Faqat ichki raqam yoki tashqi telefon raqami", index)
         elif len(number) < EXTERNAL_MIN_DIGITS:
             raise _bad("follow_me_unknown_extension", "Bunday ichki raqam yo'q", index)

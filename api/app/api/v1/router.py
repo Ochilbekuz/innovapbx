@@ -5,6 +5,7 @@ from fastapi import APIRouter
 
 from app.api.v1 import (
     alerts,
+    announcements,
     audio,
     audit,
     auth,
@@ -12,6 +13,7 @@ from app.api.v1 import (
     blacklist,
     calls,
     campaigns,
+    cidsources,
     conferences,
     crm,
     dashboard,
@@ -28,13 +30,18 @@ from app.api.v1 import (
     me,
     migration,
     migration_ssh,
+    misc_applications,
+    misc_destinations,
     moh_classes,
     network,
     notify_settings,
     numbers,
     onec,
     outbound_routes,
+    page_groups,
     parking,
+    phonebook,
+    pinsets,
     queues,
     recordings,
     reports,
@@ -109,3 +116,10 @@ router.include_router(migration.router)
 router.include_router(migration_ssh.router)
 router.include_router(campaigns.router)
 router.include_router(network.router)
+router.include_router(pinsets.router)
+router.include_router(phonebook.router)
+router.include_router(cidsources.router)
+router.include_router(announcements.router)
+router.include_router(misc_destinations.router)
+router.include_router(misc_applications.router)
+router.include_router(page_groups.router)

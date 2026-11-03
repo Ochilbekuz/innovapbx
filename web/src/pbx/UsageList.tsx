@@ -12,6 +12,8 @@ export function UsageList({ usages }: { usages: Usage[] }) {
     ivr: t('usageList.kind.ivr'),
     ring_group: t('usageList.kind.ring_group'),
     queue: t('usageList.kind.queue'),
+    announcement: t('usageList.kind.announcement'),
+    misc: t('usageList.kind.misc'),
   };
   if (usages.length === 0) return null;
   return (
