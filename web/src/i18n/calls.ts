@@ -5,7 +5,7 @@ export const uz = {
   direction: { in: 'Kiruvchi', out: 'Chiquvchi', internal: 'Ichki' },
   disposition: { answered: 'Javob berildi', no_answer: 'Javobsiz', busy: 'Band', failed: 'Muvaffaqiyatsiz' },
   column: { startedAt: 'Vaqt', direction: 'Yoʻnalish', src: 'Kimdan', dst: 'Kimga', did: 'DID', disposition: 'Natija', duration: 'Davomiyligi', trunk: 'Trunk', account: 'Hisob', recording: 'Yozuv', actions: '' },
-  filter: { from: 'Boshlanishi', to: 'Tugashi', direction: 'Yoʻnalish', all: 'Hammasi' },
+  filter: { from: 'Boshlanishi', to: 'Tugashi', fromTime: 'Boshlanish vaqti (soat:daqiqa)', toTime: 'Tugash vaqti (soat:daqiqa)', direction: 'Yoʻnalish', all: 'Hammasi' },
   caption: 'Qoʻngʻiroqlar tarixi',
   empty: { title: 'Bu oraliqda qoʻngʻiroq topilmadi', body: 'Sana oraligʻini yoki yoʻnalishni oʻzgartirib koʻring.' },
   block: {
@@ -22,7 +22,7 @@ export const uz = {
     src: { label: 'Kimdan (src)', placeholder: 'Masalan: 99890' },
     dst: { label: 'Kimga (dst)', placeholder: 'Masalan: 99890' },
     did: { label: 'DID', placeholder: 'Masalan: 998712345678' },
-    name: { label: 'Qoʻnggʻiroq qiluvchi nomi' },
+    name: { label: 'Qoʻngʻiroq qiluvchi nomi' },
     ext: { label: 'Ichki raqam (ext)' },
     trunk: { label: 'Trunk' },
     account: { label: 'Hisob (accountcode)' },
@@ -42,7 +42,7 @@ export const ru = {
   direction: { in: 'Входящий', out: 'Исходящий', internal: 'Внутренний' },
   disposition: { answered: 'Отвечено', no_answer: 'Без ответа', busy: 'Занято', failed: 'Неуспешно' },
   column: { startedAt: 'Время', direction: 'Направление', src: 'От кого', dst: 'Кому', did: 'DID', disposition: 'Результат', duration: 'Длительность', trunk: 'Транк', account: 'Счёт', recording: 'Запись', actions: '' },
-  filter: { from: 'Начало', to: 'Конец', direction: 'Направление', all: 'Все' },
+  filter: { from: 'Начало', to: 'Конец', fromTime: 'Время начала (чч:мм)', toTime: 'Время окончания (чч:мм)', direction: 'Направление', all: 'Все' },
   caption: 'История звонков',
   empty: { title: 'За этот период звонков не найдено', body: 'Попробуйте изменить диапазон дат или направление.' },
   block: {
@@ -79,7 +79,7 @@ export const en = {
   direction: { in: 'Inbound', out: 'Outbound', internal: 'Internal' },
   disposition: { answered: 'Answered', no_answer: 'No answer', busy: 'Busy', failed: 'Failed' },
   column: { startedAt: 'Time', direction: 'Direction', src: 'From', dst: 'To', did: 'DID', disposition: 'Outcome', duration: 'Duration', trunk: 'Trunk', account: 'Account', recording: 'Recording', actions: '' },
-  filter: { from: 'From', to: 'To', direction: 'Direction', all: 'All' },
+  filter: { from: 'From', to: 'To', fromTime: 'Start time (hh:mm)', toTime: 'End time (hh:mm)', direction: 'Direction', all: 'All' },
   caption: 'Call history',
   empty: { title: 'No calls found in this range', body: 'Try changing the date range or direction.' },
   block: {

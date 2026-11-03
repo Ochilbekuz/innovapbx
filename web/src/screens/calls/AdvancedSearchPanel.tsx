@@ -31,12 +31,17 @@ function TextModeField({ label, value, mode, not, modeOptions, modeAriaLabel, no
   return (
     <div className="flex flex-col gap-1.5">
       <label htmlFor={id} className="text-sm font-medium text-fg">{label}</label>
+      {/* Kenglik o'ramda: `cn` klasslarni birlashtirmaydi, `controlBase`dagi `w-full` className'dagi kenglikni bosadi. */}
       <div className="flex gap-1.5">
-        <Select
-          size="sm" className="w-[108px] shrink-0" value={mode} aria-label={modeAriaLabel}
-          onValueChange={(v) => onChangeMode(v as CallTextMatchMode)} options={modeOptions}
-        />
-        <Input id={id} size="sm" value={value} placeholder={placeholder} onChange={(e) => onChangeValue(e.target.value)} />
+        <div className="w-[128px] shrink-0">
+          <Select
+            size="sm" value={mode} aria-label={modeAriaLabel}
+            onValueChange={(v) => onChangeMode(v as CallTextMatchMode)} options={modeOptions}
+          />
+        </div>
+        <div className="min-w-0 flex-1">
+          <Input id={id} size="sm" value={value} placeholder={placeholder} onChange={(e) => onChangeValue(e.target.value)} />
+        </div>
       </div>
       <label className="inline-flex items-center gap-1.5 text-xs text-muted">
         <Checkbox checked={not} onCheckedChange={onChangeNot} aria-label={notLabel} />
@@ -165,9 +170,13 @@ export function AdvancedSearchPanel({ draft, onChange, onApply, onClear, templat
         <div className="flex flex-col gap-1.5">
           <span className="text-sm font-medium text-fg">{t('advanced.duration.label')}</span>
           <div className="flex items-center gap-1.5">
-            <Input size="sm" inputMode="numeric" aria-label={t('advanced.duration.min')} placeholder={t('advanced.duration.min')} value={draft.minDuration} onChange={(e) => onChange({ minDuration: e.target.value })} />
+            <div className="min-w-0 flex-1">
+              <Input size="sm" inputMode="numeric" aria-label={t('advanced.duration.min')} placeholder={t('advanced.duration.min')} value={draft.minDuration} onChange={(e) => onChange({ minDuration: e.target.value })} />
+            </div>
             <span aria-hidden className="text-muted">–</span>
-            <Input size="sm" inputMode="numeric" aria-label={t('advanced.duration.max')} placeholder={t('advanced.duration.max')} value={draft.maxDuration} onChange={(e) => onChange({ maxDuration: e.target.value })} />
+            <div className="min-w-0 flex-1">
+              <Input size="sm" inputMode="numeric" aria-label={t('advanced.duration.max')} placeholder={t('advanced.duration.max')} value={draft.maxDuration} onChange={(e) => onChange({ maxDuration: e.target.value })} />
+            </div>
           </div>
         </div>
       </div>
@@ -182,25 +191,35 @@ export function AdvancedSearchPanel({ draft, onChange, onApply, onClear, templat
         <Button variant="ghost" size="sm" onClick={onClear}>{t('advanced.clear')}</Button>
       </div>
 
-      <div className="flex flex-wrap items-end gap-2.5 border-t border-line pt-3">
-        <Field label={t('advanced.templates.label')} className="min-w-[180px]">
+      <div className="grid grid-cols-1 gap-3 border-t border-line pt-3 lg:grid-cols-2">
+        <Field label={t('advanced.templates.label')}>
           {(a) => (
-            <Select
-              {...a} value={templateId} onValueChange={setTemplateId} size="sm"
-              placeholder={t('advanced.templates.placeholder')}
-              options={templates.map((tpl) => ({ value: tpl.id, label: tpl.name }))}
-            />
+            <div className="flex items-center gap-1.5">
+              <div className="min-w-0 flex-1">
+                <Select
+                  {...a} value={templateId} onValueChange={setTemplateId} size="sm"
+                  placeholder={t('advanced.templates.placeholder')}
+                  options={templates.map((tpl) => ({ value: tpl.id, label: tpl.name }))}
+                />
+              </div>
+              <Button variant="secondary" size="sm" disabled={!templateId} onClick={() => onApplyTemplate(templateId)}>{t('advanced.templates.apply')}</Button>
+              <Button
+                variant="ghost" size="sm" icon={<Trash2 />} iconOnly disabled={!templateId} onClick={deleteTemplate}
+                aria-label={t('advanced.templates.delete')}
+              />
+            </div>
           )}
         </Field>
-        <Button variant="secondary" size="sm" disabled={!templateId} onClick={() => onApplyTemplate(templateId)}>{t('advanced.templates.apply')}</Button>
-        <Button
-          variant="ghost" size="sm" icon={<Trash2 />} iconOnly disabled={!templateId} onClick={deleteTemplate}
-          aria-label={t('advanced.templates.delete')}
-        />
-        <Field label={t('advanced.templates.saveLabel')} className="min-w-[180px] flex-1">
-          {(a) => <Input {...a} size="sm" value={templateName} placeholder={t('advanced.templates.savePlaceholder')} onChange={(e) => setTemplateName(e.target.value)} />}
+        <Field label={t('advanced.templates.saveLabel')}>
+          {(a) => (
+            <div className="flex items-center gap-1.5">
+              <div className="min-w-0 flex-1">
+                <Input {...a} size="sm" value={templateName} placeholder={t('advanced.templates.savePlaceholder')} onChange={(e) => setTemplateName(e.target.value)} />
+              </div>
+              <Button variant="secondary" size="sm" icon={<Save />} disabled={!templateName.trim()} onClick={saveTemplate}>{t('advanced.templates.save')}</Button>
+            </div>
+          )}
         </Field>
-        <Button variant="secondary" size="sm" icon={<Save />} disabled={!templateName.trim()} onClick={saveTemplate}>{t('advanced.templates.save')}</Button>
       </div>
     </div>
   );

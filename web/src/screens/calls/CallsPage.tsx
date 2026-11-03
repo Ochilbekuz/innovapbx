@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { daysAgo, formatDateTime, formatDurationSec, isoDate } from '@/lib/time';
+import { formatDateTime, formatDurationSec, tenantDate, tenantDateTimeIso } from '@/lib/time';
 import { ArrowLeftRight, Download, PhoneIncoming, PhoneMissed, PhoneOutgoing, ShieldOff, SlidersHorizontal } from 'lucide-react';
 import { apiClient } from '@/api';
 import { useCalls, useCreateBlacklistEntry } from '@/api/queries';
@@ -36,8 +36,10 @@ function downloadBlob(blob: Blob, filename: string) {
  * qidiruv (saqlanadigan shablonlar bilan), CSV eksport, qidirish, sahifalash, Asia/Tashkent vaqti. */
 export function CallsPage() {
   const { t } = useTranslation('calls');
-  const [from, setFrom] = useState(daysAgo(7));
-  const [to, setTo] = useState(isoDate(new Date()));
+  const [from, setFrom] = useState(() => tenantDate(new Date(), 7));
+  const [to, setTo] = useState(() => tenantDate(new Date()));
+  const [fromTime, setFromTime] = useState('00:00');
+  const [toTime, setToTime] = useState('23:59');
   const [direction, setDirection] = useState<'all' | CallDirection>('all');
   const [blocking, setBlocking] = useState<Call | null>(null);
   const canManage = useCanEdit('apps');
@@ -51,8 +53,8 @@ export function CallsPage() {
   const toast = useToast();
 
   const baseParams: ListCallsParams = {
-    from: `${from}T00:00:00.000Z`,
-    to: `${to}T23:59:59.999Z`,
+    from: tenantDateTimeIso(from, fromTime),
+    to: tenantDateTimeIso(to, toTime, true),
     direction: direction === 'all' ? undefined : direction,
     page: 1,
     size: 500,
@@ -92,7 +94,7 @@ export function CallsPage() {
   };
 
   const columns: Column<Call>[] = [
-    { key: 'started_at', header: t('column.startedAt'), sortValue: (r) => r.started_at, cell: (r) => <span className="num text-sm">{formatDateTime(r.started_at)}</span>, width: '180px' },
+    { key: 'started_at', header: t('column.startedAt'), sortValue: (r) => r.started_at, cell: (r) => <span className="num whitespace-nowrap text-sm">{formatDateTime(r.started_at)}</span>, width: '180px' },
     {
       key: 'direction', header: t('column.direction'), cell: (r) => {
         const Icon = DIRECTION_ICON[r.direction];
@@ -130,10 +132,20 @@ export function CallsPage() {
     <AppShellPage title={t('title')}>
       <div className="mb-4 flex flex-wrap items-end gap-3 rounded-lg border border-line bg-surface p-3 shadow-card">
         <Field label={t('filter.from')}>
-          {(a) => <Input {...a} type="date" value={from} max={to} onChange={(e) => setFrom(e.target.value)} />}
+          {(a) => (
+            <div className="flex gap-1.5">
+              <div className="w-[150px]"><Input {...a} type="date" value={from} max={to} onChange={(e) => setFrom(e.target.value)} /></div>
+              <div className="w-[124px]"><Input type="time" aria-label={t('filter.fromTime')} value={fromTime} onChange={(e) => setFromTime(e.target.value)} /></div>
+            </div>
+          )}
         </Field>
         <Field label={t('filter.to')}>
-          {(a) => <Input {...a} type="date" value={to} min={from} max={isoDate(new Date())} onChange={(e) => setTo(e.target.value)} />}
+          {(a) => (
+            <div className="flex gap-1.5">
+              <div className="w-[150px]"><Input {...a} type="date" value={to} min={from} max={tenantDate(new Date())} onChange={(e) => setTo(e.target.value)} /></div>
+              <div className="w-[124px]"><Input type="time" aria-label={t('filter.toTime')} value={toTime} onChange={(e) => setToTime(e.target.value)} /></div>
+            </div>
+          )}
         </Field>
         <Field label={t('filter.direction')}>
           {(a) => (

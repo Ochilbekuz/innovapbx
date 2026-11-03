@@ -51,6 +51,18 @@ export function isoDate(d: Date): string {
   return d.toISOString().slice(0, 10);
 }
 
+/** Tenant (Asia/Tashkent) kalendaridagi kun, "YYYY-MM-DD" — UTC'dagi `isoDate`dan farqli, 00:00–05:00 da ham to'g'ri. */
+export function tenantDate(d: Date, daysBack = 0): string {
+  return new Date(d.getTime() - daysBack * 86_400_000).toLocaleDateString('en-CA', { timeZone: TENANT_TZ });
+}
+
+/** Tenant vaqtidagi kun + "HH:MM" → UTC ISO. `endOfMinute` — oraliq oxiri (shu daqiqaning 59.999 s gacha).
+ * Asia/Tashkent'da yozgi vaqt yo'q — doimiy +05:00. */
+export function tenantDateTimeIso(day: string, hhmm: string, endOfMinute = false): string {
+  const base = Date.parse(`${day}T${hhmm || '00:00'}:00+05:00`);
+  return new Date(base + (endOfMinute ? 59_999 : 0)).toISOString();
+}
+
 /** Bugundan N kun oldingi sana, "YYYY-MM-DD". Filtr formalarining standart "dan" qiymati. */
 export function daysAgo(n: number): string {
   const d = new Date();

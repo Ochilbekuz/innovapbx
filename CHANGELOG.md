@@ -1,5 +1,13 @@
 # O'zgarishlar tarixi
 
+## 1.0.10 — 2026-11-03
+Qo'ng'iroqlar tarixi (`/cdr`) tuzatishlari:
+- **Boshlanish/tugash vaqti endi soat:daqiqa bilan** (sukut 00:00 — 23:59). Oraliq Toshkent vaqtida hisoblanadi —
+  avval kun chegarasi UTC bo'yicha olinardi (5 soat siljish), 00:00–05:00 orasida «bugun» kechagi kun bo'lib qolardi.
+- **Kengaytirilgan qidiruv kataklari to'g'ri joylashdi**: rejim tanlovi butun qatorni egallab, qiymat katagini
+  siqib qo'yardi; shablon qatori ikki aniq guruhga (tanlash/qo'llash/o'chirish · nom/saqlash) ajratildi.
+- Holat belgilari (badge) va vaqt ustuni endi qatorga bo'linmaydi; «Qoʻngʻiroq qiluvchi nomi» xatosi tuzatildi.
+
 ## 1.0.9 — 2026-11-03
 FreePBX'ning asosiy, lekin hali bo'lmagan modullari qo'shildi:
 - **E'lonlar (Announcements)** — audio ijro etib keyingi manzilga o'tadi (o'tkazib yuborish/takrorlash tugmasi, javob bermasdan ijro).

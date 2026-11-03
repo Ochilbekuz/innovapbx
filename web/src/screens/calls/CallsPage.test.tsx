@@ -1,6 +1,6 @@
 // Xatti-harakat testi — qoʻngʻiroqlar tarixida yozuv (tinglash/yuklab olish) jadvalning OXIRGI ustunida.
 import { describe, expect, it, afterEach, vi } from 'vitest';
-import { screen, waitFor, within } from '@testing-library/react';
+import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { createFakeClient } from '@/api/fake';
 import { useSession } from '@/api/session';
@@ -30,6 +30,21 @@ describe('CallsPage', () => {
     const lastCell = row.cells[row.cells.length - 1] as HTMLTableCellElement;
     expect(lastCell.contains(first)).toBe(true);
     expect(lastCell.querySelector('[data-testid^="recording-download-"]')).not.toBeNull();
+  });
+
+  it('boshlanish/tugash soat:daqiqasi Toshkent vaqtida API ga ketadi', async () => {
+    const spy = vi.spyOn(client, 'listCalls');
+    await loginAs(client, 'admin');
+    renderPage(<CallsPage />);
+    await screen.findAllByTestId(/^recording-play-/);
+
+    const fromTime = screen.getByLabelText('Boshlanish vaqti (soat:daqiqa)') as HTMLInputElement;
+    expect(fromTime.value).toBe('00:00');
+    expect((screen.getByLabelText('Tugash vaqti (soat:daqiqa)') as HTMLInputElement).value).toBe('23:59');
+    fireEvent.change(fromTime, { target: { value: '09:30' } });
+    await waitFor(() => expect(spy.mock.calls.at(-1)?.[0]?.from).toMatch(/T04:30:00\.000Z$/));
+    expect(spy.mock.calls.at(-1)?.[0]?.to).toMatch(/T18:59:59\.999Z$/);
+    spy.mockRestore();
   });
 
   it('«Kengaytirilgan qidiruv» tugmasi bosilganda panel ochiladi', async () => {

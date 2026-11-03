@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatDateTime, formatTime, formatUptime } from './time';
+import { formatDateTime, formatTime, formatUptime, tenantDate, tenantDateTimeIso } from './time';
 
 describe('time', () => {
   it('UTC vaqtni brauzer zonasidan qat\'i nazar Toshkent vaqtida ko\'rsatadi', () => {
@@ -21,5 +21,17 @@ describe('time', () => {
     [90061, '1 kun 1 soat'],
   ])('formatUptime(%i) = %s', (sec, want) => {
     expect(formatUptime(sec)).toBe(want);
+  });
+
+  it('tenantDate — Toshkent kalendari kuni (UTC 19:00 dan keyin ertangi kun)', () => {
+    expect(tenantDate(new Date('2026-11-02T18:59:00Z'))).toBe('2026-11-02');
+    expect(tenantDate(new Date('2026-11-02T19:00:00Z'))).toBe('2026-11-03');
+    expect(tenantDate(new Date('2026-11-03T10:00:00Z'), 7)).toBe('2026-10-27');
+  });
+
+  it('tenantDateTimeIso — Toshkent sana+soat:daqiqa → UTC, oxiri daqiqa oxirigacha', () => {
+    expect(tenantDateTimeIso('2026-11-03', '00:00')).toBe('2026-11-02T19:00:00.000Z');
+    expect(tenantDateTimeIso('2026-11-03', '23:59', true)).toBe('2026-11-03T18:59:59.999Z');
+    expect(tenantDateTimeIso('2026-11-03', '')).toBe('2026-11-02T19:00:00.000Z');
   });
 });
