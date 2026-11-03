@@ -79,7 +79,7 @@ def _user(**kw) -> SimpleNamespace:
     base = dict(id="u1", tenant_id="t1", username="aziz", full_name="Aziz", email=None,
                 role=_role("operator"), extension=None, extension_id=None, is_active=True,
                 language="uz", must_change_password=False, last_login_at=None, updated_at=OLD,
-                tenant=SimpleNamespace(language="uz"))
+                tenant=SimpleNamespace(language="uz"), totp_enabled_at=None)
     base.update(kw)
     return SimpleNamespace(**base)
 

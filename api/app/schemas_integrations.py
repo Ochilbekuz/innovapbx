@@ -8,7 +8,10 @@ from pydantic import BaseModel, Field
 
 WebhookEvent = Literal["call.ringing", "call.answered", "call.ended"]
 DeliveryStatus = Literal["pending", "delivered", "dead"]
-ApiKeyScope = Literal["calls:read", "recordings:read", "calls:originate", "extensions:read"]
+ApiKeyScope = Literal[
+    "calls:read", "recordings:read", "calls:originate", "extensions:read",
+    "events:read",  # M10 B3 — tashqi WS hodisalar obunasi
+]
 
 
 # ------------------------------------------------------------ webhook'lar

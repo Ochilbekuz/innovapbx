@@ -30,6 +30,7 @@ export async function loginAs(client: ApiClient, role: 'admin' | 'operator') {
     ? { login: SEED_ADMIN.login, password: SEED_ADMIN_PASSWORD }
     : { login: SEED_OPERATOR.login, password: SEED_OPERATOR_PASSWORD };
   const res = await client.login(login, password);
+  if (res.status !== 'ok') throw new Error('loginAs: 2FA kutilmagan edi (seed foydalanuvchilarida 2FA yoqilmagan)');
   useSession.setState({ access: res.access, refresh: res.refresh, user: res.user });
   return res.user;
 }

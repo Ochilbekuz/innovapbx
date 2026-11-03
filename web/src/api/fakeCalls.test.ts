@@ -6,7 +6,7 @@ function makeCall(overrides: Partial<Call> = {}): Call {
   return {
     uniqueid: '1', started_at: '2026-10-27T09:00:00.000Z', src: '998901234567', dst: '101', did: '998712000000',
     direction: 'in', disposition: 'answered', duration: 60, billsec: 60, trunk: 'Uztelecom — asosiy',
-    recordings: [], src_name: 'Anvar Yusupov', pin_label: null,
+    recordings: [], src_name: 'Anvar Yusupov', pin_label: null, qa: null,
     ...overrides,
   };
 }

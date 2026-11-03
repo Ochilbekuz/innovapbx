@@ -1,14 +1,19 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ArrowLeftRight, CheckCircle2, LogIn, LogOut, Pause, Phone, PhoneIncoming, PhoneOutgoing, Play, QrCode, Trash2, Voicemail } from 'lucide-react';
+import {
+  ArrowLeftRight, CheckCircle2, LogIn, LogOut, Pause, Phone, PhoneIncoming, PhoneOutgoing, Play, QrCode, ShieldCheck, Trash2, Voicemail,
+} from 'lucide-react';
 import { apiClient } from '@/api';
 import {
-  useMeCalls, useMeOverview, useMeQueueAction, useMeVoicemailDelete, useMeVoicemailHeard, useMeVoicemailMessages,
-  usePatchMeExtension,
+  useDisableTotp, useMeCalls, useMeOverview, useMeQueueAction, useMeVoicemailDelete, useMeVoicemailHeard, useMeVoicemailMessages,
+  useMyEvaluations, usePatchMeExtension, useRegenerateTotpRecoveryCodes,
 } from '@/api/queries';
 import { isApiError } from '@/api/errors';
-import type { Call, CallDirection, MeExtensionOverview, MeQueueOverview } from '@/api/types';
+import { useSession } from '@/api/session';
+import type { Call, CallDirection, MeExtensionOverview, MeQueueOverview, QaEvaluation } from '@/api/types';
 import { useCanEdit } from '@/auth/permissions';
+import { TotpEnrollPanel } from '@/auth/TotpEnrollPanel';
+import { TotpRecoveryCodes } from '@/auth/TotpRecoveryCodes';
 import { daysAgo, formatDateTimeShort, formatDurationSec, isoDate } from '@/lib/time';
 import { AppShellPage } from '@/shell/AppShellPage';
 import { ClickToCallButton } from '@/softphone/ClickToCallButton';
@@ -19,10 +24,12 @@ import { AudioPlayer } from '@/pbx/AudioPlayer';
 import { RecordingList, recordingFileBase } from '@/pbx/RecordingList';
 import { FollowMeSection } from '@/screens/extensions/FollowMeSection';
 import { QrConnectModal } from '@/screens/extensions/QrConnectModal';
+import { scoreTone } from '@/screens/quality/qaScore';
 import { Badge, type Tone } from '@/ui/Status';
 import { DataTable, type Column } from '@/ui/Table';
 import { Toggle } from '@/ui/Toggle';
 import { useToast } from '@/ui/Toast';
+
 
 const DIRECTION_ICON: Record<CallDirection, typeof PhoneIncoming> = { in: PhoneIncoming, out: PhoneOutgoing, internal: ArrowLeftRight };
 const DISPOSITION_TONE: Record<Call['disposition'], Tone> = { answered: 'success', no_answer: 'warning', busy: 'warning', failed: 'danger' };
@@ -59,6 +66,10 @@ export function MePage() {
         </div>
         <QueuesCard queues={data.queues} />
         <RecentCallsCard />
+        <div className="grid items-start gap-4 lg:grid-cols-2">
+          <MyEvaluationsCard />
+          <TwoFactorCard />
+        </div>
         <VoicemailCard />
       </div>
     </AppShellPage>
@@ -250,6 +261,141 @@ function RecentCallsCard() {
         empty={{ title: t('me:recentCalls.empty'), body: '' }}
         pageSize={10}
       />
+    </div>
+  );
+}
+
+/** M10 C B1 — operator oʻz baholarini koʻradi (kim baholaganini emas, qarang `QaEvaluation.evaluator_name`). */
+function MyEvaluationsCard() {
+  const { t } = useTranslation('me');
+  const { data, isLoading, isError } = useMyEvaluations({ page: 1, size: 50 });
+
+  const columns: Column<QaEvaluation>[] = [
+    { key: 'created_at', header: t('evaluations.column.date'), cell: (r) => <span className="num text-sm">{formatDateTimeShort(r.created_at)}</span> },
+    { key: 'checklist_name', header: t('evaluations.column.checklist'), cell: (r) => <span className="text-sm text-fg">{r.checklist_name}</span> },
+    { key: 'score_pct', header: t('evaluations.column.score'), align: 'right', cell: (r) => <Badge tone={scoreTone(r.score_pct)}>{r.score_pct}%</Badge> },
+    { key: 'comment', header: t('evaluations.column.comment'), cell: (r) => <span className="line-clamp-2 text-sm text-muted">{r.comment || '—'}</span> },
+  ];
+
+  return (
+    <div className="rounded-lg border border-line bg-surface p-4 shadow-card">
+      <p className="mb-3 font-display text-base text-fg">{t('evaluations.title')}</p>
+      <DataTable
+        caption={t('evaluations.title')}
+        rows={data?.items ?? []}
+        columns={columns}
+        rowId={(r) => r.id}
+        searchText={(r) => r.checklist_name}
+        state={isLoading ? 'loading' : isError ? 'error' : 'ready'}
+        empty={{ title: t('evaluations.empty'), body: '' }}
+        pageSize={6}
+      />
+    </div>
+  );
+}
+
+/** M10 C B2 — ixtiyoriy 2FA: yoqish (QR/kod), oʻchirish, zaxira kodlarni qayta yaratish. */
+function TwoFactorCard() {
+  const { t } = useTranslation(['me', 'common']);
+  const toast = useToast();
+  const user = useSession((s) => s.user);
+  const setUser = useSession((s) => s.setUser);
+  const disableM = useDisableTotp();
+  const regenerateM = useRegenerateTotpRecoveryCodes();
+
+  const [enrolling, setEnrolling] = useState(false);
+  const [newRecoveryCodes, setNewRecoveryCodes] = useState<string[] | null>(null);
+  const [disabling, setDisabling] = useState(false);
+  const [disableCode, setDisableCode] = useState('');
+  const [regenerating, setRegenerating] = useState(false);
+  const [regenerateCode, setRegenerateCode] = useState('');
+
+  const enabled = !!user?.totp_enabled;
+
+  const onEnabled = (codes: string[]) => {
+    if (user) setUser({ ...user, totp_enabled: true });
+    setEnrolling(false);
+    setNewRecoveryCodes(codes);
+  };
+  const confirmDisable = () => {
+    disableM.mutate({ code: disableCode.trim() }, {
+      onSuccess: () => {
+        if (user) setUser({ ...user, totp_enabled: false });
+        setDisabling(false);
+        setDisableCode('');
+        toast({ kind: 'success', title: t('me:twofa.toastDisabled') });
+      },
+      onError: (e) => toast({ kind: 'error', title: e.message }),
+    });
+  };
+  const confirmRegenerate = () => {
+    regenerateM.mutate({ code: regenerateCode.trim() }, {
+      onSuccess: (res) => { setRegenerating(false); setRegenerateCode(''); setNewRecoveryCodes(res.recovery_codes); },
+      onError: (e) => toast({ kind: 'error', title: e.message }),
+    });
+  };
+
+  return (
+    <div className="flex flex-col gap-4 rounded-lg border border-line bg-surface p-4 shadow-card">
+      <div className="flex items-center justify-between gap-2">
+        <p className="font-display text-base text-fg">{t('me:twofa.title')}</p>
+        <Badge tone={enabled ? 'success' : 'neutral'}>{t(enabled ? 'me:twofa.enabled' : 'me:twofa.disabled')}</Badge>
+      </div>
+      <p className="text-sm text-muted">{t('me:twofa.description')}</p>
+
+      {newRecoveryCodes ? (
+        <>
+          <TotpRecoveryCodes codes={newRecoveryCodes} />
+          <Button size="sm" variant="primary" className="self-start" onClick={() => setNewRecoveryCodes(null)}>{t('me:twofa.done')}</Button>
+        </>
+      ) : enrolling ? (
+        <TotpEnrollPanel onEnabled={onEnabled} />
+      ) : enabled ? (
+        <div className="flex flex-wrap gap-2">
+          <Button size="sm" variant="secondary" onClick={() => setRegenerating(true)}>{t('me:twofa.regenerate')}</Button>
+          <Button size="sm" variant="danger-ghost" onClick={() => setDisabling(true)}>{t('me:twofa.disable')}</Button>
+        </div>
+      ) : (
+        <Button size="sm" variant="primary" icon={<ShieldCheck />} className="self-start" onClick={() => setEnrolling(true)}>{t('me:twofa.enable')}</Button>
+      )}
+
+      <Modal
+        open={disabling}
+        onOpenChange={(v) => { setDisabling(v); if (!v) setDisableCode(''); }}
+        title={t('me:twofa.disable')}
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => setDisabling(false)}>{t('common:cancel')}</Button>
+            <Button variant="danger" loading={disableM.isPending} disabled={disableCode.trim().length < 6} onClick={confirmDisable}>
+              {t('me:twofa.disable')}
+            </Button>
+          </>
+        }
+      >
+        <p className="mb-3 text-sm text-muted">{t('me:twofa.disableIntro')}</p>
+        <Field label={t('me:twofa.codeLabel')} error={isApiError(disableM.error) ? disableM.error.message : undefined}>
+          {(a) => <Input {...a} autoFocus inputMode="numeric" autoComplete="one-time-code" placeholder="000000" value={disableCode} onChange={(e) => setDisableCode(e.target.value)} />}
+        </Field>
+      </Modal>
+
+      <Modal
+        open={regenerating}
+        onOpenChange={(v) => { setRegenerating(v); if (!v) setRegenerateCode(''); }}
+        title={t('me:twofa.regenerate')}
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => setRegenerating(false)}>{t('common:cancel')}</Button>
+            <Button variant="primary" loading={regenerateM.isPending} disabled={regenerateCode.trim().length < 6} onClick={confirmRegenerate}>
+              {t('me:twofa.regenerate')}
+            </Button>
+          </>
+        }
+      >
+        <p className="mb-3 text-sm text-muted">{t('me:twofa.regenerateIntro')}</p>
+        <Field label={t('me:twofa.codeLabel')} error={isApiError(regenerateM.error) ? regenerateM.error.message : undefined}>
+          {(a) => <Input {...a} autoFocus inputMode="numeric" autoComplete="one-time-code" placeholder="000000" value={regenerateCode} onChange={(e) => setRegenerateCode(e.target.value)} />}
+        </Field>
+      </Modal>
     </div>
   );
 }

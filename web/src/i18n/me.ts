@@ -24,6 +24,20 @@ export const uz = {
   voicemail: {
     title: 'Ovozli xabarlar', empty: 'Ovozli xabarlar yoʻq', listen: 'Tinglash', delete: 'Oʻchirish', unread: 'Oʻqilmagan',
   },
+  // M10 C B1 — operator oʻz baholarini koʻradi (kim baholaganini emas).
+  evaluations: {
+    title: 'Mening baholarim', empty: 'Hali baholanmagansiz.',
+    column: { date: 'Sana', checklist: 'Varaqa', score: 'Ball', comment: 'Izoh' },
+  },
+  // M10 C B2 — ixtiyoriy 2FA: yoqish/oʻchirish/zaxira kodlarni qayta yaratish.
+  twofa: {
+    title: 'Ikki bosqichli tasdiqlash (2FA)', enabled: 'Yoqilgan', disabled: 'Oʻchirilgan',
+    description: 'Yoqilganda kirishda ilovadan 6 xonali kod ham soʻraladi — hisobingiz xavfsizroq boʻladi.',
+    enable: 'Yoqish', disable: 'Oʻchirish', regenerate: 'Zaxira kodlarni qayta yaratish', done: 'Tayyor',
+    disableIntro: 'Oʻchirish uchun ilovadagi joriy kodni kiriting.',
+    regenerateIntro: 'Eski zaxira kodlar ishdan chiqadi — yangilarini yaratish uchun ilovadagi joriy kodni kiriting.',
+    codeLabel: 'Tasdiqlash kodi', toastDisabled: '2FA oʻchirildi',
+  },
 };
 
 export const ru = {
@@ -50,6 +64,18 @@ export const ru = {
   voicemail: {
     title: 'Голосовые сообщения', empty: 'Нет голосовых сообщений', listen: 'Прослушать', delete: 'Удалить', unread: 'Непрослушано',
   },
+  evaluations: {
+    title: 'Мои оценки', empty: 'Вас пока не оценивали.',
+    column: { date: 'Дата', checklist: 'Чек-лист', score: 'Балл', comment: 'Комментарий' },
+  },
+  twofa: {
+    title: 'Двухфакторная проверка (2FA)', enabled: 'Включена', disabled: 'Отключена',
+    description: 'Когда включена, при входе дополнительно запрашивается 6-значный код из приложения — ваша учётная запись защищена лучше.',
+    enable: 'Включить', disable: 'Отключить', regenerate: 'Создать новые резервные коды', done: 'Готово',
+    disableIntro: 'Чтобы отключить, введите текущий код из приложения.',
+    regenerateIntro: 'Старые резервные коды перестанут работать — чтобы создать новые, введите текущий код из приложения.',
+    codeLabel: 'Код подтверждения', toastDisabled: '2FA отключена',
+  },
 };
 
 export const en = {
@@ -75,5 +101,17 @@ export const en = {
   direction: { in: 'Inbound', out: 'Outbound', internal: 'Internal' },
   voicemail: {
     title: 'Voicemail', empty: 'No voicemail', listen: 'Listen', delete: 'Delete', unread: 'Unread',
+  },
+  evaluations: {
+    title: 'My evaluations', empty: "You haven't been evaluated yet.",
+    column: { date: 'Date', checklist: 'Checklist', score: 'Score', comment: 'Comment' },
+  },
+  twofa: {
+    title: 'Two-factor verification (2FA)', enabled: 'Enabled', disabled: 'Disabled',
+    description: 'When enabled, sign-in also requires a 6-digit code from your app — your account is better protected.',
+    enable: 'Enable', disable: 'Disable', regenerate: 'Regenerate recovery codes', done: 'Done',
+    disableIntro: 'To disable, enter the current code from your app.',
+    regenerateIntro: 'Your old recovery codes will stop working — enter the current code from your app to create new ones.',
+    codeLabel: 'Verification code', toastDisabled: '2FA disabled',
   },
 };

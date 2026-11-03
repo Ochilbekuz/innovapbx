@@ -4,7 +4,7 @@ from __future__ import annotations
 import uuid
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, File, Form, UploadFile
+from fastapi import APIRouter, Depends, File, Form, Response, UploadFile
 from fastapi.responses import FileResponse
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
@@ -14,12 +14,15 @@ from app.api.deps import get_session, require_access
 from app.core.config import settings
 from app.core.errors import ApiError
 from app.core.lookups import get_tenant_code, get_tenant_scoped_or_404
-from app.db.models import AudioFile, Ivr, MohClass, MohClassFile, User, VoicemailBox
-from app.schemas import AudioCreated, AudioOut
+from app.db.models import AudioFile, Ivr, MohClass, MohClassFile, Tenant, User, VoicemailBox
+from app.schemas import AudioCreated, AudioOut, TtsPreviewPayload, TtsSynthesizePayload
+from app.services import tts_yandex
 from app.services.audio_tools import ALLOWED_UPLOAD_SUFFIXES, AudioConversionError, convert_to_wav_8k_mono
 from app.services.audit import record_audit
+from app.services.rate_limit import SlidingWindowLimiter
 
 router = APIRouter(prefix="/audio", tags=["audio"])
+_tts_preview_limiter = SlidingWindowLimiter()
 
 
 def _audio_out(audio: AudioFile) -> AudioOut:
@@ -95,6 +98,85 @@ async def upload_audio(
                         entity="audio", entity_id=str(audio.id), diff={"name": name})
     await session.commit()
     return AudioCreated(item=_audio_out(audio))
+
+
+# ------------------------------------------------------------ M10 A3: Yandex SpeechKit TTS
+async def _tts_config_or_409(session: AsyncSession, tenant_id: str) -> tts_yandex.TtsConfig:
+    cfg = await tts_yandex.load_config(session, tenant_id)
+    if cfg.provider == "none" or not cfg.api_key:
+        raise ApiError(409, "tts_not_configured", "TTS sozlanmagan — avval Sozlamalar > TTS'da to'ldiring")
+    return cfg
+
+
+async def _tenant_language(session: AsyncSession, tenant_id: str) -> str:
+    tenant = await session.get(Tenant, tenant_id)
+    return tenant.language if tenant else "uz"
+
+
+async def _synthesize_wav(cfg: tts_yandex.TtsConfig, text: str, language: str, dst: Path) -> int:
+    """LPCM'ni oladi, vaqtinchalik faylga yozadi, WAV'ga o'giradi (`dst`ga)."""
+    try:
+        lpcm = await tts_yandex.synthesize_lpcm(cfg, text, language)
+    except tts_yandex.TtsError as exc:
+        raise ApiError(502, "tts_failed", f"TTS so'rovi muvaffaqiyatsiz: {exc}"[:500]) from exc
+    tmp_src = dst.with_suffix(".lpcm")
+    tmp_src.parent.mkdir(parents=True, exist_ok=True)
+    tmp_src.write_bytes(lpcm)
+    try:
+        return convert_to_wav_8k_mono(tmp_src, dst, tts_yandex.lpcm_ffmpeg_args())
+    except AudioConversionError as exc:
+        raise ApiError(415, "bad_format", "TTS audio oqimini o'girishda xato") from exc
+    finally:
+        tmp_src.unlink(missing_ok=True)
+
+
+@router.post("/tts", response_model=AudioCreated, status_code=201)
+async def synthesize_audio(
+    payload: TtsSynthesizePayload, session: AsyncSession = Depends(get_session), user: User = Depends(require_access),
+) -> AudioCreated:
+    tenant_id = str(user.tenant_id)
+    cfg = await _tts_config_or_409(session, tenant_id)
+    language = await _tenant_language(session, tenant_id)
+
+    audio_id = str(uuid.uuid4())
+    code = await get_tenant_code(session, tenant_id)
+    dst = _wav_path(code, audio_id)
+    duration_ms = await _synthesize_wav(cfg, payload.text, language, dst)
+
+    audio = AudioFile(id=audio_id, tenant_id=tenant_id, name=payload.name, language=language, source="tts",
+                      tts_text=payload.text, storage_path=f"sounds/{code}/{audio_id}", duration_ms=duration_ms)
+    session.add(audio)
+    try:
+        await session.flush()
+    except IntegrityError as exc:
+        await session.rollback()
+        dst.unlink(missing_ok=True)
+        raise ApiError(409, "name_taken", "Shu nomli audio allaqachon mavjud", field="name") from exc
+
+    await record_audit(session, tenant_id=tenant_id, user_id=str(user.id), action="audio.tts",
+                       entity="audio", entity_id=str(audio.id), diff={"name": payload.name})
+    await session.commit()
+    return AudioCreated(item=_audio_out(audio))
+
+
+@router.post("/tts/preview")
+async def preview_tts(
+    payload: TtsPreviewPayload, session: AsyncSession = Depends(get_session), user: User = Depends(require_access),
+) -> Response:
+    if not _tts_preview_limiter.allow(str(user.id), limit=settings.tts_preview_rate_limit_per_min):
+        raise ApiError(429, "rate_limited", "Juda ko'p so'rov — birozdan keyin qayta urining")
+    tenant_id = str(user.tenant_id)
+    cfg = await _tts_config_or_409(session, tenant_id)
+    language = await _tenant_language(session, tenant_id)
+
+    tmp_dst = Path(settings.sounds_dir) / f".tts-preview-{uuid.uuid4()}.wav"
+    tmp_dst.parent.mkdir(parents=True, exist_ok=True)
+    await _synthesize_wav(cfg, payload.text, language, tmp_dst)
+    try:
+        wav_bytes = tmp_dst.read_bytes()
+    finally:
+        tmp_dst.unlink(missing_ok=True)
+    return Response(content=wav_bytes, media_type="audio/wav")
 
 
 @router.get("/{audio_id}/stream")

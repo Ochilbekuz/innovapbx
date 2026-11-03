@@ -10,16 +10,19 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.core.errors import ApiError
-from app.core.permissions import check_access
+from app.core.permissions import ALL, check_access, has_permission
 from app.core.security import decode_token
-from app.db.models import User
+from app.db.models import SystemSettings, User
 from app.db.session import SessionLocal
 from app.services.ami import AmiClient
 from app.services.netd_client import NetdClient
+from app.services.totp_policy import is_enrollment_exempt_path, must_enroll
 
 _API_PREFIX = "/api/v1"
 
 _UNAUTHORIZED = ApiError(401, "unauthorized", "Avtorizatsiya talab qilinadi")
+_ENROLLMENT_REQUIRED = ApiError(403, "2fa_enrollment_required",
+                                 "2FA ro'yxatdan o'tish talab qilinadi — avval /me/2fa/setup")
 
 
 async def get_session() -> AsyncIterator[AsyncSession]:
@@ -34,6 +37,30 @@ def _bearer_token(request: Request) -> str:
     return header[len("Bearer "):].strip()
 
 
+def _route_template(request: Request) -> str:
+    """Marshrut shabloni (`/extensions/{ext_id}` kabi, `/api/v1` OLIB
+    TASHLANGAN) — `request.scope["route"].path` (FastAPI buni so'rov
+    moslashgandan keyin to'ldiradi; dependency ichida ishlaydi)."""
+    path = getattr(request.scope.get("route"), "path", request.url.path)
+    if path.startswith(_API_PREFIX):
+        path = path[len(_API_PREFIX):]
+    return path or "/"
+
+
+async def _check_2fa_enrollment(session: AsyncSession, request: Request, user: User) -> None:
+    """M10 B2: `require_2fa` siyosati (`'admins'`/`'all'`) foydalanuvchidan
+    2FA yoqishni talab qilsa va u HALI yoqmagan bo'lsa — `/auth/*` va
+    `/me/2fa/*`dan BOSHQA hamma so'rov 403 `2fa_enrollment_required` bilan
+    bloklanadi (frontend shu kodni ko'rib ro'yxatdan o'tish ekraniga o'tadi)."""
+    if is_enrollment_exempt_path(_route_template(request)):
+        return
+    row = await session.get(SystemSettings, user.tenant_id)
+    policy = row.require_2fa if row is not None else "off"
+    is_admin = has_permission(user.role.permissions, ALL)
+    if must_enroll(policy, is_admin=is_admin, totp_enabled=user.totp_enabled_at is not None):
+        raise _ENROLLMENT_REQUIRED
+
+
 async def get_current_user(
     request: Request, session: AsyncSession = Depends(get_session),
 ) -> User:
@@ -44,17 +71,8 @@ async def get_current_user(
     user = await session.get(User, payload.get("sub"))
     if user is None or not user.is_active:
         raise _UNAUTHORIZED
+    await _check_2fa_enrollment(session, request, user)
     return user
-
-
-def _route_template(request: Request) -> str:
-    """Marshrut shabloni (`/extensions/{ext_id}` kabi, `/api/v1` OLIB
-    TASHLANGAN) — `request.scope["route"].path` (FastAPI buni so'rov
-    moslashgandan keyin to'ldiradi; dependency ichida ishlaydi)."""
-    path = getattr(request.scope.get("route"), "path", request.url.path)
-    if path.startswith(_API_PREFIX):
-        path = path[len(_API_PREFIX):]
-    return path or "/"
 
 
 async def require_access(request: Request, user: User = Depends(get_current_user)) -> User:

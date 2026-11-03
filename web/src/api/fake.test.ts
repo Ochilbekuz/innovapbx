@@ -33,6 +33,7 @@ describe('fake client — setup va kirish', () => {
   it("to'g'ri login/parol — token va foydalanuvchi qaytadi", async () => {
     const client = createFakeClient();
     const res = await client.login(SEED_ADMIN.login, SEED_ADMIN_PASSWORD);
+    if (res.status !== 'ok') throw new Error('2FA kutilmagan edi');
     expect(res.user.login).toBe('admin');
     expect(res.access).toBeTruthy();
     expect(res.refresh).toBeTruthy();
@@ -40,7 +41,9 @@ describe('fake client — setup va kirish', () => {
 
   it('refresh token aylanadi — eskisi qayta ishlamaydi', async () => {
     const client = createFakeClient();
-    const { refresh } = await client.login(SEED_ADMIN.login, SEED_ADMIN_PASSWORD);
+    const loginRes = await client.login(SEED_ADMIN.login, SEED_ADMIN_PASSWORD);
+    if (loginRes.status !== 'ok') throw new Error('2FA kutilmagan edi');
+    const { refresh } = loginRes;
     const rotated = await client.refresh(refresh);
     expect(rotated.refresh).not.toBe(refresh);
     await expect(client.refresh(refresh)).rejects.toMatchObject({ status: 401, code: 'bad_refresh' });

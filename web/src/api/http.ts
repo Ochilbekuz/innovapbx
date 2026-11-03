@@ -72,3 +72,11 @@ export async function requestBlob(path: string): Promise<Blob> {
   if (!res.ok) throw await parseError(res);
   return res.blob();
 }
+
+/** M10 C A3 — POST so'rov yuborib ikkilik javob (masalan `audio/wav`) kutish uchun (TTS oldindan eshitish). */
+export async function requestBlobPost(path: string, body: unknown): Promise<Blob> {
+  const init = { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) };
+  const res = await authFetch(path, init);
+  if (!res.ok) throw await parseError(res);
+  return res.blob();
+}

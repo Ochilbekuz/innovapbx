@@ -85,6 +85,11 @@ export const uz = {
       extMaxPerHour: 'Ichki raqamga soatiga chiquvchi',
       extInternationalPerDay: 'Ichki raqamga kuniga xalqaro',
     },
+    // M10 C B2 — 2FA siyosati: kim uchun majburiy.
+    require2fa: {
+      title: 'Ikki bosqichli tasdiqlash (2FA)', label: 'Kim uchun majburiy', hint: 'Tanlangan guruh keyingi kirishda ilova (TOTP) orqali ulanishi shart boʻladi.',
+      off: 'Majburiy emas', admins: 'Faqat adminlar', all: 'Hamma foydalanuvchi',
+    },
     save: 'Saqlash',
     staleNotice: 'Sozlamalar boshqa joyda oʻzgartirilgan edi — qiymatlar yangilandi, qayta tekshirib saqlang.',
   },
@@ -194,6 +199,10 @@ export const ru = {
       extMaxPerHour: 'Исходящих в час на номер',
       extInternationalPerDay: 'Международных в сутки на номер',
     },
+    require2fa: {
+      title: 'Двухфакторная проверка (2FA)', label: 'Для кого обязательна', hint: 'Выбранная группа должна будет подключить приложение (TOTP) при следующем входе.',
+      off: 'Не обязательна', admins: 'Только админы', all: 'Все пользователи',
+    },
     save: 'Сохранить',
     staleNotice: 'Настройки были изменены в другом месте — значения обновлены, проверьте и сохраните снова.',
   },
@@ -302,6 +311,10 @@ export const en = {
       maxConcurrentOutboundHint: '0 — unlimited.',
       extMaxPerHour: 'Outbound calls per hour per extension',
       extInternationalPerDay: 'International calls per day per extension',
+    },
+    require2fa: {
+      title: 'Two-factor verification (2FA)', label: 'Required for', hint: 'The selected group must set up an authenticator app (TOTP) on their next sign-in.',
+      off: 'Not required', admins: 'Admins only', all: 'Every user',
     },
     save: 'Save',
     staleNotice: 'Settings were changed elsewhere — values refreshed, please review and save again.',

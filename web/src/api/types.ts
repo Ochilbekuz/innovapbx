@@ -16,9 +16,15 @@ export type User = {
   must_change_password?: boolean;
   /** M2b — foydalanuvchining o'z ichki raqami (yuqori paneldagi telefon belgisida); yo'q bo'lsa null. */
   extension?: { id: string; number: string; name: string } | null;
+  /** M10 B2 — 2FA (TOTP) yoqilgan/majburiy ro'yxatdan o'tish kerakligi. */
+  totp_enabled?: boolean;
+  must_enroll_2fa?: boolean;
 };
 
-export type AuthResult = { access: string; refresh: string; user: User };
+/** M10 B2 — login natijasi: tokenlar bilan tayyor ('ok') yoki 2FA kodi so'raladi ('totp_required'). */
+export type AuthResult =
+  | { status: 'ok'; access: string; refresh: string; user: User }
+  | { status: 'totp_required'; challenge: string };
 
 export type SetupPayload = {
   admin: { login: string; password: string; full_name: string };
@@ -150,6 +156,9 @@ export type Call = {
   src_name: string | null;
   // CDR kengaytirilgan qidiruv — PIN-to'plam yorlig'i / accountcode (bo'lmasa — null).
   pin_label: string | null;
+  // M10 B1 — sifat bahosi (bo'lmasa — null); alohida so'rovsiz jadvalda ko'rsatish uchun.
+  // Backend `CallQaBadge` — `checklist_name` ham bor (eng oxirgi baholash belgisi).
+  qa: { evaluation_id: string; checklist_name: string; score_pct: number } | null;
 };
 
 /** M3b §1 — qo'ngiroqlar roʻyxatida koʻrsatiladigan yozuv havolasi (toʻliq audio — alohida soʻrov bilan). */
@@ -329,7 +338,10 @@ export type UpdateTimeConditionPayload = Partial<CreateTimeConditionPayload> & {
 export type OverrideTimeConditionPayload = { override: TimeConditionOverride };
 
 export type AudioFormat = 'wav' | 'mp3' | 'ogg' | 'webm';
-export type Audio = { id: string; name: string; duration_ms: number; format: AudioFormat; created_at: string };
+// Backend `AudioOut` — faqat shu 5 maydon (TTS orqali yaratilgan audio ham xususiyatsiz AudioOut qaytaradi).
+export type Audio = {
+  id: string; name: string; duration_ms: number; format: AudioFormat; created_at: string;
+};
 
 export type IvrOption = { digit: string; target: Target };
 export type IvrOptionInput = { digit: string; target_id: string };
@@ -846,6 +858,8 @@ export type ManagedUser = {
   language: Lang;
   must_change_password: boolean;
   last_login_at: string | null;
+  /** M10 B2 — 2FA (TOTP) yoqilganligi; admin shu yerdan reset qila oladi. */
+  totp_enabled: boolean;
   updated_at: string;
 };
 export type CreateUserPayload = {
@@ -945,8 +959,10 @@ export type ReportsDailyRow = { date: string; total: number; answered: number; m
 
 export type SipGuardConfig = { enabled: boolean; max_failures: number; window_s: number; ban_s: number; trusted_nets: string[]; trust_lan: boolean };
 export type TollFraudConfig = { enabled: boolean; max_concurrent_outbound: number; ext_max_per_hour: number; ext_international_per_day: number };
-export type SecuritySettings = { sip_guard: SipGuardConfig; toll_fraud: TollFraudConfig; updated_at: string };
-export type UpdateSecuritySettingsPayload = { sip_guard?: Partial<SipGuardConfig>; toll_fraud?: Partial<TollFraudConfig>; updated_at: string };
+/** M10 B2 — 2FA majburiyat siyosati: hech kim/adminlar/hamma. */
+export type Require2faPolicy = 'off' | 'admins' | 'all';
+export type SecuritySettings = { sip_guard: SipGuardConfig; toll_fraud: TollFraudConfig; require_2fa: Require2faPolicy; updated_at: string };
+export type UpdateSecuritySettingsPayload = { sip_guard?: Partial<SipGuardConfig>; toll_fraud?: Partial<TollFraudConfig>; require_2fa?: Require2faPolicy; updated_at: string };
 
 // §2 — SIP hujum himoyasi
 
@@ -999,7 +1015,7 @@ export type RecordingAudio = { blob: Blob };
 
 // §4 — API kalitlari va ochiq (public) API
 
-export const API_KEY_SCOPES = ['calls:read', 'recordings:read', 'calls:originate', 'extensions:read'] as const;
+export const API_KEY_SCOPES = ['calls:read', 'recordings:read', 'calls:originate', 'extensions:read', 'events:read'] as const;
 export type ApiKeyScope = (typeof API_KEY_SCOPES)[number];
 
 export type ApiKey = {
@@ -1661,3 +1677,197 @@ export type CreateCidSourcePayload = {
 };
 export type UpdateCidSourcePayload = Partial<CreateCidSourcePayload> & { updated_at: string };
 export type CidSourceTestResult = { name: string | null; ms: number; error: string | null };
+
+// ─────────────────────────── M10 C — Callback vidjet (A1) ───────────────────────────
+
+export type CallbackOffhoursMode = 'reject' | 'schedule';
+export type WidgetAppearanceText = { uz: string; ru: string; en: string };
+export type WidgetAppearance = {
+  color: string;
+  position: 'right' | 'left';
+  title: WidgetAppearanceText;
+  button: WidgetAppearanceText;
+  success: WidgetAppearanceText;
+};
+export type CallbackWidget = {
+  id: string;
+  name: string;
+  public_key: string;
+  target: Target;
+  allowed_origins: string[];
+  time_group_id: string | null;
+  time_group_name: string | null;
+  offhours_mode: CallbackOffhoursMode;
+  max_attempts: number;
+  retry_interval_s: number;
+  callerid_prefix: string | null;
+  allow_international: boolean;
+  appearance: WidgetAppearance;
+  enabled: boolean;
+  /** `public_base_url` sozlanmagan bo'lsa — null (409 EMAS, UI ogohlantiradi). */
+  embed_snippet: string | null;
+  updated_at: string;
+};
+export type CreateCallbackWidgetPayload = {
+  name: string;
+  // Backend `resolve_target()` — yagona `call_targets` jadvali, kind kerak emas (qarang `api/callback_widgets.py`).
+  target_id: string;
+  allowed_origins?: string[];
+  time_group_id?: string | null;
+  offhours_mode?: CallbackOffhoursMode;
+  max_attempts?: number;
+  retry_interval_s?: number;
+  callerid_prefix?: string | null;
+  allow_international?: boolean;
+  appearance?: Partial<WidgetAppearance>;
+  enabled?: boolean;
+};
+export type UpdateCallbackWidgetPayload = Partial<CreateCallbackWidgetPayload> & { updated_at: string };
+export type CallbackRequestStatus = 'pending' | 'dialing' | 'connected' | 'failed' | 'rejected' | 'cancelled';
+export type CallbackRequest = {
+  id: string;
+  widget_id: string;
+  widget_name: string;
+  phone: string;
+  name: string | null;
+  page_url: string | null;
+  status: CallbackRequestStatus;
+  attempts: number;
+  next_attempt_at: string | null;
+  linkedid: string | null;
+  last_error: string | null;
+  created_at: string;
+  updated_at: string;
+};
+// Backend `list_callback_requests` — `widget_id`/`status`/`page`/`page_size` qabul qiladi (sana oralig'i YO'Q).
+export type ListCallbackRequestsParams = {
+  widget_id?: string; status?: CallbackRequestStatus; page?: number; page_size?: number;
+};
+
+// ─────────────────────────── M10 C — Javobsiz qoʻngʻiroq xabari (A2) ───────────────────────────
+
+export type MissedCallScopeKind = 'any' | 'did' | 'queue' | 'ring_group' | 'extension';
+export type MissedCallRule = {
+  id: string;
+  name: string;
+  scope_kind: MissedCallScopeKind;
+  scope_value: string | null;
+  telegram_chat_ids: string[];
+  emails: string[];
+  include_internal: boolean;
+  enabled: boolean;
+  updated_at: string;
+};
+export type CreateMissedCallRulePayload = {
+  name: string;
+  scope_kind: MissedCallScopeKind;
+  scope_value?: string | null;
+  telegram_chat_ids?: string[];
+  emails?: string[];
+  include_internal?: boolean;
+  enabled?: boolean;
+};
+export type UpdateMissedCallRulePayload = Partial<CreateMissedCallRulePayload> & { updated_at: string };
+// Backend `MissedCallRuleMutated = {item}` (apply YO'Q — bu qoida dialplanga ta'sir qilmaydi, `apply_config` chaqirilmaydi).
+export type MissedCallRuleMutated = { item: MissedCallRule };
+// Backend `MissedCallRuleTestResult = {ok, message}` (error EMAS; muvaffaqiyatsiz bo'lsa ham xabar `message`da).
+export type TestMissedCallRuleResult = { ok: boolean; message: string };
+export type MissedCallNoticeStatus = 'pending' | 'sent' | 'failed';
+export type MissedCallNotice = {
+  id: string;
+  rule_id: string;
+  rule_name: string;
+  call_id: string;
+  status: MissedCallNoticeStatus;
+  attempts: number;
+  last_error: string | null;
+  created_at: string;
+  sent_at: string | null;
+};
+// Backend `list_missed_call_notices` — `rule_id`/`page`/`page_size` qabul qiladi (`status` filtri YO'Q).
+export type ListMissedCallNoticesParams = { rule_id?: string; page?: number; page_size?: number };
+
+// ─────────────────────────── M10 C — TTS (A3) ───────────────────────────
+
+export type TtsProvider = 'none' | 'yandex';
+export type TtsVoices = { uz: string; ru: string; en: string };
+// Backend `TtsSettingsOut.has_api_key` (has_key EMAS); `PATCH` javobi `{item}` (Mutated/apply YO'Q — dialplanga ta'sir qilmaydi).
+export type TtsSettings = { provider: TtsProvider; has_api_key: boolean; folder_id: string | null; voices: TtsVoices; updated_at: string | null };
+export type TtsSettingsMutated = { item: TtsSettings };
+export type UpdateTtsSettingsPayload = {
+  provider?: TtsProvider;
+  /** '' yuborilsa — mavjud kalit o'chiriladi. */
+  api_key?: string;
+  folder_id?: string | null;
+  voices?: Partial<TtsVoices>;
+  /** Yangi o'rnatishda (sozlama hali saqlanmagan) — `null`. */
+  updated_at: string | null;
+};
+// Backend `TtsTestResult = {ok, message}` (error EMAS).
+export type TtsTestResult = { ok: boolean; message: string };
+// Backend `TtsSynthesizePayload = {text, name}` — til/ovoz/tezlik YO'Q (tenant tili va
+// `TtsSettings.voices`dan avtomatik olinadi, so'rov darajasida tanlanmaydi).
+export type CreateTtsAudioPayload = { name: string; text: string };
+export type TtsPreviewPayload = { text: string };
+
+// ─────────────────────────── M10 C — Sifat baholash (B1) ───────────────────────────
+// Qattiq backend qolipi (`api/app/schemas_qa.py` + `api/app/api/v1/qa.py`): varaqa
+// (checklist) CRUD flat qaytaradi (Mutated/apply YO'Q — dialplanga ta'sir qilmaydi),
+// ro'yxat `{items}` (pagination/filtr YO'Q), baholash (evaluation) CRUD HAM flat,
+// `answers` — object-map (`criterion_id -> qiymat`), massiv EMAS.
+
+export type QaCriterionKind = 'yesno' | 'scale5';
+export type QaCriterion = {
+  id: string;
+  label: string;
+  kind: QaCriterionKind;
+  weight: number;
+  critical: boolean;
+  position: number;
+};
+export type QaCriterionInput = { label: string; kind: QaCriterionKind; weight?: number; critical?: boolean };
+export type QaChecklist = {
+  id: string;
+  name: string;
+  is_active: boolean;
+  criteria: QaCriterion[];
+  updated_at: string;
+};
+export type CreateQaChecklistPayload = { name: string; criteria: QaCriterionInput[] };
+export type UpdateQaChecklistPayload = { name?: string; is_active?: boolean; criteria?: QaCriterionInput[]; updated_at: string };
+// Backend `answers: dict[str, bool | int]` — criterion_id -> ha/yo'q YOKI 1..5.
+export type QaAnswers = Record<string, boolean | number>;
+export type QaEvaluation = {
+  id: string;
+  checklist_id: string;
+  checklist_name: string;
+  call_id: string;
+  extension_id: string | null;
+  evaluator_id: string | null;
+  // Backend operator o'zi ko'radigan ro'yxatlarda (`/me/evaluations`, `/calls/{id}/evaluations`)
+  // ataylab `null` qaytaradi — kim baholaganini ko'rsatmaydi.
+  evaluator_name: string | null;
+  answers: QaAnswers;
+  comment: string | null;
+  score_pct: number;
+  created_at: string;
+  updated_at: string;
+};
+export type CreateQaEvaluationPayload = { checklist_id: string; call_id: string; extension_id?: string | null; answers: QaAnswers; comment?: string | null };
+export type UpdateQaEvaluationPayload = { answers?: QaAnswers; comment?: string | null; updated_at: string };
+// Backend `list_evaluations` — faqat `call_id` bo'yicha filtr, ko'proq yo'q.
+export type ListQaEvaluationsParams = { call_id?: string; page?: number; size?: number };
+export type QaSummaryByExtension = { extension_id: string | null; extension_number: string | null; count: number; avg_score_pct: number };
+// Backend `/qa/summary` parametrsiz, tenant-keng bir martalik xulosa (sana oynasi/guruhlash YO'Q).
+export type QaSummary = { count: number; avg_score_pct: number; by_extension: QaSummaryByExtension[] };
+
+// ─────────────────────────── M10 C — 2FA (TOTP, B2) ───────────────────────────
+
+export type TotpSetup = { secret: string; otpauth_uri: string };
+export type TotpEnablePayload = { code: string };
+export type TotpEnableResult = { recovery_codes: string[] };
+// Backend `TotpDisablePayload` — faqat `code` (parol SO'RALMAYDI, qarang schemas_2fa.py).
+export type TotpDisablePayload = { code: string };
+export type TotpRecoveryCodesPayload = { code: string };
+export type TotpRecoveryCodesResult = { recovery_codes: string[] };
+export type LoginTotpPayload = { challenge: string; code: string };

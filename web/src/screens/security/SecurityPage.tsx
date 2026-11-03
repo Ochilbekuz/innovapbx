@@ -7,7 +7,7 @@ import {
 } from '@/api/queries';
 import { isApiError } from '@/api/errors';
 import type {
-  CreateBanPayload, IpBan, SecurityEvent, SecurityEventKind, SecuritySettings, SecurityStats, SecurityStatsHour,
+  CreateBanPayload, IpBan, Require2faPolicy, SecurityEvent, SecurityEventKind, SecuritySettings, SecurityStats, SecurityStatsHour,
   SecurityStatsTopIp, TollBlock,
 } from '@/api/types';
 import { usePermission } from '@/auth/permissions';
@@ -369,7 +369,7 @@ function SettingsForm({
 }: {
   settings: SecuritySettings;
   canManage: boolean;
-  onSubmit: (payload: { sip_guard: SecuritySettings['sip_guard']; toll_fraud: SecuritySettings['toll_fraud'] }) => void;
+  onSubmit: (payload: { sip_guard: SecuritySettings['sip_guard']; toll_fraud: SecuritySettings['toll_fraud']; require_2fa: Require2faPolicy }) => void;
   pending: boolean;
   errorField?: string;
   errorMessage?: string;
@@ -387,6 +387,8 @@ function SettingsForm({
   const [maxConcurrent, setMaxConcurrent] = useState(String(settings.toll_fraud.max_concurrent_outbound));
   const [extMaxPerHour, setExtMaxPerHour] = useState(String(settings.toll_fraud.ext_max_per_hour));
   const [extIntlPerDay, setExtIntlPerDay] = useState(String(settings.toll_fraud.ext_international_per_day));
+  // M10 C B2 — kim uchun 2FA majburiy (admin/hamma kirishda `must_enroll_2fa` orqali Enroll2faPage'ga yo'naltiriladi).
+  const [require2fa, setRequire2fa] = useState<Require2faPolicy>(settings.require_2fa);
 
   const valid = [maxFailures, windowS, banS, maxConcurrent, extMaxPerHour, extIntlPerDay].every((v) => /^\d+$/.test(v.trim()));
 
@@ -401,6 +403,7 @@ function SettingsForm({
         enabled: tollEnabled, max_concurrent_outbound: Number(maxConcurrent), ext_max_per_hour: Number(extMaxPerHour),
         ext_international_per_day: Number(extIntlPerDay),
       },
+      require_2fa: require2fa,
     });
   };
 
@@ -457,6 +460,24 @@ function SettingsForm({
               {(a) => <Input {...a} mono inputMode="numeric" disabled={!canManage} value={extIntlPerDay} onChange={(e) => setExtIntlPerDay(e.target.value)} />}
             </Field>
           </div>
+        </div>
+      </section>
+
+      <section className="rounded-lg border border-line bg-surface p-4 shadow-card">
+        <h3 className="mb-3 font-display text-base font-semibold">{t('settings.require2fa.title')}</h3>
+        <div className="max-w-xs">
+          <Field label={t('settings.require2fa.label')} hint={t('settings.require2fa.hint')}>
+            {({ id }) => (
+              <Select
+                id={id} disabled={!canManage} value={require2fa} onValueChange={(v) => setRequire2fa(v as Require2faPolicy)}
+                options={[
+                  { value: 'off', label: t('settings.require2fa.off') },
+                  { value: 'admins', label: t('settings.require2fa.admins') },
+                  { value: 'all', label: t('settings.require2fa.all') },
+                ]}
+              />
+            )}
+          </Field>
         </div>
       </section>
 

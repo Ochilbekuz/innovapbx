@@ -52,7 +52,7 @@ def _settings_out(row: SystemSettings) -> SecuritySettingsOut:
     return SecuritySettingsOut(
         sip_guard=_sip_guard_out(parse_sip_guard(row.sip_guard)),
         toll_fraud=_toll_fraud_out(parse_toll_fraud(row.toll_fraud)),
-        updated_at=row.updated_at,
+        require_2fa=row.require_2fa, updated_at=row.updated_at,
     )
 
 
@@ -116,6 +116,9 @@ async def update_security_settings(
             row.toll_fraud = {**row.toll_fraud, **changes}
             diff["toll_fraud"] = changes
             recompile = "max_concurrent_outbound" in changes
+    if payload.require_2fa is not None and payload.require_2fa != row.require_2fa:
+        row.require_2fa = payload.require_2fa
+        diff["require_2fa"] = payload.require_2fa
 
     await session.flush()
     await session.refresh(row)  # updated_at — DB triggeri yangilaydi (extensions.py bilan BIR XIL qolip)

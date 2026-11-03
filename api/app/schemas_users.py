@@ -33,6 +33,8 @@ class ManagedUserOut(BaseModel):
     must_change_password: bool
     last_login_at: datetime | None
     updated_at: datetime
+    # M10 B2: admin ro'yxatida 2FA holati ko'rsatiladi (yoqilganmi); sir maydon YO'Q.
+    totp_enabled: bool = False
 
 
 class CreateUserPayload(BaseModel):

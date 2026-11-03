@@ -51,6 +51,7 @@ async function createAndLoginAsFreshUser(username: string) {
     role: 'operator', extension_id: null, language: 'uz', email: null,
   });
   const res = await client.login(username, 'Boshlangich12!');
+  if (res.status !== 'ok') throw new Error('2FA kutilmagan edi');
   expect(res.user.must_change_password).toBe(true);
   useSession.setState({ access: res.access, refresh: res.refresh, user: res.user });
 }

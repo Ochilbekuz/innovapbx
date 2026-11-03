@@ -10,6 +10,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.internal import router as internal_router
+from app.api.internal_callback import router as internal_callback_router
 from app.api.internal_campaigns import router as internal_campaigns_router
 from app.api.internal_cidlookup import router as internal_cidlookup_router
 from app.api.internal_conference import router as internal_conference_router
@@ -20,6 +21,8 @@ from app.api.internal_voicemail import router as internal_voicemail_router
 from app.api.prov import router as prov_router
 from app.api.public import router as public_router
 from app.api.public_crm import router as public_crm_router
+from app.api.public_events_ws import router as public_events_ws_router
+from app.api.public_widget import router as public_widget_router
 from app.api.v1.router import router as v1_router
 from app.core.config import settings
 from app.core.errors import register_exception_handlers
@@ -137,6 +140,15 @@ def _m3b_jobs() -> list:
     if settings.campaign_dialer_enabled:  # M6 §3: kampaniya avtoterish
         from app.services.campaign_dialer import run_forever as campaign_dialer_run_forever
         jobs.append(campaign_dialer_run_forever(SessionLocal, get_ami(), settings.campaign_dialer_interval_s))
+    if settings.events_ws_broadcast_enabled:  # M10 B3: tashqi WS hodisalar tarqatuvchisi
+        from app.services.events_ws_broadcast import run_forever as events_ws_run_forever
+        jobs.append(events_ws_run_forever(SessionLocal, settings.events_ws_broadcast_interval_s))
+    if settings.callback_dialer_enabled:  # M10 A1: qayta chaqirish vidjeti avtoterish
+        from app.services.callback_dialer import run_forever as callback_dialer_run_forever
+        jobs.append(callback_dialer_run_forever(SessionLocal, get_ami(), settings.callback_dialer_interval_s))
+    if settings.missed_notify_enabled:  # M10 A2: o'tkazib yuborilgan qo'ng'iroq bildirishnomasi
+        from app.services.missed_call_notify import run_forever as missed_notify_run_forever
+        jobs.append(missed_notify_run_forever(SessionLocal, settings.missed_notify_interval_s))
     return jobs
 
 
@@ -161,8 +173,11 @@ app.include_router(internal_softphone_router)
 app.include_router(internal_campaigns_router)
 app.include_router(internal_pinset_router)
 app.include_router(internal_cidlookup_router)
+app.include_router(internal_callback_router)
 app.include_router(public_router)
 app.include_router(public_crm_router)
+app.include_router(public_events_ws_router)
+app.include_router(public_widget_router)
 app.include_router(prov_router)
 
 

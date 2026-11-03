@@ -1,9 +1,9 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
-import { Pencil, Plus, Trash2 } from 'lucide-react';
+import { Pencil, Plus, ShieldOff, Trash2 } from 'lucide-react';
 import {
-  useCreateRole, useCreateUser, useDeleteRole, useDeleteUser, useExtensions, useRoles, useUpdateRole,
+  useCreateRole, useCreateUser, useDeleteRole, useDeleteUser, useExtensions, useResetUserTotp, useRoles, useUpdateRole,
   useUpdateUser, useUsers,
 } from '@/api/queries';
 import { isApiError, apiErrorMessage } from '@/api/errors';
@@ -61,10 +61,13 @@ function UsersTab({ canManage }: { canManage: boolean }) {
   const [createOpen, setCreateOpen] = useState(false);
   const [editing, setEditing] = useState<ManagedUser | null>(null);
   const [deleting, setDeleting] = useState<ManagedUser | null>(null);
+  // M10 C B2 — admin foydalanuvchining 2FA'sini tiklaydi (qurilma yo'qolganda, kod kiritmasdan).
+  const [resettingTotp, setResettingTotp] = useState<ManagedUser | null>(null);
 
   const createM = useCreateUser();
   const updateM = useUpdateUser();
   const deleteM = useDeleteUser();
+  const resetTotpM = useResetUserTotp();
 
   const closeCreate = () => { setCreateOpen(false); createM.reset(); };
   const closeEdit = () => { setEditing(null); updateM.reset(); };
@@ -79,9 +82,13 @@ function UsersTab({ canManage }: { canManage: boolean }) {
     { key: 'extension', header: t('column.extension'), cell: (r) => <span className="num text-sm text-muted">{r.extension ? `${r.extension.number} — ${r.extension.name}` : '—'}</span> },
     { key: 'status', header: t('column.status'), cell: (r) => <Badge tone={r.is_active ? 'success' : 'neutral'}>{t(r.is_active ? 'status.active' : 'status.inactive')}</Badge> },
     { key: 'last_login_at', header: t('column.lastLogin'), sortValue: (r) => r.last_login_at ?? '', cell: (r) => <span className="num text-sm text-muted">{r.last_login_at ? formatDateTimeShort(r.last_login_at) : t('neverLoggedIn')}</span> },
+    { key: 'totp', header: t('column.totp'), cell: (r) => <Badge tone={r.totp_enabled ? 'success' : 'neutral'}>{t(r.totp_enabled ? 'totp.enabled' : 'totp.disabled')}</Badge> },
     {
       key: 'actions', header: '', align: 'right', cell: (r) => (
         <div className="flex justify-end gap-1">
+          {r.totp_enabled && (
+            <Button size="sm" variant="ghost" iconOnly icon={<ShieldOff />} aria-label={t('totp.resetAriaLabel', { name: r.username })} disabled={!canManage} onClick={() => setResettingTotp(r)} />
+          )}
           <Button size="sm" variant="ghost" iconOnly icon={<Pencil />} aria-label={t('editAriaLabel', { name: r.username })} disabled={!canManage} onClick={() => setEditing(r)} />
           <Button size="sm" variant="danger-ghost" iconOnly icon={<Trash2 />} aria-label={t('deleteAriaLabel', { name: r.username })} disabled={!canManage || r.id === myId} onClick={() => setDeleting(r)} />
         </div>
@@ -157,6 +164,27 @@ function UsersTab({ canManage }: { canManage: boolean }) {
               })}
             >
               {t('delete')}
+            </Button>
+          </>
+        }
+      />
+
+      <Modal
+        open={!!resettingTotp}
+        onOpenChange={(v) => !v && setResettingTotp(null)}
+        title={resettingTotp ? t('totp.resetModalTitle', { name: resettingTotp.username }) : ''}
+        description={resettingTotp ? t('totp.resetModalBody', { name: resettingTotp.username }) : ''}
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => setResettingTotp(null)}>{t('cancel')}</Button>
+            <Button
+              variant="danger" loading={resetTotpM.isPending}
+              onClick={() => resettingTotp && resetTotpM.mutate(resettingTotp.id, {
+                onSuccess: () => { toast({ kind: 'success', title: t('totp.resetToast', { name: resettingTotp.username }) }); setResettingTotp(null); },
+                onError: (e) => { toast({ kind: 'error', title: t('toast.deleteFailed'), description: apiErrorMessage(e) }); setResettingTotp(null); },
+              })}
+            >
+              {t('totp.resetAction')}
             </Button>
           </>
         }

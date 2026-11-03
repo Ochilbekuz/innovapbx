@@ -111,9 +111,17 @@ _PREFIX_REGION: tuple[tuple[str, str], ...] = (
     ("/page-groups", "apps"),
     ("/blacklist", "apps"),
     ("/campaigns", "apps"),
+    # M10 A1: qayta chaqirish vidjeti — chiquvchi/kiruvchi marshrutlar bilan bir hudud.
+    ("/callback-widgets", "connect"),
+    ("/callback-requests", "connect"),
+    # M10 A2: o'tkazib yuborilgan qo'ng'iroq bildirishnomasi — boshqa ilovalar kabi `apps`.
+    ("/missed-call-rules", "apps"),
+    ("/missed-call-notices", "apps"),
     ("/calls", "reports"),
     ("/reports", "reports"),
     ("/recordings", "reports"),
+    # M10 B1: sifat baholash varaqalari/baholashlari — `reports` (edit=baholash).
+    ("/qa", "reports"),
 )
 
 

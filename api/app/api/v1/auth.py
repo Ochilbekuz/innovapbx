@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import hmac
+import secrets
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -12,7 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import get_current_user, get_session
 from app.core.config import settings
 from app.core.errors import ApiError
-from app.core.permissions import permissions_for
+from app.core.permissions import ALL, has_permission, permissions_for
 from app.core.security import (
     create_access_token,
     create_refresh_token,
@@ -22,7 +23,7 @@ from app.core.security import (
     validate_password,
     verify_password,
 )
-from app.db.models import AudioFile, ParkingSettings, RefreshToken, Role, SystemSettings, Tenant, User
+from app.db.models import AudioFile, ParkingSettings, RefreshToken, Role, SystemSettings, Tenant, TotpChallenge, User
 from app.schemas import (
     AuthResult,
     ExtensionRef,
@@ -34,22 +35,37 @@ from app.schemas import (
     UpdateMePayload,
     UserOut,
 )
+from app.schemas_2fa import LoginTotpPayload
 from app.schemas_users import ChangePasswordPayload
 from app.services.audio_tools import synth_tone_wav
 from app.services.audit import record_audit
 from app.services.setup_guard import guard as setup_code_guard
 from app.services.sip_transport import BOOT_DEFAULT, current_sip_config, needs_restart, write_sip_files
 from app.services.tokens import revoke_refresh_tokens
+from app.services.totp_auth import verify_user_code
+from app.services.totp_policy import must_enroll, requires_totp_challenge
 
 router = APIRouter(tags=["auth"])
 
+_TOTP_CHALLENGE_TTL = timedelta(minutes=5)
+_TOTP_MAX_ATTEMPTS = 5
+_INVALID_CODE = ApiError(401, "invalid_code", "Kod noto'g'ri yoki muddati o'tgan")
 
-def _user_out(user: User) -> UserOut:
+
+async def _must_enroll_2fa(session: AsyncSession, user: User) -> bool:
+    row = await session.get(SystemSettings, user.tenant_id)
+    policy = row.require_2fa if row is not None else "off"
+    is_admin = has_permission(user.role.permissions, ALL)
+    return must_enroll(policy, is_admin=is_admin, totp_enabled=user.totp_enabled_at is not None)
+
+
+def _user_out(user: User, *, must_enroll_2fa: bool = False) -> UserOut:
     return UserOut(
         id=str(user.id), login=user.username, full_name=user.full_name,
         role=user.role.name, permissions=list(user.role.permissions), language=user.language or user.tenant.language,
         must_change_password=user.must_change_password,
         extension=ExtensionRef(id=str(ext.id), number=ext.number, name=ext.name) if (ext := user.extension) else None,
+        totp_enabled=user.totp_enabled_at is not None, must_enroll_2fa=must_enroll_2fa,
     )
 
 
@@ -156,6 +172,24 @@ async def setup(payload: SetupPayload, request: Request, session: AsyncSession =
     return AuthResult(access=tokens.access, refresh=tokens.refresh, user=_user_out(user))
 
 
+async def _finalize_login(session: AsyncSession, user: User, ip: str | None) -> AuthResult:
+    """Login ikkinchi (TOTP) bosqichidan O'TGANDAN KEYIN YOKI 2FA umuman
+    talab qilinmasa — tokenlarni chiqarish/audit/parol-urinish hisoblagichini
+    tozalash BIR XIL (login() va /auth/login/totp ikkisi ham shu yerga
+    keladi, ub-mode DRY)."""
+    user.failed_logins = 0
+    user.locked_until = None
+    user.last_login_at = datetime.now(timezone.utc)
+    tokens = await _issue_tokens(session, user)
+    await record_audit(
+        session, tenant_id=str(user.tenant_id), user_id=str(user.id),
+        action="login", entity="auth", entity_id=str(user.id), diff={}, ip=ip,
+    )
+    await session.commit()
+    must_enroll_2fa = await _must_enroll_2fa(session, user)
+    return AuthResult(access=tokens.access, refresh=tokens.refresh, user=_user_out(user, must_enroll_2fa=must_enroll_2fa))
+
+
 async def _find_user_by_login(session: AsyncSession, login: str) -> User | None:
     res = await session.execute(select(User).where(User.username == login))
     return res.scalar_one_or_none()
@@ -220,16 +254,58 @@ async def login(
         await session.commit()
         raise ApiError(401, "bad_credentials", "Login yoki parol xato")
 
-    user.failed_logins = 0
-    user.locked_until = None
-    user.last_login_at = datetime.now(timezone.utc)
-    tokens = await _issue_tokens(session, user)
-    await record_audit(
-        session, tenant_id=str(user.tenant_id), user_id=str(user.id),
-        action="login", entity="auth", entity_id=str(user.id), diff={}, ip=ip,
-    )
+    if requires_totp_challenge(totp_enabled=user.totp_enabled_at is not None):
+        # M10 B2: parol to'g'ri, lekin foydalanuvchi 2FA yoqgan — hali hech
+        # qanday token berilmaydi va urinish hisoblagichi TOZALANMAYDI (to'liq
+        # 2 bosqich muvaffaqiyatli bo'lgandan keyin `_finalize_login`da).
+        token = secrets.token_urlsafe(32)
+        session.add(TotpChallenge(
+            user_id=user.id, token_hash=hash_token(token),
+            expires_at=datetime.now(timezone.utc) + _TOTP_CHALLENGE_TTL,
+        ))
+        await session.commit()
+        return AuthResult(status="totp_required", challenge=token)
+
+    return await _finalize_login(session, user, ip)
+
+
+@router.post("/auth/login/totp", response_model=AuthResult)
+async def login_totp(
+    payload: LoginTotpPayload, request: Request, session: AsyncSession = Depends(get_session),
+) -> AuthResult:
+    """M10 B2 — login ikkinchi bosqichi: TOTP kod YOKI bir martalik tiklash
+    kodi. `challenge` — `/auth/login`dan olingan bir martalik token (5 daqiqa,
+    5 ta noto'g'ri urinishdan keyin bekor qilinadi — login butunlay qaytadan
+    boshlanishi kerak)."""
+    ip = _client_ip(request)
+    token_hash = hash_token(payload.challenge)
+    res = await session.execute(select(TotpChallenge).where(TotpChallenge.token_hash == token_hash))
+    challenge = res.scalar_one_or_none()
+    now = datetime.now(timezone.utc)
+    if challenge is None or challenge.expires_at < now:
+        raise _INVALID_CODE
+
+    user = await session.get(User, challenge.user_id)
+    if user is None or not user.is_active:
+        await session.delete(challenge)
+        await session.commit()
+        raise _INVALID_CODE
+
+    if _is_locked(user):
+        raise ApiError(423, "locked", "Hisob vaqtincha bloklangan — keyinroq urining")
+
+    if await verify_user_code(session, user, payload.code, now=int(now.timestamp())):
+        await session.delete(challenge)
+        return await _finalize_login(session, user, ip)
+
+    # Noto'g'ri kod = muvaffaqiyatsiz login: aks holda parolni bilgan hujumchi
+    # har safar yangi challenge olib TOTP'ni cheksiz terib ko'ra oladi.
+    await _register_failed_login(session, user)
+    challenge.attempts += 1
+    if challenge.attempts >= _TOTP_MAX_ATTEMPTS:
+        await session.delete(challenge)
     await session.commit()
-    return AuthResult(access=tokens.access, refresh=tokens.refresh, user=_user_out(user))
+    raise _INVALID_CODE
 
 
 @router.post("/auth/refresh", response_model=TokenPair)
@@ -268,8 +344,9 @@ async def logout(payload: RefreshPayload, session: AsyncSession = Depends(get_se
 
 
 @router.get("/auth/me", response_model=UserOut)
-async def me(user: User = Depends(get_current_user)) -> UserOut:
-    return _user_out(user)
+async def me(user: User = Depends(get_current_user),
+            session: AsyncSession = Depends(get_session)) -> UserOut:
+    return _user_out(user, must_enroll_2fa=await _must_enroll_2fa(session, user))
 
 
 @router.patch("/auth/me", response_model=UserOut)
@@ -278,7 +355,7 @@ async def update_me(payload: UpdateMePayload, user: User = Depends(get_current_u
     """Foydalanuvchi faqat o'z interfeys tilini o'zgartiradi (M1c §4)."""
     user.language = payload.language
     await session.commit()
-    return _user_out(user)
+    return _user_out(user, must_enroll_2fa=await _must_enroll_2fa(session, user))
 
 
 @router.post("/auth/change-password", response_model=TokenPair)

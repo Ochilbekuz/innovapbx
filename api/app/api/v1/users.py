@@ -19,6 +19,7 @@ from app.core.optimistic import check_not_stale
 from app.core.security import hash_password, validate_password
 from app.db.models import Extension, Role, User
 from app.schemas import ExtensionRef
+from app.schemas_2fa import Totp2faResetOut
 from app.schemas_users import CreateUserPayload, ManagedUserOut, UpdateUserPayload, UserMutated
 from app.services.audit import record_audit
 from app.services.tokens import revoke_refresh_tokens
@@ -33,7 +34,7 @@ def _user_out(user: User) -> ManagedUserOut:
         role=user.role.name, extension=ExtensionRef(id=str(ext.id), number=ext.number, name=ext.name) if ext else None,
         is_active=user.is_active, language=user.language or user.tenant.language,
         must_change_password=user.must_change_password, last_login_at=user.last_login_at,
-        updated_at=user.updated_at,
+        updated_at=user.updated_at, totp_enabled=user.totp_enabled_at is not None,
     )
 
 
@@ -267,3 +268,23 @@ async def delete_user(
     await record_audit(session, tenant_id=tenant_id, user_id=str(user.id), action="user.delete",
                         entity="user", entity_id=str(user_id), diff={"username": username})
     await session.commit()
+
+
+@router.post("/{user_id}/2fa/reset", response_model=Totp2faResetOut)
+async def reset_user_2fa(
+    user_id: str, session: AsyncSession = Depends(get_session), user: User = Depends(require_access),
+) -> Totp2faResetOut:
+    """M10 B2 — qurilma yo'qolgan/buzilgan hollarda admin foydalanuvchining
+    2FA'sini TO'LIQ o'chiradi (kodsiz — admin allaqachon tasdiqlangan);
+    `require_2fa` siyosati 'admins'/'all' bo'lsa foydalanuvchi keyingi
+    kirishda qaytadan ro'yxatdan o'tishga majburlanadi (`must_enroll_2fa`)."""
+    tenant_id = str(user.tenant_id)
+    target = await _get_user_or_404(session, tenant_id, user_id)
+    target.totp_secret_enc = None
+    target.totp_enabled_at = None
+    target.totp_recovery_hashes = []
+    target.totp_last_step = None
+    await record_audit(session, tenant_id=tenant_id, user_id=str(user.id), action="user.update",
+                        entity="user", entity_id=str(target.id), diff={"totp_reset": True})
+    await session.commit()
+    return Totp2faResetOut()

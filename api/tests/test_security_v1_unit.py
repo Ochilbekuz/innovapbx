@@ -59,7 +59,7 @@ class _Session:
 
 
 def _settings_row(**kw):
-    base = dict(tenant_id="t1", sip_guard={}, toll_fraud={}, updated_at=OLD)
+    base = dict(tenant_id="t1", sip_guard={}, toll_fraud={}, require_2fa="off", updated_at=OLD)
     base.update(kw)
     return SimpleNamespace(**base)
 

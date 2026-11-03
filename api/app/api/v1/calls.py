@@ -17,8 +17,10 @@ from app.core.errors import ApiError
 from app.core.permissions import ALL, CALLS_READ_OWN, has_permission, has_region_access
 from app.db.models import Cdr, Extension, User
 from app.schemas import CallDirection, CallOut
+from app.schemas_qa import QaEvaluationsOut
 from app.services.cdr_grouping import calls_from_rows, trunk_names
 from app.services.cdr_search import EXPORT_LIMIT, CallSearch, build_search, calls_csv, filter_calls
+from app.services.qa import attach_qa, evaluations_for_call
 from app.services.recordings import attach_recordings
 
 router = APIRouter(prefix="/calls", tags=["calls"])
@@ -70,9 +72,11 @@ def _paginate(calls: list[CallOut], page: int, size: int) -> dict:
 
 async def paginate_with_recordings(session: AsyncSession, tenant_id: str, calls: list[CallOut],
                                    page: int, size: int) -> dict:
-    """M3b §1 — faqat sahifadagi qo'ng'iroqlarga yozuvlar (bitta so'rov)."""
+    """M3b §1 — faqat sahifadagi qo'ng'iroqlarga yozuvlar (bitta so'rov).
+    M10 B1 — `qa` belgisi ham shu yerda (sahifadagi qo'ng'iroqlarga, N+1 yo'q)."""
     result = _paginate(calls, page, size)
     await attach_recordings(session, tenant_id, result["items"])
+    await attach_qa(session, tenant_id, result["items"])
     return result
 
 
@@ -130,6 +134,29 @@ async def export_calls_csv(
     await attach_recordings(session, str(user.tenant_id), calls)
     return Response(calls_csv(calls), media_type="text/csv; charset=utf-8",
                     headers={"Content-Disposition": 'attachment; filename="calls.csv"'})
+
+
+@router.get("/{linkedid}/evaluations", response_model=QaEvaluationsOut)
+async def call_evaluations(
+    linkedid: str, session: AsyncSession = Depends(get_session), user: User = Depends(get_current_user),
+) -> QaEvaluationsOut:
+    """M10 B1 — bitta qo'ng'iroqning barcha baholashlari (eng yangisi birinchi).
+    Ruxsat `/calls` bilan BIR XIL (`_require_calls_permission`) — o'z
+    qo'ng'iroqlarini ko'ra oladigan operator shu qo'ng'iroq uchun baholashni
+    ham ko'radi (baholovchi ismi ko'rsatilmaydi — faqat varaqa/ball)."""
+    _require_calls_permission(user)
+    rows = await evaluations_for_call(session, str(user.tenant_id), linkedid)
+    items = [
+        {
+            "id": str(r.id), "checklist_id": str(r.checklist_id), "checklist_name": r.checklist.name,
+            "call_id": r.call_id, "extension_id": str(r.extension_id) if r.extension_id else None,
+            "evaluator_id": str(r.evaluator_id) if r.evaluator_id else None, "evaluator_name": None,
+            "answers": r.answers, "comment": r.comment, "score_pct": r.score_pct,
+            "created_at": r.created_at, "updated_at": r.updated_at,
+        }
+        for r in rows
+    ]
+    return QaEvaluationsOut(items=items, total=len(items))
 
 
 async def _tenant_code(session: AsyncSession, user: User) -> str:

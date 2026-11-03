@@ -12,6 +12,8 @@ from app.api.v1 import (
     backups,
     blacklist,
     calls,
+    callback_requests,
+    callback_widgets,
     campaigns,
     cidsources,
     conferences,
@@ -30,6 +32,7 @@ from app.api.v1 import (
     me,
     migration,
     migration_ssh,
+    missed_call_rules,
     misc_applications,
     misc_destinations,
     moh_classes,
@@ -42,6 +45,7 @@ from app.api.v1 import (
     parking,
     phonebook,
     pinsets,
+    qa,
     queues,
     recordings,
     reports,
@@ -60,6 +64,7 @@ from app.api.v1 import (
     time_conditions,
     time_groups,
     trunks,
+    tts_settings,
     users,
     voicemail_boxes,
 )
@@ -123,3 +128,8 @@ router.include_router(announcements.router)
 router.include_router(misc_destinations.router)
 router.include_router(misc_applications.router)
 router.include_router(page_groups.router)
+router.include_router(qa.router)  # M10 B1 — sifat baholash
+router.include_router(callback_widgets.router)  # M10 A1 — qayta chaqirish vidjeti
+router.include_router(callback_requests.router)
+router.include_router(missed_call_rules.router)  # M10 A2 — o'tkazib yuborilgan qo'ng'iroq
+router.include_router(tts_settings.router)  # M10 A3 — Yandex SpeechKit TTS

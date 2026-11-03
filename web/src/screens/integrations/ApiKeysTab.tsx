@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { KeyRound, Plus } from 'lucide-react';
+import { Copy, KeyRound, Plus } from 'lucide-react';
 import { useApiKeys, useCreateApiKey, useRevokeApiKey } from '@/api/queries';
 import { API_KEY_SCOPES, type ApiKey, type ApiKeyScope } from '@/api/types';
+import { copyText } from '@/lib/browser';
 import { formatDateTimeShort } from '@/lib/time';
 import { Button } from '@/ui/Button';
 import { Modal } from '@/ui/Dialog';
@@ -13,9 +14,41 @@ import { Checkbox } from '@/ui/Toggle';
 import { useToast } from '@/ui/Toast';
 import { SecretOnceModal, useMutationError } from './shared';
 
+// M10 C B3 — tashqi WebSocket hodisalar oqimi uchun ulanish namunasi (`events:read` ruxsatli kalit bilan).
+const WS_EXAMPLE = `const ws = new WebSocket("wss://pbx.korxona.uz/api/public/v1/events/ws");
+ws.onopen = () => ws.send(JSON.stringify({ type: "auth", token: "ipk_..." }));
+ws.onmessage = (e) => {
+  const msg = JSON.parse(e.data);
+  if (msg.type === "ready") ws.send(JSON.stringify({ type: "subscribe", events: ["*"] }));
+  if (msg.type === "event") console.log(msg.event, msg.data);
+  if (msg.type === "ping") ws.send(JSON.stringify({ type: "pong" }));
+};`;
+
+function WsExampleSection() {
+  const { t } = useTranslation('integrations');
+  const toast = useToast();
+  return (
+    <section className="mt-5 flex flex-col gap-2 rounded-lg border border-line bg-surface p-4">
+      <h3 className="font-display text-base font-semibold">{t('apiKeys.ws.title')}</h3>
+      <p className="max-w-2xl text-sm text-muted">{t('apiKeys.ws.desc')}</p>
+      <pre className="num overflow-x-auto rounded-md bg-surface-2/60 p-2.5 text-xs text-fg">{WS_EXAMPLE}</pre>
+      <div>
+        <Button
+          size="sm" variant="secondary" icon={<Copy />}
+          onClick={() => { void copyText(WS_EXAMPLE); toast({ kind: 'success', title: t('apiKeys.ws.copied') }); }}
+        >
+          {t('apiKeys.ws.copy')}
+        </Button>
+      </div>
+    </section>
+  );
+}
+
 // Qo'shtirnoqli i18next `nsSeparator` (':') xavf tug'diradi — xomashyo scope qiymatini kalit yo'liga qo'ymaymiz.
 const SCOPE_KEY: Record<ApiKeyScope, string> = {
   'calls:read': 'callsRead', 'recordings:read': 'recordingsRead', 'calls:originate': 'callsOriginate', 'extensions:read': 'extensionsRead',
+  // M10 C B3 — tashqi WebSocket hodisalar oqimi uchun ruxsat.
+  'events:read': 'eventsRead',
 };
 
 function scopeLabel(t: (k: string) => string, scope: ApiKeyScope): string {
@@ -90,6 +123,7 @@ export function ApiKeysTab({ canManage }: { canManage: boolean }) {
         secretTestId="apikey-secret"
         onClose={() => setCreated(null)}
       />
+      <WsExampleSection />
     </section>
   );
 }

@@ -47,6 +47,8 @@ import { parsePattern } from '../domain/pattern';
 import { simulateOutbound, type SimRoute } from '../domain/outbound';
 import { unifiedDiff } from '../domain/diff';
 import { buildNetworkDiff, buildNetworkWarnings, validateNetworkConfig } from '../domain/network';
+import { computeScorePct, type QaCriterionLike } from '../domain/qaScore';
+import { generateRecoveryCodes, generateTotpSecret, otpauthUri, verifyTotp } from '../domain/totp';
 import { jobStep, validatedLocalTarget, validatedS3Target, validatedSftpTarget } from './fakeBackup';
 import {
   FREEPBX_FIXTURE_IGNORED, FREEPBX_FIXTURE_WARNINGS, SSH_HOST_KEY_FINGERPRINT, cloneFixturePlan,
@@ -121,6 +123,17 @@ import type {
   MiscApplication, MiscDestination, PageGroup, ParkingCall, ParkingSettings, PhonebookNumber, PinSet, PinSetPin,
   UpdateAnnouncementPayload, UpdateCidSourcePayload, UpdateContactPayload, UpdateMiscApplicationPayload,
   UpdateMiscDestinationPayload, UpdatePageGroupPayload, UpdateParkingSettingsPayload, UpdatePinSetPayload,
+  // M10 C — qarang ../../replica/m10-onlinepbx-contract.md (Bo'lak C)
+  CallbackWidget, CreateCallbackWidgetPayload, UpdateCallbackWidgetPayload, WidgetAppearance,
+  CallbackRequest, ListCallbackRequestsParams,
+  MissedCallRule, CreateMissedCallRulePayload, UpdateMissedCallRulePayload, TestMissedCallRuleResult, MissedCallRuleMutated,
+  MissedCallNotice, ListMissedCallNoticesParams,
+  TtsSettings, UpdateTtsSettingsPayload, TtsTestResult, CreateTtsAudioPayload, TtsPreviewPayload, TtsSettingsMutated,
+  QaChecklist, QaCriterion, CreateQaChecklistPayload, UpdateQaChecklistPayload,
+  QaEvaluation, CreateQaEvaluationPayload, UpdateQaEvaluationPayload, ListQaEvaluationsParams,
+  QaSummary,
+  TotpSetup, TotpEnablePayload, TotpEnableResult, TotpDisablePayload, TotpRecoveryCodesPayload,
+  TotpRecoveryCodesResult, LoginTotpPayload,
 } from './types';
 import { API_KEY_SCOPES, DEVICE_VENDORS, EXTENSIONS_CSV_COLUMNS, WEBHOOK_EVENTS, WEBRTC_CODECS } from './types';
 
@@ -145,6 +158,13 @@ function randomId(prefix: string) {
 
 function randomSecret() {
   return Math.random().toString(36).slice(2, 10) + Math.random().toString(36).slice(2, 6).toUpperCase();
+}
+
+/** M10 C — `fakeSeed.ts`dagi xususiy `callAt`ning nusxasi (demo vaqt belgilari uchun, shu fayl ichida qoʻshilgan seedlarga). */
+function callAt(hoursAgo: number): string {
+  const d = new Date('2026-10-27T09:00:00Z');
+  d.setHours(d.getHours() - hoursAgo);
+  return d.toISOString();
 }
 
 /**
@@ -450,6 +470,134 @@ export function createFakeClient(): ApiClient {
   let contacts = seedContacts();
   let cidSources = seedCidSources();
 
+  // ─────────────────────── M10 C — qarang ../../replica/m10-onlinepbx-contract.md (Bo'lak C) ───────────────────────
+  let callbackWidgets: CallbackWidget[] = [{
+    id: 'cbw-1', name: 'Sayt — qayta chaqirish', public_key: 'pk-demo-24chars-url-safe01',
+    target: toExtensionTarget(extensions[1] ?? extensions[0]!),
+    allowed_origins: ['https://example.uz'], time_group_id: null, time_group_name: null,
+    offhours_mode: 'schedule', max_attempts: 2, retry_interval_s: 120, callerid_prefix: null, allow_international: false,
+    appearance: {
+      color: '#2563eb', position: 'right',
+      title: { uz: 'Sizga qayta qoʻngʻiroq qilaylik', ru: 'Мы вам перезвоним', en: 'We will call you back' },
+      button: { uz: 'Qayta chaqirish', ru: 'Обратный звонок', en: 'Request a callback' },
+      success: { uz: 'Soʻrovingiz qabul qilindi', ru: 'Заявка принята', en: 'Request received' },
+    },
+    enabled: true, embed_snippet: '<script async src="https://pbx.example.uz/widget/pk-demo-24chars-url-safe01.js"></script>',
+    updated_at: '2026-10-27T05:00:00Z',
+  }];
+  let callbackRequests: CallbackRequest[] = [
+    { id: 'cbr-1', widget_id: 'cbw-1', widget_name: callbackWidgets[0]!.name, phone: '998901112233', name: 'Nodira', page_url: 'https://example.uz/contacts', status: 'connected', attempts: 1, next_attempt_at: null, linkedid: null, last_error: null, created_at: callAt(3), updated_at: callAt(3) },
+    { id: 'cbr-2', widget_id: 'cbw-1', widget_name: callbackWidgets[0]!.name, phone: '998909998877', name: null, page_url: 'https://example.uz/', status: 'failed', attempts: 2, next_attempt_at: null, linkedid: null, last_error: 'no_answer', created_at: callAt(10), updated_at: callAt(10) },
+  ];
+
+  let missedCallRules: MissedCallRule[] = [{
+    id: 'mcr-1', name: 'Barcha javobsizlar — telegram', scope_kind: 'any', scope_value: null,
+    telegram_chat_ids: ['-100123456789'], emails: [], include_internal: false, enabled: true, updated_at: '2026-10-27T05:00:00Z',
+  }];
+  let missedCallNotices: MissedCallNotice[] = [
+    { id: 'mcn-1', rule_id: 'mcr-1', rule_name: missedCallRules[0]!.name, call_id: calls[1]?.uniqueid ?? 'x', status: 'sent', attempts: 1, last_error: null, created_at: callAt(5), sent_at: callAt(5) },
+  ];
+
+  let ttsSettingsCore: TtsSettings = { provider: 'none', has_api_key: false, folder_id: null, voices: { uz: 'nigora', ru: 'alena', en: 'john' }, updated_at: null };
+  let ttsApiKey: string | null = null;
+
+  let qaChecklists: QaChecklist[] = [{
+    id: 'qac-1', name: 'Standart savdo chek-listi', is_active: true,
+    criteria: [
+      { id: 'qc-1', position: 0, label: 'Operator o‘zini tanishtirdi', weight: 2, kind: 'yesno', critical: true },
+      { id: 'qc-2', position: 1, label: 'Mijoz muammosini to‘g‘ri tushundi', weight: 3, kind: 'scale5', critical: false },
+      { id: 'qc-3', position: 2, label: 'Suhbat ohangi xushmuomalalik bilan', weight: 2, kind: 'scale5', critical: false },
+    ],
+    updated_at: '2026-10-27T05:00:00Z',
+  }];
+  let qaEvaluations: QaEvaluation[] = [];
+
+  // Backend `CallQaBadge` — eng oxirgi (created_at bo'yicha) baholash belgisi.
+  function qaOf(uniqueid: string): Call['qa'] {
+    const ev = [...qaEvaluations].filter((e) => e.call_id === uniqueid).sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at))[0];
+    return ev ? { evaluation_id: ev.id, checklist_name: ev.checklist_name, score_pct: ev.score_pct } : null;
+  }
+
+  // Backend (`api/callback_widgets.py` `_validate_target`) `resolve_target()`ni kind cheklovisiz chaqiradi —
+  // real stekka moslab, kind tekshiruvini olib tashladik (frontend qolgan 4 turga sodda ixtiyoriy tavsiya beradi, majburlamaydi).
+  function requireCallbackTarget(targetId: string): Target {
+    return requireTarget(targetId, 'target_id');
+  }
+
+  function timeGroupNameOrNull(id: string | null | undefined): string | null {
+    if (!id) return null;
+    const tg = timeGroups.find((t) => t.id === id);
+    if (!tg) err(404, 'not_found', 'Ish vaqti guruhi topilmadi.', { field: 'time_group_id' });
+    return tg.name;
+  }
+
+  function widgetEmbedSnippet(publicKey: string): string | null {
+    const base = (integrationsSettingsCore.public_base_url ?? '').replace(/\/+$/, '');
+    return base ? `<script async src="${base}/widget/${publicKey}.js"></script>` : null;
+  }
+
+  const DEFAULT_WIDGET_APPEARANCE: WidgetAppearance = {
+    color: '#2563eb', position: 'right',
+    title: { uz: 'Sizga qayta qoʻngʻiroq qilaylik', ru: 'Мы вам перезвоним', en: 'We will call you back' },
+    button: { uz: 'Qayta chaqirish', ru: 'Обратный звонок', en: 'Request a callback' },
+    success: { uz: 'Soʻrovingiz qabul qilindi', ru: 'Заявка принята', en: 'Request received' },
+  };
+
+  function mergeAppearance(base: WidgetAppearance, patch?: Partial<WidgetAppearance>): WidgetAppearance {
+    if (!patch) return base;
+    return {
+      color: patch.color ?? base.color,
+      position: patch.position ?? base.position,
+      title: { ...base.title, ...patch.title },
+      button: { ...base.button, ...patch.button },
+      success: { ...base.success, ...patch.success },
+    };
+  }
+
+  function requireCallbackWidget(id: string): CallbackWidget {
+    const w = callbackWidgets.find((x) => x.id === id);
+    if (!w) err(404, 'not_found', 'Vidjet topilmadi.');
+    return w;
+  }
+
+  function requireMissedCallRule(id: string): MissedCallRule {
+    const r = missedCallRules.find((x) => x.id === id);
+    if (!r) err(404, 'not_found', 'Qoida topilmadi.');
+    return r;
+  }
+
+  /** `extension_id` sukut — chaqiruvning javob bergan tomoni (dst agar ichki raqam boʻlsa, aks holda src). */
+  function defaultExtensionIdForCall(call: Call | undefined): string | null {
+    if (!call) return null;
+    return extensions.find((e) => e.number === call.dst)?.id ?? extensions.find((e) => e.number === call.src)?.id ?? null;
+  }
+
+  function requireQaChecklist(id: string): QaChecklist {
+    const c = qaChecklists.find((x) => x.id === id);
+    if (!c) err(404, 'not_found', 'Chek-list topilmadi.', { field: 'checklist_id' });
+    return c;
+  }
+
+  // Backend `UpdateQaChecklistPayload.criteria` berilsa TO'LIQ almashtiradi — eskilari
+  // o'chiriladi, YANGI id/position bilan qayta yaratiladi (qisman qo'shish/o'chirish yo'q).
+  function normalizeQaCriteria(raw: CreateQaChecklistPayload['criteria']): QaCriterion[] {
+    if (raw.length === 0) err(422, 'bad_criteria', 'Kamida bitta mezon kerak.', { field: 'criteria' });
+    return raw.map((c, position) => ({
+      id: randomId('qc'),
+      position,
+      label: c.label.trim(),
+      weight: c.weight ?? 1,
+      kind: c.kind,
+      critical: c.critical ?? false,
+    }));
+  }
+
+  function requireQaEvaluation(id: string): QaEvaluation {
+    const e = qaEvaluations.find((x) => x.id === id);
+    if (!e) err(404, 'not_found', 'Baho topilmadi.');
+    return e;
+  }
+
   // ─────────────────────── M5a — qarang ../../replica/m5a-contract.md ───────────────────────
   const migrationJobs = new Map<string, FakeMigrationRecord>();
   seedMigrationJobs().forEach((job) => migrationJobs.set(job.id, {
@@ -468,6 +616,27 @@ export function createFakeClient(): ApiClient {
   const attempts = new Map<string, { count: number; until: number }>();
   /** Sehrgarda yaratilgan haqiqiy admin — `setup()`dan keyin shu login/parol bilan kirish ishlashi kerak. */
   let createdAdmin: { login: string; password: string; user: User } | null = null;
+
+  // ─────────────────────── M10 C B2 — 2FA (TOTP) holati ───────────────────────
+  type TotpState = { secret: string; enabled: boolean; recoveryHashes: string[]; lastStep: number | null };
+  const totpByUser = new Map<string, TotpState>(); // faqat `enabled` bo'lgach shu yerda
+  const totpPendingSecret = new Map<string, string>(); // setup() chaqirilgan, hali enable() qilinmagan
+  const totpChallenges = new Map<string, { userId: string; attempts: number }>();
+
+  function require2fa(user: { role: Role }): boolean {
+    if (securitySettings.require_2fa === 'all') return true;
+    if (securitySettings.require_2fa === 'admins') return user.role === 'admin';
+    return false;
+  }
+
+  /** TOTP kodi yoki bir martalik tiklash kodi — muvaffaqiyatli bo'lsa `lastStep`/tiklash ro'yxatini yangilaydi. */
+  async function verifyAnyTotpCode(state: { secret: string; recoveryHashes: string[]; lastStep: number | null }, code: string): Promise<boolean> {
+    const step = await verifyTotp(state.secret, code, Date.now(), state.lastStep);
+    if (step !== null) { state.lastStep = step; return true; }
+    const idx = state.recoveryHashes.indexOf(code);
+    if (idx >= 0) { state.recoveryHashes.splice(idx, 1); return true; }
+    return false;
+  }
 
   function issueTokens(user: User): { access: string; refresh: string } {
     const access = `fake-access-${user.id}-${randomSecret()}`;
@@ -557,10 +726,13 @@ export function createFakeClient(): ApiClient {
   }
 
   function toSessionUser(mu: ManagedUser): User {
+    const totp = totpByUser.get(mu.id);
     return {
       id: mu.id, login: mu.username, full_name: mu.full_name, role: mu.role,
       permissions: permissionsForRole(mu.role), language: mu.language, must_change_password: mu.must_change_password,
       extension: mu.extension,
+      totp_enabled: !!totp?.enabled,
+      must_enroll_2fa: require2fa(mu) && !totp?.enabled,
     };
   }
 
@@ -1527,11 +1699,12 @@ export function createFakeClient(): ApiClient {
       createdAdmin = { login: payload.admin.login, password: payload.admin.password, user };
       users = [...users, {
         id: user.id, username: user.login, full_name: user.full_name, email: null, role: 'admin', extension: null,
-        is_active: true, language: payload.language, must_change_password: false, last_login_at: null, updated_at: new Date().toISOString(),
+        is_active: true, language: payload.language, must_change_password: false, totp_enabled: false,
+        last_login_at: null, updated_at: new Date().toISOString(),
       }];
       userPasswords.set(user.id, payload.admin.password);
       const tokens = issueTokens(user);
-      return { ...tokens, user };
+      return { status: 'ok', ...tokens, user };
     },
 
     async login(login: string, password: string): Promise<AuthResult> {
@@ -1550,9 +1723,34 @@ export function createFakeClient(): ApiClient {
         err(401, 'bad_credentials', 'Login yoki parol notoʻgʻri.');
       }
       attempts.delete(login);
+      // M10 B2 — 2FA yoqilgan bo'lsa tokenlar o'rniga challenge qaytadi (§B2).
+      if (totpByUser.get(match.id)?.enabled) {
+        const challenge = randomId('totpc');
+        totpChallenges.set(challenge, { userId: match.id, attempts: 0 });
+        return { status: 'totp_required', challenge };
+      }
       users = users.map((u) => (u.id === match!.id ? { ...u, last_login_at: new Date().toISOString() } : u));
       const tokens = issueTokens(match);
-      return { ...tokens, user: match };
+      return { status: 'ok', ...tokens, user: match };
+    },
+
+    async loginTotp({ challenge, code }: LoginTotpPayload): Promise<AuthResult> {
+      await delay();
+      const pending = totpChallenges.get(challenge);
+      if (!pending) err(401, 'bad_challenge', 'Tasdiqlash muddati tugagan. Qayta kiring.');
+      const mu = requireManagedUser(pending.userId);
+      const state = totpByUser.get(mu.id);
+      const ok = state && (await verifyAnyTotpCode(state, code));
+      if (!ok) {
+        pending.attempts += 1;
+        if (pending.attempts >= 5) { totpChallenges.delete(challenge); err(401, 'bad_challenge', 'Urinishlar tugadi. Qayta kiring.'); }
+        err(401, 'bad_code', 'Kod notoʻgʻri.', { field: 'code' });
+      }
+      totpChallenges.delete(challenge);
+      users = users.map((u) => (u.id === mu.id ? { ...u, last_login_at: new Date().toISOString() } : u));
+      const match = toSessionUser(mu);
+      const tokens = issueTokens(match);
+      return { status: 'ok', ...tokens, user: match };
     },
 
     async refresh(refreshToken: string) {
@@ -1864,7 +2062,9 @@ export function createFakeClient(): ApiClient {
       const { page = 1, size = 50 } = params;
       const filtered = filterCallsFor(calls, params);
       const start = (page - 1) * size;
-      return { items: filtered.slice(start, start + size), total: filtered.length };
+      // M10 B1 — `qa` maydoni alohida so'rovsiz: baholovlar xaritasidan shu yerda to'ldiriladi.
+      const pageItems = filtered.slice(start, start + size).map((c) => ({ ...c, qa: qaOf(c.uniqueid) }));
+      return { items: pageItems, total: filtered.length };
     },
 
     /** CDR CSV eksport — xuddi `listCalls` bilan bir xil filtr, sahifalashsiz (hammasi). */
@@ -3613,7 +3813,7 @@ export function createFakeClient(): ApiClient {
       const item: ManagedUser = {
         id: randomId('u'), username, full_name: payload.full_name.trim(), email: payload.email?.trim() || null,
         role: payload.role, extension: extRef, is_active: true, language: payload.language ?? 'uz',
-        must_change_password: true, last_login_at: null, updated_at: now,
+        must_change_password: true, totp_enabled: false, last_login_at: null, updated_at: now,
       };
       users = [...users, item];
       userPasswords.set(item.id, payload.password);
@@ -3990,6 +4190,8 @@ export function createFakeClient(): ApiClient {
       securitySettings = {
         sip_guard: { ...securitySettings.sip_guard, ...payload.sip_guard },
         toll_fraud: { ...securitySettings.toll_fraud, ...payload.toll_fraud },
+        // M10 B2 — ikki bosqichli kirish siyosati ('off'|'admins'|'all').
+        require_2fa: payload.require_2fa ?? securitySettings.require_2fa,
         updated_at: new Date().toISOString(),
       };
       auditAdd('update', 'security_settings', null, 'Xavfsizlik sozlamalari', {});
@@ -5135,6 +5337,443 @@ export function createFakeClient(): ApiClient {
         expires_at: new Date(Date.now() + 15 * 60_000).toISOString(),
         transport: provisioningSettingsCore.sip_transport,
       };
+    },
+
+    // ─────────────────────── M10 C A1 — Callback vidjet (qarang ../../replica/m10-onlinepbx-contract.md §A1) ───────────────────────
+
+    async listCallbackWidgets(): Promise<{ items: CallbackWidget[] }> {
+      await delay();
+      return { items: callbackWidgets };
+    },
+
+    async createCallbackWidget(payload: CreateCallbackWidgetPayload): Promise<Mutated<CallbackWidget>> {
+      await delay();
+      requireManage('connect:edit');
+      const name = payload.name.trim();
+      if (!name) err(422, 'bad_name', 'Nomi kerak.', { field: 'name' });
+      const target = requireCallbackTarget(payload.target_id);
+      const now = new Date().toISOString();
+      const publicKey = `${randomSecret()}${randomSecret()}`;
+      const item: CallbackWidget = {
+        id: randomId('cbw'), name, public_key: publicKey, target,
+        allowed_origins: payload.allowed_origins ?? [],
+        time_group_id: payload.time_group_id ?? null, time_group_name: timeGroupNameOrNull(payload.time_group_id),
+        offhours_mode: payload.offhours_mode ?? 'schedule',
+        max_attempts: payload.max_attempts ?? 2, retry_interval_s: payload.retry_interval_s ?? 120,
+        callerid_prefix: payload.callerid_prefix ?? null, allow_international: payload.allow_international ?? false,
+        appearance: mergeAppearance(DEFAULT_WIDGET_APPEARANCE, payload.appearance),
+        enabled: payload.enabled ?? true, embed_snippet: null, updated_at: now,
+      };
+      item.embed_snippet = widgetEmbedSnippet(publicKey);
+      callbackWidgets = [...callbackWidgets, item];
+      auditAdd('create', 'callback_widget', item.id, item.name, {});
+      // Backend: `callback_widget.create` dialplan'ga ta'sir qiladi (`callback_widget_target_ids` snapshot'da) — apply().
+      return { item, apply: apply(`Qayta chaqirish vidjeti: ${item.name}`) };
+    },
+
+    async updateCallbackWidget(id: string, payload: UpdateCallbackWidgetPayload): Promise<Mutated<CallbackWidget>> {
+      await delay();
+      requireManage('connect:edit');
+      const cur = requireCallbackWidget(id);
+      if (payload.updated_at !== cur.updated_at) err(409, 'stale', 'Bu vidjet boshqa joyda oʻzgartirilgan. Sahifani yangilang.', { details: { current: cur } });
+      const name = payload.name !== undefined ? payload.name.trim() : cur.name;
+      if (!name) err(422, 'bad_name', 'Nomi kerak.', { field: 'name' });
+      const target = payload.target_id ? requireCallbackTarget(payload.target_id) : cur.target;
+      const timeGroupId = payload.time_group_id !== undefined ? payload.time_group_id : cur.time_group_id;
+      const item: CallbackWidget = {
+        ...cur, name, target,
+        allowed_origins: payload.allowed_origins ?? cur.allowed_origins,
+        time_group_id: timeGroupId, time_group_name: timeGroupNameOrNull(timeGroupId),
+        offhours_mode: payload.offhours_mode ?? cur.offhours_mode,
+        max_attempts: payload.max_attempts ?? cur.max_attempts, retry_interval_s: payload.retry_interval_s ?? cur.retry_interval_s,
+        callerid_prefix: payload.callerid_prefix !== undefined ? payload.callerid_prefix : cur.callerid_prefix,
+        allow_international: payload.allow_international ?? cur.allow_international,
+        appearance: mergeAppearance(cur.appearance, payload.appearance),
+        enabled: payload.enabled ?? cur.enabled, updated_at: new Date().toISOString(),
+      };
+      callbackWidgets = callbackWidgets.map((w) => (w.id === id ? item : w));
+      auditAdd('update', 'callback_widget', item.id, item.name, {});
+      return { item, apply: apply(`Qayta chaqirish vidjeti: ${item.name}`) };
+    },
+
+    async deleteCallbackWidget(id: string): Promise<void> {
+      await delay();
+      requireManage('connect:edit');
+      const cur = requireCallbackWidget(id);
+      callbackWidgets = callbackWidgets.filter((w) => w.id !== id);
+      callbackRequests = callbackRequests.filter((r) => r.widget_id !== id);
+      auditAdd('delete', 'callback_widget', id, cur.name, {});
+    },
+
+    async rotateCallbackWidgetKey(id: string): Promise<Mutated<CallbackWidget>> {
+      await delay();
+      requireManage('connect:edit');
+      const cur = requireCallbackWidget(id);
+      const publicKey = `${randomSecret()}${randomSecret()}`;
+      const item: CallbackWidget = { ...cur, public_key: publicKey, embed_snippet: widgetEmbedSnippet(publicKey), updated_at: new Date().toISOString() };
+      callbackWidgets = callbackWidgets.map((w) => (w.id === id ? item : w));
+      auditAdd('update', 'callback_widget', item.id, item.name, { key: ['***', '***'] });
+      // Eski kalit bilan ulangan saytlar darhol 404 — dialplan'ga ta'sir qilmaydi, lekin backend bosib
+      // qoladigan boshqa admin router'lar bilan bir xil javob shakli uchun apply() baribir chaqiriladi.
+      return { item, apply: apply(`Vidjet kaliti yangilandi: ${item.name}`) };
+    },
+
+    async listCallbackRequests(params: ListCallbackRequestsParams): Promise<Paged<CallbackRequest>> {
+      await delay();
+      const { widget_id, status, page = 1, page_size = 50 } = params;
+      const filtered = callbackRequests.filter((r) => {
+        if (widget_id && r.widget_id !== widget_id) return false;
+        if (status && r.status !== status) return false;
+        return true;
+      });
+      const start = (page - 1) * page_size;
+      return { items: filtered.slice(start, start + page_size), total: filtered.length };
+    },
+
+    // ─────────────────────── M10 C A2 — Javobsiz qoʻngʻiroq xabari (qarang §A2) ───────────────────────
+
+    // Backend `list_missed_call_rules` — filtr/`total` YO'Q, `{items}` qaytadi.
+    async listMissedCallRules(): Promise<{ items: MissedCallRule[] }> {
+      await delay();
+      return { items: missedCallRules };
+    },
+
+    async createMissedCallRule(payload: CreateMissedCallRulePayload): Promise<MissedCallRuleMutated> {
+      await delay();
+      requireManage('apps:edit');
+      const name = payload.name.trim();
+      if (!name) err(422, 'bad_name', 'Nomi kerak.', { field: 'name' });
+      if ((payload.telegram_chat_ids ?? []).length === 0 && (payload.emails ?? []).length === 0) {
+        err(422, 'bad_destination', 'Kamida bitta Telegram chat yoki e-mail kerak.', { field: 'telegram_chat_ids' });
+      }
+      const item: MissedCallRule = {
+        id: randomId('mcr'), name, scope_kind: payload.scope_kind, scope_value: payload.scope_value ?? null,
+        telegram_chat_ids: payload.telegram_chat_ids ?? [], emails: payload.emails ?? [],
+        include_internal: payload.include_internal ?? false, enabled: payload.enabled ?? true, updated_at: new Date().toISOString(),
+      };
+      missedCallRules = [...missedCallRules, item];
+      auditAdd('create', 'missed_call_rule', item.id, item.name, {});
+      return { item };
+    },
+
+    async updateMissedCallRule(id: string, payload: UpdateMissedCallRulePayload): Promise<MissedCallRuleMutated> {
+      await delay();
+      requireManage('apps:edit');
+      const cur = requireMissedCallRule(id);
+      if (payload.updated_at !== cur.updated_at) err(409, 'stale', 'Bu qoida boshqa joyda oʻzgartirilgan. Sahifani yangilang.', { details: { current: cur } });
+      const name = payload.name !== undefined ? payload.name.trim() : cur.name;
+      if (!name) err(422, 'bad_name', 'Nomi kerak.', { field: 'name' });
+      const telegramIds = payload.telegram_chat_ids ?? cur.telegram_chat_ids;
+      const emails = payload.emails ?? cur.emails;
+      if (telegramIds.length === 0 && emails.length === 0) err(422, 'bad_destination', 'Kamida bitta Telegram chat yoki e-mail kerak.', { field: 'telegram_chat_ids' });
+      const item: MissedCallRule = {
+        ...cur, name, scope_kind: payload.scope_kind ?? cur.scope_kind,
+        scope_value: payload.scope_value !== undefined ? payload.scope_value : cur.scope_value,
+        telegram_chat_ids: telegramIds, emails,
+        include_internal: payload.include_internal ?? cur.include_internal, enabled: payload.enabled ?? cur.enabled,
+        updated_at: new Date().toISOString(),
+      };
+      missedCallRules = missedCallRules.map((r) => (r.id === id ? item : r));
+      auditAdd('update', 'missed_call_rule', item.id, item.name, {});
+      return { item };
+    },
+
+    async deleteMissedCallRule(id: string): Promise<void> {
+      await delay();
+      requireManage('apps:edit');
+      const cur = requireMissedCallRule(id);
+      missedCallRules = missedCallRules.filter((r) => r.id !== id);
+      auditAdd('delete', 'missed_call_rule', id, cur.name, {});
+    },
+
+    async testMissedCallRule(id: string): Promise<TestMissedCallRuleResult> {
+      await delay(400);
+      requireManage('apps:edit');
+      const cur = requireMissedCallRule(id);
+      if (!cur.enabled) return { ok: false, message: 'Qoida oʻchirilgan.' };
+      if (cur.telegram_chat_ids.length === 0 && cur.emails.length === 0) return { ok: false, message: 'Yetkazib berish manzili yoʻq.' };
+      return { ok: true, message: 'Sinov xabari yuborildi.' };
+    },
+
+    async listMissedCallNotices(params: ListMissedCallNoticesParams): Promise<Paged<MissedCallNotice>> {
+      await delay();
+      const { rule_id, page = 1, page_size = 50 } = params;
+      const filtered = missedCallNotices.filter((n) => !rule_id || n.rule_id === rule_id);
+      const start = (page - 1) * page_size;
+      return { items: filtered.slice(start, start + page_size), total: filtered.length };
+    },
+
+    // ─────────────────────── M10 C A3 — Matndan nutq (TTS, qarang §A3) ───────────────────────
+
+    async getTtsSettings(): Promise<TtsSettings> {
+      await delay();
+      return ttsSettingsCore;
+    },
+
+    async updateTtsSettings(payload: UpdateTtsSettingsPayload): Promise<TtsSettingsMutated> {
+      await delay();
+      requireManage('apps:edit');
+      if (payload.updated_at !== ttsSettingsCore.updated_at) err(409, 'stale', 'Sozlamalar boshqa joyda oʻzgartirilgan. Sahifani yangilang.');
+      if (payload.api_key !== undefined) ttsApiKey = payload.api_key === '' ? null : payload.api_key;
+      ttsSettingsCore = {
+        provider: payload.provider ?? ttsSettingsCore.provider,
+        has_api_key: ttsApiKey !== null,
+        folder_id: payload.folder_id !== undefined ? payload.folder_id : ttsSettingsCore.folder_id,
+        voices: { ...ttsSettingsCore.voices, ...payload.voices },
+        updated_at: new Date().toISOString(),
+      };
+      auditAdd('update', 'tts_settings', null, 'TTS sozlamalari', {});
+      return { item: ttsSettingsCore };
+    },
+
+    async testTtsSettings(): Promise<TtsTestResult> {
+      await delay(500);
+      requireManage('apps:edit');
+      if (ttsSettingsCore.provider === 'none') return { ok: false, message: 'Provayder tanlanmagan.' };
+      if (!ttsSettingsCore.has_api_key) return { ok: false, message: 'API kalit kiritilmagan.' };
+      return { ok: true, message: 'Ulanish muvaffaqiyatli.' };
+    },
+
+    async createTtsAudio(payload: CreateTtsAudioPayload): Promise<{ item: Audio }> {
+      await delay(600);
+      requireManage('apps:edit');
+      if (ttsSettingsCore.provider === 'none') err(409, 'tts_not_configured', 'TTS provayderi sozlanmagan.');
+      const text = payload.text.trim();
+      if (!text || text.length > 2000) err(422, 'bad_text', 'Matn 1–2000 belgidan iborat boʻlishi kerak.', { field: 'text' });
+      const duration_ms = Math.min(60_000, 1200 + text.length * 60);
+      const item: Audio = {
+        id: randomId('au'), name: payload.name.trim() || text.slice(0, 40), duration_ms, format: 'wav',
+        created_at: new Date().toISOString(),
+      };
+      audioList = [...audioList, item];
+      auditAdd('create', 'audio', item.id, item.name, {});
+      return { item };
+    },
+
+    async previewTts(payload: TtsPreviewPayload): Promise<Blob> {
+      await delay(400);
+      if (ttsSettingsCore.provider === 'none') err(409, 'tts_not_configured', 'TTS provayderi sozlanmagan.');
+      const text = payload.text.trim();
+      if (!text || text.length > 500) err(422, 'bad_text', 'Matn 500 belgidan oshmasligi kerak.', { field: 'text' });
+      return toneWav(Math.min(8000, 800 + text.length * 40));
+    },
+
+    // ─────────────────────── M10 C B1 — Sifat baholash (qarang §B1) ───────────────────────
+
+    // Backend `list_checklists` — filtr/pagination YO'Q, barcha varaqalar `{items}` qaytadi.
+    async listQaChecklists(): Promise<{ items: QaChecklist[] }> {
+      await delay();
+      return { items: [...qaChecklists].sort((a, b) => a.name.localeCompare(b.name)) };
+    },
+
+    // Backend `create_checklist` — flat `QaChecklistOut` qaytaradi (Mutated/apply YO'Q).
+    async createQaChecklist(payload: CreateQaChecklistPayload): Promise<QaChecklist> {
+      await delay();
+      requireManage('reports:edit');
+      const name = payload.name.trim();
+      if (!name) err(422, 'bad_name', 'Nomi kerak.', { field: 'name' });
+      if (qaChecklists.some((c) => c.name === name)) err(409, 'name_taken', 'Shu nomli varaqa allaqachon mavjud', { field: 'name' });
+      const item: QaChecklist = {
+        id: randomId('qac'), name, is_active: true,
+        criteria: normalizeQaCriteria(payload.criteria), updated_at: new Date().toISOString(),
+      };
+      qaChecklists = [...qaChecklists, item];
+      auditAdd('create', 'qa_checklist', item.id, item.name, {});
+      return item;
+    },
+
+    // Backend `update_checklist` — flat `QaChecklistOut` qaytaradi (Mutated/apply YO'Q).
+    async updateQaChecklist(id: string, payload: UpdateQaChecklistPayload): Promise<QaChecklist> {
+      await delay();
+      requireManage('reports:edit');
+      const cur = requireQaChecklist(id);
+      if (payload.updated_at !== cur.updated_at) err(409, 'stale', 'Bu chek-list boshqa joyda oʻzgartirilgan. Sahifani yangilang.', { details: { current: cur } });
+      const name = payload.name !== undefined ? payload.name.trim() : cur.name;
+      if (!name) err(422, 'bad_name', 'Nomi kerak.', { field: 'name' });
+      const item: QaChecklist = {
+        ...cur, name, is_active: payload.is_active ?? cur.is_active,
+        criteria: payload.criteria ? normalizeQaCriteria(payload.criteria) : cur.criteria,
+        updated_at: new Date().toISOString(),
+      };
+      qaChecklists = qaChecklists.map((c) => (c.id === id ? item : c));
+      auditAdd('update', 'qa_checklist', item.id, item.name, {});
+      return item;
+    },
+
+    async deleteQaChecklist(id: string): Promise<void> {
+      await delay();
+      requireManage('reports:edit');
+      const cur = requireQaChecklist(id);
+      const inUse = qaEvaluations.filter((e) => e.checklist_id === id).length;
+      if (inUse > 0) err(409, 'in_use', `«${cur.name}» hali ${inUse} baholashda ishlatilgan`, { details: { usages: inUse } });
+      qaChecklists = qaChecklists.filter((c) => c.id !== id);
+      auditAdd('delete', 'qa_checklist', id, cur.name, {});
+    },
+
+    // Backend `list_evaluations` — faqat `call_id` bo'yicha filtr, `size` (page_size EMAS).
+    async listQaEvaluations(params: ListQaEvaluationsParams): Promise<Paged<QaEvaluation>> {
+      await delay();
+      const { call_id, page = 1, size = 50 } = params;
+      const filtered = call_id ? qaEvaluations.filter((e) => e.call_id === call_id) : qaEvaluations;
+      const sorted = [...filtered].sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at));
+      const start = (page - 1) * size;
+      return { items: sorted.slice(start, start + size), total: sorted.length };
+    },
+
+    // Backend `create_evaluation` — flat `QaEvaluationOut` qaytaradi (Mutated/apply YO'Q, "status"/to'liqlik
+    // tekshiruvi YO'Q — har qanday javoblar to'plami qabul qilinadi, ball formula bo'yicha hisoblanadi).
+    async createQaEvaluation(payload: CreateQaEvaluationPayload): Promise<QaEvaluation> {
+      await delay();
+      requireManage('reports:edit');
+      const checklist = requireQaChecklist(payload.checklist_id);
+      const call = calls.find((c) => c.uniqueid === payload.call_id);
+      if (payload.extension_id) {
+        if (!extensions.some((e) => e.id === payload.extension_id)) err(404, 'not_found', 'Ichki raqam topilmadi', { field: 'extension_id' });
+      }
+      const criteriaLike: QaCriterionLike[] = checklist.criteria.map((c) => ({ id: c.id, kind: c.kind, weight: c.weight, critical: c.critical }));
+      const score_pct = computeScorePct(criteriaLike, payload.answers);
+      const extensionId = payload.extension_id ?? defaultExtensionIdForCall(call);
+      const now = new Date().toISOString();
+      const item: QaEvaluation = {
+        id: randomId('qae'), call_id: payload.call_id, checklist_id: checklist.id, checklist_name: checklist.name,
+        extension_id: extensionId, evaluator_id: currentUser?.id ?? null, evaluator_name: currentUser?.full_name ?? null,
+        answers: payload.answers, score_pct, comment: payload.comment ?? null, created_at: now, updated_at: now,
+      };
+      qaEvaluations = [...qaEvaluations, item];
+      auditAdd('create', 'qa_evaluation', item.id, item.checklist_name, {});
+      return item;
+    },
+
+    // Backend `update_evaluation` — flat `QaEvaluationOut` qaytaradi, faqat `answers`/`comment` o'zgaradi.
+    async updateQaEvaluation(id: string, payload: UpdateQaEvaluationPayload): Promise<QaEvaluation> {
+      await delay();
+      requireManage('reports:edit');
+      const cur = requireQaEvaluation(id);
+      if (payload.updated_at !== cur.updated_at) err(409, 'stale', 'Bu baho boshqa joyda oʻzgartirilgan. Sahifani yangilang.', { details: { current: cur } });
+      const answers = payload.answers ?? cur.answers;
+      const checklist = requireQaChecklist(cur.checklist_id);
+      const criteriaLike: QaCriterionLike[] = checklist.criteria.map((c) => ({ id: c.id, kind: c.kind, weight: c.weight, critical: c.critical }));
+      const item: QaEvaluation = {
+        ...cur, answers, score_pct: computeScorePct(criteriaLike, answers),
+        comment: payload.comment !== undefined ? payload.comment : cur.comment,
+        updated_at: new Date().toISOString(),
+      };
+      qaEvaluations = qaEvaluations.map((e) => (e.id === id ? item : e));
+      auditAdd('update', 'qa_evaluation', item.id, item.checklist_name, {});
+      return item;
+    },
+
+    async deleteQaEvaluation(id: string): Promise<void> {
+      await delay();
+      requireManage('reports:edit');
+      const cur = requireQaEvaluation(id);
+      qaEvaluations = qaEvaluations.filter((e) => e.id !== id);
+      auditAdd('delete', 'qa_evaluation', id, cur.checklist_name, {});
+    },
+
+    // Backend `/qa/summary` — parametrsiz, tenant-keng, ichki raqam bo'yicha guruhlangan xulosa.
+    async qaSummary(): Promise<QaSummary> {
+      await delay();
+      if (qaEvaluations.length === 0) return { count: 0, avg_score_pct: 0, by_extension: [] };
+      const byExt = new Map<string | null, number[]>();
+      for (const e of qaEvaluations) {
+        const key = e.extension_id;
+        byExt.set(key, [...(byExt.get(key) ?? []), e.score_pct]);
+      }
+      const by_extension = [...byExt.entries()]
+        .map(([extId, scores]) => ({
+          extension_id: extId,
+          extension_number: extId ? extensions.find((e) => e.id === extId)?.number ?? null : null,
+          count: scores.length,
+          avg_score_pct: Math.round((scores.reduce((s, v) => s + v, 0) / scores.length) * 100) / 100,
+        }))
+        .sort((a, b) => (a.extension_number ?? '').localeCompare(b.extension_number ?? ''));
+      const all = qaEvaluations.map((e) => e.score_pct);
+      return { count: all.length, avg_score_pct: Math.round((all.reduce((s, v) => s + v, 0) / all.length) * 100) / 100, by_extension };
+    },
+
+    // Backend `GET /calls/{linkedid}/evaluations` — `{items, total}`, `evaluator_name` HAR DOIM null.
+    async listCallEvaluations(linkedid: string): Promise<Paged<QaEvaluation>> {
+      await delay();
+      const items = qaEvaluations.filter((e) => e.call_id === linkedid)
+        .sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at))
+        .map((e) => ({ ...e, evaluator_name: null }));
+      return { items, total: items.length };
+    },
+
+    // Backend `GET /me/evaluations` — faqat o'z ichki raqamiga bog'langan baholar, `evaluator_name` null.
+    async listMyEvaluations(params: { page?: number; size?: number }): Promise<Paged<QaEvaluation>> {
+      await delay();
+      const { page = 1, size = 50 } = params;
+      const ownExtId = currentUser ? requireManagedUser(currentUser.id).extension?.id : undefined;
+      const filtered = qaEvaluations.filter((e) => ownExtId && e.extension_id === ownExtId)
+        .sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at))
+        .map((e) => ({ ...e, evaluator_name: null }));
+      const start = (page - 1) * size;
+      return { items: filtered.slice(start, start + size), total: filtered.length };
+    },
+
+    // ─────────────────────── M10 C B2 — Ikki bosqichli kirish (2FA, qarang §B2) ───────────────────────
+
+    async setupTotp(): Promise<TotpSetup> {
+      await delay();
+      if (!currentUser) err(401, 'unauthenticated', 'Tizimga kiring.');
+      const mu = requireManagedUser(currentUser.id);
+      const secret = generateTotpSecret();
+      totpPendingSecret.set(mu.id, secret);
+      return { secret, otpauth_uri: otpauthUri(secret, 'innova', mu.username) };
+    },
+
+    async enableTotp({ code }: TotpEnablePayload): Promise<TotpEnableResult> {
+      await delay();
+      if (!currentUser) err(401, 'unauthenticated', 'Tizimga kiring.');
+      const mu = requireManagedUser(currentUser.id);
+      const secret = totpPendingSecret.get(mu.id);
+      if (!secret) err(409, 'setup_required', 'Avval QR kod yarating.');
+      const step = await verifyTotp(secret, code);
+      if (step === null) err(401, 'bad_code', 'Kod notoʻgʻri.', { field: 'code' });
+      const recoveryCodes = generateRecoveryCodes();
+      totpByUser.set(mu.id, { secret, enabled: true, recoveryHashes: [...recoveryCodes], lastStep: step });
+      totpPendingSecret.delete(mu.id);
+      currentUser = toSessionUser(mu);
+      auditAdd('update', 'user_2fa', mu.id, mu.full_name, {});
+      return { recovery_codes: recoveryCodes };
+    },
+
+    async disableTotp({ code }: TotpDisablePayload): Promise<void> {
+      await delay();
+      if (!currentUser) err(401, 'unauthenticated', 'Tizimga kiring.');
+      const mu = requireManagedUser(currentUser.id);
+      if (require2fa(mu)) err(409, 'policy_required', 'Xavfsizlik siyosati 2FA ni talab qiladi — oʻchirib boʻlmaydi.');
+      // Backend `TotpDisablePayload` faqat `code` qabul qiladi — parol so'ralmaydi (qarang schemas_2fa.py).
+      const state = totpByUser.get(mu.id);
+      if (!state || !(await verifyAnyTotpCode(state, code))) err(401, 'bad_code', 'Kod notoʻgʻri.', { field: 'code' });
+      totpByUser.delete(mu.id);
+      currentUser = toSessionUser(mu);
+      auditAdd('update', 'user_2fa', mu.id, mu.full_name, {});
+    },
+
+    async regenerateTotpRecoveryCodes({ code }: TotpRecoveryCodesPayload): Promise<TotpRecoveryCodesResult> {
+      await delay();
+      if (!currentUser) err(401, 'unauthenticated', 'Tizimga kiring.');
+      const mu = requireManagedUser(currentUser.id);
+      const state = totpByUser.get(mu.id);
+      if (!state) err(409, 'not_enabled', '2FA yoqilmagan.');
+      if (!(await verifyAnyTotpCode(state, code))) err(401, 'bad_code', 'Kod notoʻgʻri.', { field: 'code' });
+      const recoveryCodes = generateRecoveryCodes();
+      state.recoveryHashes = [...recoveryCodes];
+      auditAdd('update', 'user_2fa', mu.id, mu.full_name, {});
+      return { recovery_codes: recoveryCodes };
+    },
+
+    async resetUserTotp(userId: string): Promise<void> {
+      await delay();
+      requireManage('system.manage');
+      const mu = requireManagedUser(userId);
+      totpByUser.delete(userId);
+      totpPendingSecret.delete(userId);
+      if (currentUser && currentUser.id === userId) currentUser = toSessionUser(mu);
+      auditAdd('update', 'user_2fa', mu.id, mu.full_name, {});
     },
 
     // ─────────────────────── M6 — qarang ../../replica/m6-contract.md ───────────────────────

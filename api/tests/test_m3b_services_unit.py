@@ -683,6 +683,20 @@ async def test_create_api_key(audits):
     assert s.added[0].key_hash != created.key and created.key.startswith(s.added[0].prefix, 4)
 
 
+def test_api_key_scope_literal_matches_runtime_scopes():
+    """Regressiya (M10 B3 jonli isbotda topilgan): `schemas_integrations.ApiKeyScope`
+    (Pydantic validatsiya) va `app.services.api_keys.SCOPES` (runtime tekshiruv)
+    IKKI alohida ro'yxat — biri yangilanib, ikkinchisi unutilsa, yangi skop
+    (masalan `events:read`) 422 bilan rad etiladi, lekin `has_scope()` baribir
+    uni tanigani ko'rinmasdan qoladi (faqat jonli WS isbotda ushlangan)."""
+    from typing import get_args
+
+    from app.schemas_integrations import ApiKeyScope
+    from app.services.api_keys import SCOPES
+
+    assert set(get_args(ApiKeyScope)) == set(SCOPES)
+
+
 class _CreatedSession(FakeSession):
     async def flush(self):
         for obj in self.added:

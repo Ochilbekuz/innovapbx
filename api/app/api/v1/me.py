@@ -26,13 +26,22 @@ from sqlalchemy.orm import selectinload
 from app.api.deps import get_ami, get_current_user, get_session
 from app.api.v1.calls import _build_calls_query, _filter_own_calls, paginate_with_recordings
 from app.api.v1.extensions import apply_call_field_patch
+from app.api.v1.qa import _evaluation_out
 from app.api.v1.queues import MemberAction, _get_queue_or_404, _member_action
 from app.api.v1.users import _user_out as _managed_user_out
 from app.api.v1.voicemail_boxes import delete_message, list_box_messages, mark_heard, message_audio
 from app.core.errors import ApiError
 from app.core.optimistic import check_not_stale
-from app.db.models import Cdr, Extension, Queue, QueueMember, User, VoicemailBox
+from app.db.models import Cdr, Extension, QaEvaluation, Queue, QueueMember, User, VoicemailBox
 from app.schemas import CallDirection, QueueMemberActionPayload
+from app.schemas_2fa import (
+    TotpDisablePayload,
+    TotpEnableOut,
+    TotpEnablePayload,
+    TotpRecoveryCodesOut,
+    TotpSetupOut,
+)
+from app.schemas_qa import QaEvaluationsOut
 from app.schemas_users import (
     MeExtensionMutated,
     MeExtensionOut,
@@ -44,10 +53,17 @@ from app.schemas_users import (
 )
 from app.services.audit import record_audit
 from app.services.cdr_grouping import calls_from_rows
+from app.services.crypto import decrypt_secret, encrypt_secret
 from app.services.dashboard import today_bounds_utc
 from app.services.numbers import dial_number_for_target
+from app.services.totp import generate_recovery_codes, generate_secret, otpauth_uri, verify as totp_verify
+from app.services.totp_auth import hash_recovery_codes, verify_user_code
 
 router = APIRouter(prefix="/me", tags=["me"])
+
+_NOT_ENABLED = ApiError(409, "not_enabled", "2FA yoqilmagan")
+_SETUP_REQUIRED = ApiError(409, "setup_required", "Avval /me/2fa/setup chaqiring")
+_INVALID_2FA_CODE = ApiError(401, "invalid_code", "Kod noto'g'ri")
 
 _NO_EXTENSION_MSG = "Sizda ichki raqam yo'q"
 
@@ -239,3 +255,99 @@ async def my_voicemail_delete(
 ) -> None:
     box = await _require_own_box(session, user)
     await delete_message(str(box.id), msg, session=session, user=user, ami=ami)
+
+
+# --------------------------------------------------------------------- B1: qa
+@router.get("/evaluations", response_model=QaEvaluationsOut)
+async def my_evaluations(
+    page: int = 1, size: int = 50,
+    session: AsyncSession = Depends(get_session), user: User = Depends(get_current_user),
+) -> QaEvaluationsOut:
+    """Operator o'zining baholashlarini ko'radi (`evaluator_name` HAR DOIM
+    `None` — kim baholaganini ko'rsatmaymiz, `/calls/{linkedid}/evaluations`
+    bilan BIR XIL qoida)."""
+    ext = _require_own_extension(user)
+    rows = (await session.execute(
+        select(QaEvaluation).where(QaEvaluation.tenant_id == user.tenant_id, QaEvaluation.extension_id == ext.id)
+        .options(selectinload(QaEvaluation.checklist)).order_by(QaEvaluation.created_at.desc())
+    )).scalars().all()
+    total = len(rows)
+    start = (page - 1) * size
+    return QaEvaluationsOut(items=[_evaluation_out(r, None) for r in rows[start:start + size]], total=total)
+
+
+# --------------------------------------------------------------------- B2: 2fa
+@router.post("/2fa/setup", response_model=TotpSetupOut)
+async def setup_2fa(
+    session: AsyncSession = Depends(get_session), user: User = Depends(get_current_user),
+) -> TotpSetupOut:
+    """Yangi (hali YOQILMAGAN) sekret — qayta chaqirilsa eskisi bekor bo'ladi
+    (faqat `/me/2fa/enable` muvaffaqiyatli bo'lgani kuchda qoladi)."""
+    secret = generate_secret()
+    user.totp_secret_enc = await encrypt_secret(session, secret)
+    await session.commit()
+    return TotpSetupOut(secret=secret, otpauth_uri=otpauth_uri(secret, account=user.username))
+
+
+@router.post("/2fa/enable", response_model=TotpEnableOut)
+async def enable_2fa(
+    payload: TotpEnablePayload, session: AsyncSession = Depends(get_session),
+    user: User = Depends(get_current_user),
+) -> TotpEnableOut:
+    if not user.totp_secret_enc:
+        raise _SETUP_REQUIRED
+    secret = await decrypt_secret(session, user.totp_secret_enc)
+    now = int(datetime.now(timezone.utc).timestamp())
+    step = totp_verify(secret, payload.code, now, last_step=user.totp_last_step)
+    if step is None:
+        raise _INVALID_2FA_CODE
+
+    codes = generate_recovery_codes()
+    user.totp_last_step = step
+    user.totp_enabled_at = datetime.now(timezone.utc)
+    user.totp_recovery_hashes = hash_recovery_codes(codes)
+    await record_audit(session, tenant_id=str(user.tenant_id), user_id=str(user.id),
+                        action="user.update", entity="user", entity_id=str(user.id), diff={"totp_enabled": True})
+    await session.commit()
+    return TotpEnableOut(recovery_codes=codes)
+
+
+@router.post("/2fa/disable", status_code=204, response_model=None)
+async def disable_2fa(
+    payload: TotpDisablePayload, session: AsyncSession = Depends(get_session),
+    user: User = Depends(get_current_user),
+) -> None:
+    if user.totp_enabled_at is None:
+        raise _NOT_ENABLED
+    if not await verify_user_code(session, user, payload.code):
+        raise _INVALID_2FA_CODE
+
+    user.totp_secret_enc = None
+    user.totp_enabled_at = None
+    user.totp_recovery_hashes = []
+    user.totp_last_step = None
+    await record_audit(session, tenant_id=str(user.tenant_id), user_id=str(user.id),
+                        action="user.update", entity="user", entity_id=str(user.id), diff={"totp_enabled": False})
+    await session.commit()
+
+
+@router.post("/2fa/recovery-codes", response_model=TotpRecoveryCodesOut)
+async def regenerate_recovery_codes(
+    payload: TotpDisablePayload, session: AsyncSession = Depends(get_session),
+    user: User = Depends(get_current_user),
+) -> TotpRecoveryCodesOut:
+    """Eski kodlar hammasi BEKOR qilinadi (yangi 10 ta bilan to'liq
+    almashtiriladi) — qayta tasdiqlash uchun joriy kod (TOTP yoki eski
+    tiklash kodi) talab qilinadi (`disable` bilan BIR XIL tekshiruv)."""
+    if user.totp_enabled_at is None:
+        raise _NOT_ENABLED
+    if not await verify_user_code(session, user, payload.code):
+        raise _INVALID_2FA_CODE
+
+    codes = generate_recovery_codes()
+    user.totp_recovery_hashes = hash_recovery_codes(codes)
+    await record_audit(session, tenant_id=str(user.tenant_id), user_id=str(user.id),
+                        action="user.update", entity="user", entity_id=str(user.id),
+                        diff={"totp_recovery_codes": "regenerated"})
+    await session.commit()
+    return TotpRecoveryCodesOut(recovery_codes=codes)

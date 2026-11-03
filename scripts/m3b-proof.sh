@@ -109,7 +109,7 @@ for spec in "$DID_101:extension:101" "$DID_102:extension:102" "$DID_103:extensio
   [[ "$(jcode "$R")" == "201" ]] && ROUTES_OK=$((ROUTES_OK + 1))
 done
 check "$( [[ "$ROUTES_OK" == "4" ]]; echo $?)" "4 ta DID (101, 102, 103, navbat)" "$ROUTES_OK"
-check "$(ast "dialplan show innova-rec" | grep -q 'Gosub(innova-rec-start'; echo $?)" \
+check "$(ast "dialplan show innova-rec" | grep 'Gosub(innova-rec-start' >/dev/null; echo $?)" \
   "Asterisk: innova-rec subroutine yuklangan" "$(ast 'dialplan show innova-rec' | head -3)"
 check "$(ast "features show" | grep -Eq 'innova-rec +.* \*1'; echo $?)" "features: innova-rec => *1 (applicationmap)" \
   "$(ast 'features show' | grep -i innova)"

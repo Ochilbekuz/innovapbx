@@ -50,6 +50,8 @@ def test_app_imports_and_all_routes_registered():
     assert "/api/v1/settings/notify" in paths
     assert "/api/v1/settings/notify/test" in paths
     assert "/internal/voicemail/pin-check" in paths
+    # M10 B3 — tashqi integratsiyalar WS oqimi.
+    assert "/api/public/v1/events/ws" in paths
     # DB ulanmagan — 500 kutilmaydi, lekin ishlov so'rovi routerga YETIB borishi
     # kerak (401 — autentifikatsiya yo'q, bu YETARLI dalil: route topildi).
     r = client.get("/api/v1/extensions")

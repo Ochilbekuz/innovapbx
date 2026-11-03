@@ -70,6 +70,8 @@ export function SetupPage() {
       return apiClient.setup(payload);
     },
     onSuccess: (res) => {
+      // Boshlang'ich sozlashda 2FA hali yo'q — `setup()` har doim 'ok' qaytaradi.
+      if (res.status !== 'ok') return;
       // Sehrgar yopilgach — keshdagi eski `{needed:true}`ni darhol yangilaymiz,
       // aks holda /dashboard'dagi `RequireAuth` eski holatni o'qib /setup'ga qaytarib yuboradi.
       queryClient.setQueryData(qk.setupState, { needed: false });

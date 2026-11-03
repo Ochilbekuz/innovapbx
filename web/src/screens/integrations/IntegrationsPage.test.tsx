@@ -259,6 +259,39 @@ describe('IntegrationsPage', () => {
     await waitFor(async () => expect((await client.listWebhooks()).items.find((w) => w.id === 'wh-amo')).toBeUndefined());
   });
 
+  it('Sozlamalar — Yandex SpeechKit (yangi oʻrnatish, updated_at=null) tanlab API kalit/katalog/ovoz kiritiladi va sinaladi', async () => {
+    const user = userEvent.setup();
+    renderPage(<ToastProvider><IntegrationsPage /></ToastProvider>);
+
+    await user.click(await screen.findByRole('tab', { name: 'Sozlamalar' }));
+    await user.click(await screen.findByRole('combobox', { name: 'Provayder' }));
+    await user.click(await screen.findByRole('option', { name: 'Yandex SpeechKit' }));
+
+    await user.type(screen.getByLabelText('API kalit'), 'AQVN-sinov-kaliti');
+    await user.type(screen.getByRole('textbox', { name: 'Katalog ID (folder_id)' }), 'b1g...sinov');
+    await user.click(screen.getAllByRole('button', { name: 'Saqlash' }).at(2)!);
+    expect(await screen.findAllByText('Saqlandi.')).not.toHaveLength(0);
+
+    await user.click(screen.getByRole('button', { name: 'Sinash' }));
+    expect(await screen.findByText('Ulanish muvaffaqiyatli.')).toBeTruthy();
+
+    const settings = await client.getTtsSettings();
+    expect(settings.provider).toBe('yandex');
+    expect(settings.has_api_key).toBe(true);
+  });
+
+  it('API kalitlari — WebSocket ulanish namunasi koʻrsatiladi, nusxalash tugmasi ishlaydi', async () => {
+    const user = userEvent.setup();
+    renderPage(<ToastProvider><IntegrationsPage /></ToastProvider>);
+
+    await user.click(await screen.findByRole('tab', { name: 'API kalitlari' }));
+    expect(await screen.findByText('WebSocket ulanish namunasi')).toBeTruthy();
+    expect(screen.getByText(/new WebSocket/)).toBeTruthy();
+
+    await user.click(screen.getByRole('button', { name: 'Nusxalash' }));
+    expect(await screen.findByText('Nusxalandi')).toBeTruthy();
+  });
+
   it('oʻqish huquqisiz (operator) — faqat koʻrish banneri chiqadi, "Kalit yaratish" tugmasi yoʻq', async () => {
     await useSession.getState().clear();
     await loginAs(client, 'operator');

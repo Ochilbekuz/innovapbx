@@ -3,11 +3,13 @@ Umumiy `ApplyResult`/`Paged` kabi modellar `app/schemas.py`dan qayta ishlatiladi
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel
 
 from app.schemas import ApplyResult
+
+Require2faPolicy = Literal["off", "admins", "all"]
 
 
 class SipGuardOut(BaseModel):
@@ -29,6 +31,7 @@ class TollFraudOut(BaseModel):
 class SecuritySettingsOut(BaseModel):
     sip_guard: SipGuardOut
     toll_fraud: TollFraudOut
+    require_2fa: Require2faPolicy = "off"
     updated_at: datetime
 
 
@@ -51,6 +54,7 @@ class UpdateTollFraudItem(BaseModel):
 class UpdateSecuritySettingsPayload(BaseModel):
     sip_guard: UpdateSipGuardItem | None = None
     toll_fraud: UpdateTollFraudItem | None = None
+    require_2fa: Require2faPolicy | None = None
     updated_at: datetime
 
 

@@ -10,7 +10,10 @@ from __future__ import annotations
 
 # Zaxira/tiklash o'zining tarixi — HECH QACHON dump qilinmaydi (tiklashda eski
 # qatorlar tegilmaydi, `restore_jobs`/`backups` tarixi yo'qolmaydi).
-ALWAYS_EXCLUDED_TABLES: frozenset[str] = frozenset({"backups", "backup_copies", "restore_jobs"})
+ALWAYS_EXCLUDED_TABLES: frozenset[str] = frozenset({
+    "backups", "backup_copies", "restore_jobs",
+    "totp_challenges",  # M10 B2: 5 daqiqalik oraliq login holati — tiklashga umuman mantiqsiz
+})
 
 # "history": vaqt bo'yicha o'sadigan jurnal/metrik jadvallar. `history` qismi
 # TANLANMASA sxema zaxiraga kiradi, lekin qatorlar (MA'LUMOT) kiradi.
@@ -21,6 +24,9 @@ HISTORY_TABLES: frozenset[str] = frozenset({
     "discovered_devices", "crm_call_links", "api_originate_requests", "call_recordings",
     "qr_provision_tokens",  # M5b: 15 daqiqalik xeshlar (FK extensions'ga — ALWAYS_EXCLUDED emas)
     "campaign_attempts",  # M6: har terish urinishi (kontakt natijasi `campaign_contacts`da qoladi)
+    "qa_evaluations",  # M10 B1: har baholash — vaqt bo'yicha o'sadigan jurnal (audit_log kabi)
+    "callback_requests",  # M10 A1: har qayta chaqirish so'rovi (vidjet sozlamasi `callback_widgets`da qoladi)
+    "missed_call_notices",  # M10 A2: har yuborilgan/muvaffaqiyatsiz bildirishnoma
 })
 
 # "config": joriy holat — `config` qismi DOIM yoqilgan, hamma vaqt to'liq kiradi.
@@ -39,6 +45,8 @@ CONFIG_TABLES: frozenset[str] = frozenset({
     "page_groups", "page_group_members",  # M9 A4
     "pin_sets", "pin_set_pins",  # M9 B1
     "phonebook_contacts", "phonebook_numbers", "cid_lookup_sources",  # M9 B2
+    "qa_checklists", "qa_criteria",  # M10 B1: baholash varaqalari ta'rifi
+    "callback_widgets", "missed_call_rules", "missed_notify_cursor", "tts_settings",  # M10 A
 })
 
 # Fayl qismlari — api konteynerida ulangan hajm ildizlari (`deploy/docker-compose.yml`).

@@ -51,6 +51,7 @@ from dataclasses import dataclass, field
 from app.services import dialplan_features as feat
 from app.services import dialplan_recording as rec
 from app.services import outbound_rules as rules
+from app.services.dialplan_callback import callback_context_lines
 from app.services.dialplan_campaign import campaign_context_lines
 
 _WEEKDAY_NAMES = {1: "mon", 2: "tue", 3: "wed", 4: "thu", 5: "fri", 6: "sat", 7: "sun"}
@@ -323,6 +324,10 @@ class DialplanSnapshot:
     misc_applications: list[MiscApplicationSnapshot] = field(default_factory=list)
     page_groups: list[PageGroupSnapshot] = field(default_factory=list)
     parking: feat.ParkingSettingsData = field(default_factory=lambda: feat.ParkingSettingsData())
+    # M10 A1: qayta chaqirish vidjetlari — faqat operator `target_id`si kerak
+    # (umumiy `<code>-dest-<target_id>` kontekstini `dest_ids`ga qo'shish uchun;
+    # vidjet kontekstlari o'zi statik, `callback_context_lines()` orqali).
+    callback_widget_target_ids: tuple[str, ...] = ()
 
 
 def dialplan_sha256(dialplan_text: str) -> str:
@@ -1144,6 +1149,7 @@ def _all_dest_ids(snapshot: DialplanSnapshot) -> list[str]:
     # M9 A3: parking muddati tugagach maqsad (`on_timeout="target"`da).
     if snapshot.parking.on_timeout == "target" and snapshot.parking.timeout_target_id:
         ids.add(snapshot.parking.timeout_target_id)
+    ids |= set(snapshot.callback_widget_target_ids)
     return sorted(ids)
 
 
@@ -1207,4 +1213,7 @@ def compile_dialplan(snapshot: DialplanSnapshot) -> str:
     parts.append("")
     parts += campaign_context_lines(snapshot.tenant_code, snapshot.internal_api_base_url,
                                     snapshot.internal_api_token)
+    parts.append("")
+    parts += callback_context_lines(snapshot.tenant_code, snapshot.internal_api_base_url,
+                                     snapshot.internal_api_token)
     return "\n".join(parts) + "\n"

@@ -38,6 +38,16 @@ export const uz = {
       noMoreFiles: 'Audio kutubxonada boshqa fayl yoʻq — «Fayllar» boʻlimidan yuklang.',
     },
   },
+  tts: {
+    cardTitle: 'Matndan audio yaratish', cardDesc: 'Matnni ovozga aylantirib, audio kutubxonaga saqlang.', start: 'Boshlash',
+    notConfigured: 'Nutq sintezi sozlanmagan.', notConfiguredAdmin: 'Sozlash uchun Integratsiyalar sahifasiga oʻting.', openSettings: 'Sozlashga oʻtish',
+    dialogTitle: 'Matndan audio yaratish',
+    nameLabel: 'Audio nomi', nameHint: 'Boʻsh qoldirilsa — matndan avtomatik olinadi.',
+    textLabel: 'Matn', textHint: 'Koʻpi bilan 2000 belgi.',
+    preview: 'Tinglab koʻrish', previewFailed: 'Tinglab koʻrib boʻlmadi',
+    save: 'Saqlash', cancel: 'Bekor qilish',
+    toast: { created: '«{{name}}» audio kutubxonaga qoʻshildi', createFailed: 'Yaratib boʻlmadi' },
+  },
 };
 
 export const ru = {
@@ -78,6 +88,16 @@ export const ru = {
       noMoreFiles: 'В аудиотеке больше нет файлов — загрузите их в разделе «Файлы».',
     },
   },
+  tts: {
+    cardTitle: 'Создать аудио из текста', cardDesc: 'Преобразуйте текст в голос и сохраните в аудиотеку.', start: 'Начать',
+    notConfigured: 'Синтез речи не настроен.', notConfiguredAdmin: 'Перейдите в раздел «Интеграции» для настройки.', openSettings: 'Перейти к настройкам',
+    dialogTitle: 'Создать аудио из текста',
+    nameLabel: 'Название аудио', nameHint: 'Если пусто — берётся из текста автоматически.',
+    textLabel: 'Текст', textHint: 'Не более 2000 символов.',
+    preview: 'Прослушать', previewFailed: 'Не удалось прослушать',
+    save: 'Сохранить', cancel: 'Отмена',
+    toast: { created: '«{{name}}» добавлен в аудиотеку', createFailed: 'Не удалось создать' },
+  },
 };
 
 export const en = {
@@ -117,5 +137,15 @@ export const en = {
       noneSelected: 'No files selected yet', removeFileAriaLabel: 'Remove {{name}}',
       noMoreFiles: 'No more files in the audio library — upload them under "Files".',
     },
+  },
+  tts: {
+    cardTitle: 'Create audio from text', cardDesc: 'Turn text into speech and save it to the audio library.', start: 'Start',
+    notConfigured: 'Speech synthesis is not configured.', notConfiguredAdmin: 'Go to Integrations to set it up.', openSettings: 'Go to settings',
+    dialogTitle: 'Create audio from text',
+    nameLabel: 'Audio name', nameHint: "If left empty, it's taken from the text automatically.",
+    textLabel: 'Text', textHint: 'Up to 2000 characters.',
+    preview: 'Preview', previewFailed: 'Could not preview',
+    save: 'Save', cancel: 'Cancel',
+    toast: { created: '"{{name}}" added to the audio library', createFailed: 'Could not create' },
   },
 };

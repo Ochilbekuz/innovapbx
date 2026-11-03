@@ -3,7 +3,7 @@ import { hasPermission } from '@/auth/permissions';
 import {
   Activity, ArrowRightLeft, AudioLines, BadgeCheck, BellRing, BookUser, CalendarClock, ChartNoAxesColumn, CircleUserRound,
   ClipboardCheck, DatabaseBackup, EthernetPort, Grid3x3, Hash, History, IdCard, KeyRound, LayoutDashboard, ListOrdered,
-  Megaphone, Mic2, Network, ParkingSquare, PhoneIncoming, PhoneOutgoing, Plug, RadioTower, ScrollText, ServerCog,
+  Megaphone, Mic2, Network, ParkingSquare, PhoneIncoming, PhoneMissed, PhoneOutgoing, Plug, RadioTower, ScrollText, ServerCog,
   Shuffle, ShieldCheck, ShieldOff, Smartphone, UserCog, Users, Voicemail, Waypoints,
 } from 'lucide-react';
 
@@ -60,10 +60,12 @@ export const SCREENS: ScreenDef[] = [
   // M9: shartnomada S-raqam berilmagan — yangi qo'shilgan ekranlar (M8 bilan bir xil izoh).
   { id: 'paging', reconId: 'S40', path: '/paging', icon: icon(RadioTower), group: 'apps', full: true },
   { id: 'phonebook', reconId: 'S41', path: '/phonebook', icon: icon(BookUser), group: 'apps', full: true },
+  // M10 C A2: shartnomada S-raqam berilmagan — yangi qo'shilgan ekran (M8/M9 bilan bir xil izoh).
+  { id: 'missedcalls', reconId: 'S44', path: '/missed-calls', icon: icon(PhoneMissed), group: 'apps', full: true },
 
   { id: 'cdr', reconId: 'S12', path: '/cdr', icon: icon(History), group: 'reports', full: true },
   { id: 'analytics', reconId: 'S13', path: '/analytics', icon: icon(ChartNoAxesColumn), group: 'reports', full: true },
-  { id: 'quality', reconId: 'S14', path: '/quality', icon: icon(ClipboardCheck), group: 'reports' },
+  { id: 'quality', reconId: 'S14', path: '/quality', icon: icon(ClipboardCheck), group: 'reports', full: true },
 
   { id: 'sip', reconId: 'S32', path: '/settings/sip', icon: icon(ServerCog), group: 'system', full: true },
   { id: 'audit', reconId: 'S37', path: '/settings/audit', icon: icon(ScrollText), group: 'system', full: true },
@@ -106,6 +108,7 @@ export const SCREEN_HUDUD: Partial<Record<string, Hudud>> = {
   trunks: 'connect', inbound: 'connect', outbound: 'connect', pinsets: 'connect', cidsources: 'connect',
   timegroups: 'routing', ivr: 'routing', queues: 'routing', ringgroups: 'routing', misc: 'routing', announcements: 'routing',
   audio: 'apps', conference: 'apps', parking: 'apps', blacklist: 'apps', campaigns: 'apps', paging: 'apps', phonebook: 'apps',
+  missedcalls: 'apps',
   cdr: 'reports', analytics: 'reports', quality: 'reports',
 };
 

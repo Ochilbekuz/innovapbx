@@ -49,6 +49,12 @@ import type {
   ImportExtensionsParams, ImportPhonebookParams, ListPhonebookParams, UpdateAnnouncementPayload,
   UpdateCidSourcePayload, UpdateContactPayload, UpdateMiscApplicationPayload, UpdateMiscDestinationPayload,
   UpdatePageGroupPayload, UpdateParkingSettingsPayload, UpdatePinSetPayload,
+  // M10 C — qarang ../../replica/m10-onlinepbx-contract.md (Bo'lak C)
+  CreateCallbackWidgetPayload, CreateMissedCallRulePayload, CreateQaChecklistPayload, CreateQaEvaluationPayload,
+  ListCallbackRequestsParams, ListMissedCallNoticesParams, ListQaEvaluationsParams,
+  TotpDisablePayload, TotpEnablePayload, TotpRecoveryCodesPayload,
+  UpdateCallbackWidgetPayload, UpdateMissedCallRulePayload, UpdateQaChecklistPayload, UpdateQaEvaluationPayload,
+  UpdateTtsSettingsPayload,
 } from './types';
 
 export const qk = {
@@ -155,6 +161,17 @@ export const qk = {
   pinSetPins: (id: string) => ['pin-set-pins', id] as const,
   phonebook: (p: ListPhonebookParams) => ['phonebook', p] as const,
   cidSources: ['cid-sources'] as const,
+  // M10 C — qarang ../../replica/m10-onlinepbx-contract.md (Bo'lak C)
+  callbackWidgets: ['callback-widgets'] as const,
+  callbackRequests: (p: ListCallbackRequestsParams) => ['callback-requests', p] as const,
+  missedCallRules: ['missed-call-rules'] as const,
+  missedCallNotices: (p: ListMissedCallNoticesParams) => ['missed-call-notices', p] as const,
+  ttsSettings: ['tts-settings'] as const,
+  qaChecklists: ['qa-checklists'] as const,
+  qaEvaluations: (p: ListQaEvaluationsParams) => ['qa-evaluations', p] as const,
+  qaSummary: ['qa-summary'] as const,
+  callEvaluations: (linkedid: string) => ['call-evaluations', linkedid] as const,
+  myEvaluations: (p: { page?: number; size?: number }) => ['my-evaluations', p] as const,
 };
 
 export function useSetupState() {
@@ -1634,4 +1651,166 @@ export function useImportExtensionsCsv() {
     mutationFn: (params: ImportExtensionsParams) => apiClient.importExtensionsCsv(params),
     onSuccess: (result) => { if (!result.errors) invalidate([['extensions'], ['targets']]); },
   });
+}
+
+// ─────────────────────── M10 C A1 — Callback vidjet ───────────────────────
+
+export function useCallbackWidgets() {
+  return useQuery({ queryKey: qk.callbackWidgets, queryFn: () => apiClient.listCallbackWidgets() });
+}
+export function useCreateCallbackWidget() {
+  const invalidate = useInvalidate();
+  return useMutation({
+    mutationFn: (payload: CreateCallbackWidgetPayload) => apiClient.createCallbackWidget(payload),
+    onSuccess: () => invalidate([qk.callbackWidgets]),
+  });
+}
+export function useUpdateCallbackWidget() {
+  const invalidate = useInvalidate();
+  return useMutation({
+    mutationFn: ({ id, payload }: { id: string; payload: UpdateCallbackWidgetPayload }) => apiClient.updateCallbackWidget(id, payload),
+    onSuccess: () => invalidate([qk.callbackWidgets]),
+  });
+}
+export function useDeleteCallbackWidget() {
+  const invalidate = useInvalidate();
+  return useMutation({ mutationFn: (id: string) => apiClient.deleteCallbackWidget(id), onSuccess: () => invalidate([qk.callbackWidgets]) });
+}
+export function useRotateCallbackWidgetKey() {
+  const invalidate = useInvalidate();
+  return useMutation({ mutationFn: (id: string) => apiClient.rotateCallbackWidgetKey(id), onSuccess: () => invalidate([qk.callbackWidgets]) });
+}
+export function useCallbackRequests(params: ListCallbackRequestsParams) {
+  return useQuery({ queryKey: qk.callbackRequests(params), queryFn: () => apiClient.listCallbackRequests(params) });
+}
+
+// ─────────────────────── M10 C A2 — Javobsiz qoʻngʻiroq xabari ───────────────────────
+
+export function useMissedCallRules() {
+  return useQuery({ queryKey: qk.missedCallRules, queryFn: () => apiClient.listMissedCallRules() });
+}
+export function useCreateMissedCallRule() {
+  const invalidate = useInvalidate();
+  return useMutation({
+    mutationFn: (payload: CreateMissedCallRulePayload) => apiClient.createMissedCallRule(payload),
+    onSuccess: () => invalidate([qk.missedCallRules]),
+  });
+}
+export function useUpdateMissedCallRule() {
+  const invalidate = useInvalidate();
+  return useMutation({
+    mutationFn: ({ id, payload }: { id: string; payload: UpdateMissedCallRulePayload }) => apiClient.updateMissedCallRule(id, payload),
+    onSuccess: () => invalidate([qk.missedCallRules]),
+  });
+}
+export function useDeleteMissedCallRule() {
+  const invalidate = useInvalidate();
+  return useMutation({ mutationFn: (id: string) => apiClient.deleteMissedCallRule(id), onSuccess: () => invalidate([qk.missedCallRules]) });
+}
+export function useTestMissedCallRule() {
+  return useMutation({ mutationFn: (id: string) => apiClient.testMissedCallRule(id) });
+}
+export function useMissedCallNotices(params: ListMissedCallNoticesParams) {
+  return useQuery({ queryKey: qk.missedCallNotices(params), queryFn: () => apiClient.listMissedCallNotices(params) });
+}
+
+// ─────────────────────── M10 C A3 — TTS ───────────────────────
+// `previewTts` (Blob) — bevosita `apiClient`dan chaqiriladi (mutatsiya emas, qarang AudioPage.tsx).
+
+export function useTtsSettings() {
+  return useQuery({ queryKey: qk.ttsSettings, queryFn: () => apiClient.getTtsSettings() });
+}
+export function useUpdateTtsSettings() {
+  const invalidate = useInvalidate();
+  return useMutation({
+    mutationFn: (payload: UpdateTtsSettingsPayload) => apiClient.updateTtsSettings(payload),
+    onSuccess: () => invalidate([qk.ttsSettings]),
+  });
+}
+export function useTestTtsSettings() {
+  return useMutation({ mutationFn: () => apiClient.testTtsSettings() });
+}
+export function useCreateTtsAudio() {
+  const invalidate = useInvalidate();
+  return useMutation({
+    mutationFn: (payload: { name: string; text: string }) => apiClient.createTtsAudio(payload),
+    onSuccess: () => invalidate([qk.audio]),
+  });
+}
+
+// ─────────────────────── M10 C B1 — Sifat baholash ───────────────────────
+
+export function useQaChecklists() {
+  return useQuery({ queryKey: qk.qaChecklists, queryFn: () => apiClient.listQaChecklists() });
+}
+export function useCreateQaChecklist() {
+  const invalidate = useInvalidate();
+  return useMutation({
+    mutationFn: (payload: CreateQaChecklistPayload) => apiClient.createQaChecklist(payload),
+    onSuccess: () => invalidate([qk.qaChecklists]),
+  });
+}
+export function useUpdateQaChecklist() {
+  const invalidate = useInvalidate();
+  return useMutation({
+    mutationFn: ({ id, payload }: { id: string; payload: UpdateQaChecklistPayload }) => apiClient.updateQaChecklist(id, payload),
+    onSuccess: () => invalidate([qk.qaChecklists]),
+  });
+}
+export function useDeleteQaChecklist() {
+  const invalidate = useInvalidate();
+  return useMutation({ mutationFn: (id: string) => apiClient.deleteQaChecklist(id), onSuccess: () => invalidate([qk.qaChecklists]) });
+}
+export function useQaEvaluations(params: ListQaEvaluationsParams) {
+  return useQuery({ queryKey: qk.qaEvaluations(params), queryFn: () => apiClient.listQaEvaluations(params) });
+}
+export function useCreateQaEvaluation() {
+  const invalidate = useInvalidate();
+  return useMutation({
+    mutationFn: (payload: CreateQaEvaluationPayload) => apiClient.createQaEvaluation(payload),
+    onSuccess: () => invalidate([['qa-evaluations'], ['qa-summary'], ['call-evaluations'], ['my-evaluations'], ['calls']]),
+  });
+}
+export function useUpdateQaEvaluation() {
+  const invalidate = useInvalidate();
+  return useMutation({
+    mutationFn: ({ id, payload }: { id: string; payload: UpdateQaEvaluationPayload }) => apiClient.updateQaEvaluation(id, payload),
+    onSuccess: () => invalidate([['qa-evaluations'], ['qa-summary'], ['call-evaluations'], ['my-evaluations']]),
+  });
+}
+export function useDeleteQaEvaluation() {
+  const invalidate = useInvalidate();
+  return useMutation({
+    mutationFn: (id: string) => apiClient.deleteQaEvaluation(id),
+    onSuccess: () => invalidate([['qa-evaluations'], ['qa-summary'], ['call-evaluations'], ['my-evaluations']]),
+  });
+}
+export function useQaSummary() {
+  return useQuery({ queryKey: qk.qaSummary, queryFn: () => apiClient.qaSummary() });
+}
+export function useCallEvaluations(linkedid: string) {
+  return useQuery({ queryKey: qk.callEvaluations(linkedid), queryFn: () => apiClient.listCallEvaluations(linkedid), enabled: !!linkedid });
+}
+export function useMyEvaluations(params: { page?: number; size?: number }) {
+  return useQuery({ queryKey: qk.myEvaluations(params), queryFn: () => apiClient.listMyEvaluations(params) });
+}
+
+// ─────────────────────── M10 C B2 — 2FA (TOTP) ───────────────────────
+// `loginTotp` — LoginPage'da bevosita chaqiriladi (sessiyagacha, boshqa kirish mutatsiyalari kabi ilgaksiz).
+
+export function useSetupTotp() {
+  return useMutation({ mutationFn: () => apiClient.setupTotp() });
+}
+export function useEnableTotp() {
+  return useMutation({ mutationFn: (payload: TotpEnablePayload) => apiClient.enableTotp(payload) });
+}
+export function useDisableTotp() {
+  return useMutation({ mutationFn: (payload: TotpDisablePayload) => apiClient.disableTotp(payload) });
+}
+export function useRegenerateTotpRecoveryCodes() {
+  return useMutation({ mutationFn: (payload: TotpRecoveryCodesPayload) => apiClient.regenerateTotpRecoveryCodes(payload) });
+}
+export function useResetUserTotp() {
+  const invalidate = useInvalidate();
+  return useMutation({ mutationFn: (userId: string) => apiClient.resetUserTotp(userId), onSuccess: () => invalidate([qk.users]) });
 }

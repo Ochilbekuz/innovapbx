@@ -1,9 +1,13 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useIntegrationsSettings, useRecordingSettings, useUpdateIntegrationsSettings, useUpdateRecordingSettings } from '@/api/queries';
-import type { IntegrationsSettings, RecordingSettings } from '@/api/types';
+import {
+  useIntegrationsSettings, useRecordingSettings, useTestTtsSettings, useTtsSettings, useUpdateIntegrationsSettings,
+  useUpdateRecordingSettings, useUpdateTtsSettings,
+} from '@/api/queries';
+import { isApiError } from '@/api/errors';
+import type { IntegrationsSettings, RecordingSettings, TtsProvider, TtsSettings, TtsVoices } from '@/api/types';
 import { Button } from '@/ui/Button';
-import { Field, Input } from '@/ui/Field';
+import { Field, Input, Select } from '@/ui/Field';
 import { Toggle } from '@/ui/Toggle';
 import { useToast } from '@/ui/Toast';
 import { StaleBanner, useMutationError } from './shared';
@@ -75,12 +79,78 @@ function RecordingSettingsForm({ data, canManage }: { data: RecordingSettings; c
   );
 }
 
-/** M3b §6 — Integratsiyalar sozlamalari (public_base_url/TTL) + qoʻngʻiroq yozib olish (saqlash muddati/faqat tashqi). */
+/** M10 C A3 — Nutq sintezi (Yandex SpeechKit): provayder, API kalit (faqat yozish), katalog ID, ovozlar, sinash. */
+function SpeechKitSettingsForm({ data, canManage }: { data: TtsSettings; canManage: boolean }) {
+  const { t } = useTranslation('integrations');
+  const toast = useToast();
+  const updateM = useUpdateTtsSettings();
+  const testM = useTestTtsSettings();
+  const [provider, setProvider] = useState<TtsProvider>(data.provider);
+  const [apiKey, setApiKey] = useState('');
+  const [folderId, setFolderId] = useState(data.folder_id ?? '');
+  const [voices, setVoices] = useState<TtsVoices>(data.voices);
+  const { field: errorField, message: errorMessage, stale } = useMutationError(updateM.error);
+
+  const setVoice = (lang: keyof TtsVoices, v: string) => setVoices((prev) => ({ ...prev, [lang]: v }));
+
+  const submit = () => {
+    // Bo'sh qoldirilsa — mavjud kalitga tegilmaydi (faqat qayta kiritilganda almashtiriladi/o'chiriladi — "" bilan).
+    updateM.mutate({ provider, ...(apiKey !== '' ? { api_key: apiKey } : {}), folder_id: folderId.trim() || null, voices, updated_at: data.updated_at }, {
+      onSuccess: () => { toast({ kind: 'success', title: t('settings.saved') }); setApiKey(''); },
+    });
+  };
+
+  const runTest = () => {
+    testM.mutate(undefined, {
+      onSuccess: (res) => toast(res.ok ? { kind: 'success', title: t('settings.speechkit.testOk') } : { kind: 'error', title: t('settings.speechkit.testFail', { message: res.message }) }),
+      onError: (e) => toast({ kind: 'error', title: t('settings.speechkit.testFail', { message: isApiError(e) ? e.message : String(e) }) }),
+    });
+  };
+
+  return (
+    <SettingsSection title={t('settings.speechkit.title')} canManage={canManage} pending={updateM.isPending} onSave={submit}>
+      <StaleBanner stale={stale} message={errorMessage} />
+      <Field label={t('settings.speechkit.providerLabel')} className="max-w-xs">
+        {(a) => (
+          <Select
+            {...a} disabled={!canManage} value={provider} onValueChange={(v) => setProvider(v as TtsProvider)}
+            options={[{ value: 'none', label: t('settings.speechkit.provider.none') }, { value: 'yandex', label: t('settings.speechkit.provider.yandex') }]}
+          />
+        )}
+      </Field>
+      {provider === 'yandex' && (
+        <>
+          <Field
+            label={t('settings.speechkit.apiKeyLabel')} hint={data.has_api_key ? t('settings.speechkit.apiKeySetHint') : undefined}
+            error={errorField === 'api_key' ? errorMessage : undefined}
+          >
+            {(a) => <Input {...a} mono disabled={!canManage} type="password" placeholder={t('settings.speechkit.apiKeyPlaceholder')} value={apiKey} onChange={(e) => setApiKey(e.target.value)} />}
+          </Field>
+          <Field label={t('settings.speechkit.folderIdLabel')} error={errorField === 'folder_id' ? errorMessage : undefined}>
+            {(a) => <Input {...a} mono disabled={!canManage} value={folderId} onChange={(e) => setFolderId(e.target.value)} />}
+          </Field>
+          <div>
+            <p className="mb-2 text-sm font-medium text-fg">{t('settings.speechkit.voicesTitle')}</p>
+            <div className="grid gap-3 sm:grid-cols-3">
+              <Field label={t('settings.speechkit.voiceUz')}>{(a) => <Input {...a} mono disabled={!canManage} value={voices.uz} onChange={(e) => setVoice('uz', e.target.value)} />}</Field>
+              <Field label={t('settings.speechkit.voiceRu')}>{(a) => <Input {...a} mono disabled={!canManage} value={voices.ru} onChange={(e) => setVoice('ru', e.target.value)} />}</Field>
+              <Field label={t('settings.speechkit.voiceEn')}>{(a) => <Input {...a} mono disabled={!canManage} value={voices.en} onChange={(e) => setVoice('en', e.target.value)} />}</Field>
+            </div>
+          </div>
+          {canManage && <div><Button variant="secondary" loading={testM.isPending} onClick={runTest}>{t('settings.speechkit.test')}</Button></div>}
+        </>
+      )}
+    </SettingsSection>
+  );
+}
+
+/** M3b §6 — Integratsiyalar sozlamalari (public_base_url/TTL) + qoʻngʻiroq yozib olish (saqlash muddati/faqat tashqi) + TTS. */
 export function SettingsTab({ canManage }: { canManage: boolean }) {
   const integrations = useIntegrationsSettings();
   const recording = useRecordingSettings();
+  const tts = useTtsSettings();
 
-  if (integrations.isLoading || recording.isLoading || !integrations.data || !recording.data) {
+  if (integrations.isLoading || recording.isLoading || tts.isLoading || !integrations.data || !recording.data || !tts.data) {
     return <p className="text-sm text-muted">…</p>;
   }
 
@@ -88,6 +158,7 @@ export function SettingsTab({ canManage }: { canManage: boolean }) {
     <div className="flex flex-col gap-5">
       <IntegrationsSettingsForm data={integrations.data} canManage={canManage} />
       <RecordingSettingsForm data={recording.data} canManage={canManage} />
+      <SpeechKitSettingsForm data={tts.data} canManage={canManage} />
     </div>
   );
 }

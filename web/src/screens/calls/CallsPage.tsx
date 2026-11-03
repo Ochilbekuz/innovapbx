@@ -1,13 +1,15 @@
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { formatDateTime, formatDurationSec, tenantDate, tenantDateTimeIso } from '@/lib/time';
-import { ArrowLeftRight, Download, PhoneIncoming, PhoneMissed, PhoneOutgoing, ShieldOff, SlidersHorizontal } from 'lucide-react';
+import { ArrowLeftRight, ClipboardCheck, Download, PhoneIncoming, PhoneMissed, PhoneOutgoing, ShieldOff, SlidersHorizontal } from 'lucide-react';
 import { apiClient } from '@/api';
-import { useCalls, useCreateBlacklistEntry } from '@/api/queries';
+import { useCalls, useCreateBlacklistEntry, useQaChecklists } from '@/api/queries';
 import { isApiError } from '@/api/errors';
 import type { Call, CallDirection, ListCallsParams } from '@/api/types';
 import { useCanEdit } from '@/auth/permissions';
 import { RecordingList, recordingFileBase } from '@/pbx/RecordingList';
+import { EvaluationDrawer } from '@/screens/quality/EvaluationDrawer';
+import { scoreTone } from '@/screens/quality/qaScore';
 import { AppShellPage } from '@/shell/AppShellPage';
 import { ClickToCallButton } from '@/softphone/ClickToCallButton';
 import { Button } from '@/ui/Button';
@@ -42,8 +44,11 @@ export function CallsPage() {
   const [toTime, setToTime] = useState('23:59');
   const [direction, setDirection] = useState<'all' | CallDirection>('all');
   const [blocking, setBlocking] = useState<Call | null>(null);
+  const [evaluating, setEvaluating] = useState<Call | null>(null);
   const canManage = useCanEdit('apps');
   const canManageRecordings = useCanEdit('reports');
+  const canEvaluate = useCanEdit('reports');
+  const { data: checklistsData } = useQaChecklists();
 
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [draft, setDraft] = useState<AdvancedSearchForm>(EMPTY_ADVANCED_SEARCH);
@@ -121,6 +126,16 @@ export function CallsPage() {
           {t('block.action')}
         </Button>
       ) : null,
+    },
+    {
+      key: 'qa', header: t('column.qa'), cell: (r) => (
+        <div className="flex items-center gap-1.5">
+          {r.qa && <Badge tone={scoreTone(r.qa.score_pct)}>{r.qa.score_pct}%</Badge>}
+          <Button size="sm" variant="ghost" icon={<ClipboardCheck />} disabled={!canEvaluate} aria-label={t('qa.ariaLabel', { number: r.dst })} onClick={() => setEvaluating(r)}>
+            {t('qa.action')}
+          </Button>
+        </div>
+      ),
     },
     // Oxirgi ustun — yozilgan qoʻngʻiroqni shu yerdan tinglash / yuklab olish.
     { key: 'recording', header: t('column.recording'), cell: (r) => <RecordingList recordings={r.recordings} canDelete={canManageRecordings} fileBase={recordingFileBase(r)} /> },
@@ -200,6 +215,14 @@ export function CallsPage() {
       </div>
 
       <BlockCallModal call={blocking} onClose={() => setBlocking(null)} />
+      {evaluating && (
+        <EvaluationDrawer
+          callId={evaluating.uniqueid}
+          callLabel={`${evaluating.src} → ${evaluating.dst}`}
+          checklists={checklistsData?.items ?? []}
+          onClose={() => setEvaluating(null)}
+        />
+      )}
     </AppShellPage>
   );
 }

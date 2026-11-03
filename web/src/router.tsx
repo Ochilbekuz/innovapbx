@@ -46,6 +46,10 @@ import { PagingPage } from '@/screens/paging/PagingPage';
 import { PhonebookPage } from '@/screens/phonebook/PhonebookPage';
 import { PinSetsPage } from '@/screens/pinsets/PinSetsPage';
 import { CidSourcesPage } from '@/screens/cidsources/CidSourcesPage';
+import { QualityPage } from '@/screens/quality/QualityPage';
+import { MissedCallsPage } from '@/screens/missedcalls/MissedCallsPage';
+import { CallbackWidgetPage } from '@/screens/callback/CallbackWidgetPage';
+import { Enroll2faPage } from '@/screens/auth/Enroll2faPage';
 
 /** M0/M1a/M2b'da to'liq qurilgan ekranlar — qolganlari `ScreenStub` orqali "tez orada". */
 const FULL_PAGES: Record<string, ComponentType> = {
@@ -86,6 +90,8 @@ const FULL_PAGES: Record<string, ComponentType> = {
   phonebook: PhonebookPage,
   pinsets: PinSetsPage,
   cidsources: CidSourcesPage,
+  quality: QualityPage,
+  missedcalls: MissedCallsPage,
 };
 
 /** `/` va noma'lum yo'llar uchun ruxsatga mos boshlang'ich sahifa (M7 §4 — qarang `homeFor`). */
@@ -113,13 +119,23 @@ export function AppRouter() {
         );
       })}
       {EXTRA_ROUTES.map((r) => (
-        <Route key={r.reconId} path={r.path} element={<RequireAuth><ExtraScreenStub reconId={r.reconId} titleKey={r.titleKey} /></RequireAuth>} />
+        <Route
+          key={r.reconId}
+          path={r.path}
+          element={
+            <RequireAuth>
+              {r.reconId === 'S17' ? <CallbackWidgetPage /> : <ExtraScreenStub reconId={r.reconId} titleKey={r.titleKey} />}
+            </RequireAuth>
+          }
+        />
       ))}
       {/* Sidebarda ko'rsatilmaydi — header'dagi RevisionBadge orqali ochiladi (M1b §7). */}
       <Route path="/settings/revisions" element={<RequireAuth><RevisionsPage /></RequireAuth>} />
       <Route path="/settings/revisions/:id" element={<RequireAuth><RevisionsPage /></RequireAuth>} />
       {/* Sidebarda ko'rsatilmaydi — `must_change_password` bo'lsa `RequireAuth` shu yerga qaytaradi (M2b §3). */}
       <Route path="/change-password" element={<RequireAuth><ChangePasswordPage /></RequireAuth>} />
+      {/* Sidebarda ko'rsatilmaydi — `must_enroll_2fa` bo'lsa `RequireAuth` shu yerga qaytaradi (M10 C B2). */}
+      <Route path="/enroll-2fa" element={<RequireAuth><Enroll2faPage /></RequireAuth>} />
 
       <Route path="/" element={<RequireAuth><RoleHome /></RequireAuth>} />
       <Route path="*" element={<RequireAuth><RoleHome /></RequireAuth>} />

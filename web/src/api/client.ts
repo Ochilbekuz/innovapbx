@@ -65,6 +65,17 @@ import type {
   Contact, CreateContactPayload, UpdateContactPayload, ListPhonebookParams, ImportPhonebookResult, ImportPhonebookParams,
   CidSource, CreateCidSourcePayload, UpdateCidSourcePayload, CidSourceTestResult,
   ImportExtensionsResult, ImportExtensionsParams,
+  // M10 C — qarang ../../replica/m10-onlinepbx-contract.md (Bo'lak C)
+  CallbackWidget, CreateCallbackWidgetPayload, UpdateCallbackWidgetPayload,
+  CallbackRequest, ListCallbackRequestsParams,
+  MissedCallRule, CreateMissedCallRulePayload, UpdateMissedCallRulePayload, MissedCallRuleMutated, TestMissedCallRuleResult,
+  MissedCallNotice, ListMissedCallNoticesParams,
+  TtsSettings, TtsSettingsMutated, UpdateTtsSettingsPayload, TtsTestResult, CreateTtsAudioPayload, TtsPreviewPayload,
+  QaChecklist, CreateQaChecklistPayload, UpdateQaChecklistPayload,
+  QaEvaluation, CreateQaEvaluationPayload, UpdateQaEvaluationPayload, ListQaEvaluationsParams,
+  QaSummary,
+  TotpSetup, TotpEnablePayload, TotpEnableResult, TotpDisablePayload, TotpRecoveryCodesPayload,
+  TotpRecoveryCodesResult, LoginTotpPayload,
 } from './types';
 import type { ApplyResult } from './types';
 
@@ -447,6 +458,54 @@ export interface ApiClient {
   // M9 B4 — qarang §B4 (ichki raqamlar CSV import/eksport)
   exportExtensionsCsv(): Promise<Blob>;
   importExtensionsCsv(params: ImportExtensionsParams): Promise<ImportExtensionsResult>;
+
+  // M10 C A1 — Callback vidjet
+  // Backend `list_callback_widgets` — filtr/pagination/`total` YO'Q, `{items}` qaytadi.
+  listCallbackWidgets(): Promise<{ items: CallbackWidget[] }>;
+  createCallbackWidget(payload: CreateCallbackWidgetPayload): Promise<Mutated<CallbackWidget>>;
+  updateCallbackWidget(id: string, payload: UpdateCallbackWidgetPayload): Promise<Mutated<CallbackWidget>>;
+  deleteCallbackWidget(id: string): Promise<void>;
+  // Backend `RotateWidgetKeyResult` — `{item, apply}` (`item`ning yolg'iz o'zi EMAS).
+  rotateCallbackWidgetKey(id: string): Promise<Mutated<CallbackWidget>>;
+  listCallbackRequests(params: ListCallbackRequestsParams): Promise<Paged<CallbackRequest>>;
+
+  // M10 C A2 — Javobsiz qoʻngʻiroq xabari (backend `list_missed_call_rules` — filtr/`total` YO'Q)
+  listMissedCallRules(): Promise<{ items: MissedCallRule[] }>;
+  createMissedCallRule(payload: CreateMissedCallRulePayload): Promise<MissedCallRuleMutated>;
+  updateMissedCallRule(id: string, payload: UpdateMissedCallRulePayload): Promise<MissedCallRuleMutated>;
+  deleteMissedCallRule(id: string): Promise<void>;
+  testMissedCallRule(id: string): Promise<TestMissedCallRuleResult>;
+  listMissedCallNotices(params: ListMissedCallNoticesParams): Promise<Paged<MissedCallNotice>>;
+
+  // M10 C A3 — TTS (Yandex SpeechKit)
+  getTtsSettings(): Promise<TtsSettings>;
+  // Backend `PATCH /settings/tts` -> `TtsSettingsMutated{item}` (apply YO'Q — dialplanga ta'sir qilmaydi).
+  updateTtsSettings(payload: UpdateTtsSettingsPayload): Promise<TtsSettingsMutated>;
+  testTtsSettings(): Promise<TtsTestResult>;
+  // Backend `POST /audio/tts` -> `AudioCreated{item}` (uploadAudio bilan BIR XIL qolip).
+  createTtsAudio(payload: CreateTtsAudioPayload): Promise<{ item: Audio }>;
+  previewTts(payload: TtsPreviewPayload): Promise<Blob>;
+
+  // M10 C B1 — Sifat baholash (varaqa/baholash CRUD flat — Mutated/apply YO'Q, dialplanga ta'sir qilmaydi)
+  listQaChecklists(): Promise<{ items: QaChecklist[] }>;
+  createQaChecklist(payload: CreateQaChecklistPayload): Promise<QaChecklist>;
+  updateQaChecklist(id: string, payload: UpdateQaChecklistPayload): Promise<QaChecklist>;
+  deleteQaChecklist(id: string): Promise<void>;
+  listQaEvaluations(params: ListQaEvaluationsParams): Promise<Paged<QaEvaluation>>;
+  createQaEvaluation(payload: CreateQaEvaluationPayload): Promise<QaEvaluation>;
+  updateQaEvaluation(id: string, payload: UpdateQaEvaluationPayload): Promise<QaEvaluation>;
+  deleteQaEvaluation(id: string): Promise<void>;
+  qaSummary(): Promise<QaSummary>;
+  listCallEvaluations(linkedid: string): Promise<Paged<QaEvaluation>>;
+  listMyEvaluations(params: { page?: number; size?: number }): Promise<Paged<QaEvaluation>>;
+
+  // M10 C B2 — 2FA (TOTP)
+  loginTotp(payload: LoginTotpPayload): Promise<AuthResult>;
+  setupTotp(): Promise<TotpSetup>;
+  enableTotp(payload: TotpEnablePayload): Promise<TotpEnableResult>;
+  disableTotp(payload: TotpDisablePayload): Promise<void>;
+  regenerateTotpRecoveryCodes(payload: TotpRecoveryCodesPayload): Promise<TotpRecoveryCodesResult>;
+  resetUserTotp(userId: string): Promise<void>;
 }
 
 export const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));

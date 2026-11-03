@@ -1,13 +1,15 @@
 import { useEffect, useRef, useState, type DragEvent } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Mic, Music2, Pencil, Plus, Shuffle, Square, Trash2, Upload } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { AudioLines, Mic, Music2, Pencil, Plus, Shuffle, Square, Trash2, Upload } from 'lucide-react';
 import { apiClient } from '@/api';
 import {
-  useAudio, useCreateMohClass, useDeleteAudio, useDeleteMohClass, useMohClasses, useUpdateMohClass, useUploadAudio,
+  useAudio, useCreateMohClass, useCreateTtsAudio, useDeleteAudio, useDeleteMohClass, useMohClasses, useTtsSettings,
+  useUpdateMohClass, useUploadAudio,
 } from '@/api/queries';
 import { isApiError } from '@/api/errors';
 import type { Audio, MohClass, Usage } from '@/api/types';
-import { useCanEdit } from '@/auth/permissions';
+import { useCanEdit, usePermission } from '@/auth/permissions';
 import { cn } from '@/lib/cn';
 import { formatDateTimeShort, formatDurationMs, formatDurationSec } from '@/lib/time';
 import { usagesOf } from '@/lib/usageError';
@@ -16,12 +18,14 @@ import { UsageList } from '@/pbx/UsageList';
 import { AppShellPage } from '@/shell/AppShellPage';
 import { Button } from '@/ui/Button';
 import { Drawer, Modal } from '@/ui/Dialog';
-import { Field, Input } from '@/ui/Field';
+import { Field, Input, Textarea } from '@/ui/Field';
 import { Badge } from '@/ui/Status';
 import { DataTable, type Column } from '@/ui/Table';
 import { Tabs } from '@/ui/Tabs';
 import { Toggle } from '@/ui/Toggle';
 import { useToast } from '@/ui/Toast';
+
+const TTS_MAX_CHARS = 2000;
 
 const ACCEPT = '.wav,.mp3,.ogg';
 const MAX_RECORD_S = 300;
@@ -86,7 +90,7 @@ function FilesTab() {
   return (
     <div>
       {canManage && (
-        <div className="mb-4 grid gap-3 sm:grid-cols-2">
+        <div className="mb-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           <div
             onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
             onDragLeave={() => setDragOver(false)}
@@ -103,6 +107,7 @@ function FilesTab() {
             />
           </div>
           <AudioRecorder onSave={upload} pending={uploadM.isPending} />
+          <TtsCard />
         </div>
       )}
       {uploadErr && <p className="mb-3 text-sm text-danger">{uploadErr}</p>}
@@ -265,6 +270,93 @@ function AudioRecorder({ onSave, pending }: { onSave: (file: File, name: string)
       )}
       {recErr && <p className="text-sm text-danger">{recErr}</p>}
     </div>
+  );
+}
+
+/** M10 C A3 — "Matndan audio yaratish" kartasi: dialogni ochadi, sozlanmagan bo'lsa admin uchun havola ko'rsatadi. */
+function TtsCard() {
+  const { t } = useTranslation('audio');
+  const [open, setOpen] = useState(false);
+  const { data: settings } = useTtsSettings();
+  const isAdmin = usePermission('*');
+  const configured = settings?.provider !== 'none';
+
+  return (
+    <div className="flex flex-col items-center gap-2 rounded-lg border-2 border-dashed border-line px-4 py-8 text-center">
+      <AudioLines aria-hidden className="size-6 text-muted" />
+      <p className="text-sm text-muted">{t('tts.cardDesc')}</p>
+      {configured ? (
+        <Button size="sm" variant="secondary" icon={<AudioLines />} onClick={() => setOpen(true)}>{t('tts.start')}</Button>
+      ) : (
+        <>
+          <p className="text-xs text-danger">{t('tts.notConfigured')}</p>
+          {isAdmin ? (
+            <Link to="/settings/integrations" className="text-xs text-brand hover:underline">{t('tts.openSettings')}</Link>
+          ) : (
+            <p className="text-xs text-muted">{t('tts.notConfiguredAdmin')}</p>
+          )}
+        </>
+      )}
+      {open && <TtsDialog onClose={() => setOpen(false)} />}
+    </div>
+  );
+}
+
+function TtsDialog({ onClose }: { onClose: () => void }) {
+  const { t } = useTranslation('audio');
+  const toast = useToast();
+  const [name, setName] = useState('');
+  const [text, setText] = useState('');
+  const [previewBlob, setPreviewBlob] = useState<Blob | null>(null);
+  const [previewPending, setPreviewPending] = useState(false);
+  const [previewErr, setPreviewErr] = useState<string | null>(null);
+  const createM = useCreateTtsAudio();
+
+  const trimmed = text.trim();
+  const valid = trimmed.length !== 0 && trimmed.length <= TTS_MAX_CHARS;
+
+  const preview = () => {
+    setPreviewErr(null);
+    setPreviewPending(true);
+    apiClient.previewTts({ text: trimmed }).then(
+      (blob) => { setPreviewBlob(blob); setPreviewPending(false); },
+      (e) => { setPreviewErr(isApiError(e) ? e.message : t('tts.previewFailed')); setPreviewPending(false); },
+    );
+  };
+
+  const save = () => {
+    createM.mutate({ name: name.trim(), text: trimmed }, {
+      onSuccess: ({ item }) => { toast({ kind: 'success', title: t('tts.toast.created', { name: item.name }) }); onClose(); },
+    });
+  };
+
+  return (
+    <Modal
+      open
+      onOpenChange={(v) => !v && onClose()}
+      title={t('tts.dialogTitle')}
+      footer={
+        <>
+          <Button variant="ghost" onClick={onClose}>{t('tts.cancel')}</Button>
+          <Button variant="primary" loading={createM.isPending} disabled={!valid} onClick={save}>{t('tts.save')}</Button>
+        </>
+      }
+    >
+      <div className="flex flex-col gap-4">
+        {isApiError(createM.error) && <p className="text-sm text-danger">{createM.error.message}</p>}
+        <Field label={t('tts.nameLabel')} hint={t('tts.nameHint')}>
+          {(a) => <Input {...a} autoFocus value={name} onChange={(e) => setName(e.target.value)} />}
+        </Field>
+        <Field label={t('tts.textLabel')} hint={t('tts.textHint')}>
+          {(a) => <Textarea {...a} className="min-h-24" maxLength={TTS_MAX_CHARS} value={text} onChange={(e) => setText(e.target.value)} />}
+        </Field>
+        <div className="flex items-center gap-3">
+          <Button size="sm" variant="secondary" loading={previewPending} disabled={!valid} onClick={preview}>{t('tts.preview')}</Button>
+          {previewBlob && <AudioPlayer variant="inline" src={() => Promise.resolve(previewBlob)} title={name || trimmed.slice(0, 40)} seed={trimmed.length} />}
+        </div>
+        {previewErr && <p className="text-sm text-danger">{previewErr}</p>}
+      </div>
+    </Modal>
   );
 }
 

@@ -10,6 +10,7 @@ from app.core.config import settings
 from app.db.models import (
     Announcement,
     AudioFile,
+    CallbackWidget,
     CallTarget,
     Conference,
     DialNumber,
@@ -126,6 +127,11 @@ async def build_snapshot(session: AsyncSession, tenant_id: str) -> DialplanSnaps
         .options(selectinload(PageGroup.members).selectinload(PageGroupMember.extension)),
     )).scalars().all()
     parking = await get_parking_settings(session, tenant_id)
+    # M10 A1 — faqat operator `target_id`lari kerak (`<code>-dest-<target_id>`
+    # umumiy manzil kontekstini majburan yozish uchun; vidjetning o'zi
+    # dialplan'ga ta'sir qilmaydi, shu sabab boshqa maydon olinmaydi).
+    callback_widget_target_ids = tuple(sorted(set((await session.execute(
+        select(CallbackWidget.target_id).where(CallbackWidget.tenant_id == tenant_id))).scalars().all())))
 
     return DialplanSnapshot(
         tenant_code=tenant.code,
@@ -259,6 +265,7 @@ async def build_snapshot(session: AsyncSession, tenant_id: str) -> DialplanSnaps
             for pg in page_groups
         ],
         parking=parking,
+        callback_widget_target_ids=callback_widget_target_ids,
     )
 
 

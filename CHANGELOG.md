@@ -1,5 +1,22 @@
 # O'zgarishlar tarixi
 
+## 1.0.11 — 2026-11-03
+OnlinePBX'dagi, lekin bizda hali bo'lmagan funksiyalar (M10):
+- **Qayta qo'ng'iroq vidjeti (Callback widget)** — saytga bitta `<script>` qatori bilan qo'yiladi; mijoz raqamini
+  qoldiradi → PBX avval operatorga, u javob bergach mijozga qo'ng'iroq qiladi. Ruxsat etilgan domenlar (Origin),
+  spam-tuzoq (honeypot), IP/raqam/vidjet bo'yicha tezlik cheklovi, qora ro'yxat va toll-fraud himoyasi; so'rovlar tarixi.
+- **O'tkazib yuborilgan qo'ng'iroq xabarnomasi** — qoida bo'yicha (hammasi / DID / navbat / ring group / ichki raqam) Telegram yoki e-pochtaga
+  darhol xabar; «sinov» tugmasi, yuborilgan xabarlar jurnali.
+- **Matndan nutq (TTS, Yandex SpeechKit)** — matn yozib audio yaratish va oldindan eshitish; integratsiyalar
+  sahifasida kalit sozlash va sinov. Kalit bazada maxfiy saqlanadi, API'da qaytarilmaydi.
+- **Qo'ng'iroq sifatini baholash (QA)** — baholash varaqalari (ha/yo'q va 1–5 ball, vazn, «muhim» mezon),
+  qo'ng'iroqni baholash, operatorlar bo'yicha o'rtacha ball; operator o'z baholarini «Men» sahifasida ko'radi.
+- **Ikki bosqichli kirish (2FA, TOTP)** — Google Authenticator va shu kabilar; zaxira kodlar; siyosat
+  (o'chiq / faqat adminlar / hamma), admin foydalanuvchining 2FA'sini tiklay oladi. Noto'g'ri kodlar ham hisobni
+  bloklaydi (parolni bilgan hujumchi kodlarni cheksiz terib ko'ra olmaydi).
+- **Real vaqt hodisalar oqimi (WebSocket)** — `/api/public/v1/events/ws`: qo'ng'iroq hodisalari jonli, uzilishdan
+  keyin `since_seq` bilan qayta olish; `events:read` huquqli API kalit bilan.
+
 ## 1.0.10 — 2026-11-03
 Qo'ng'iroqlar tarixi (`/cdr`) tuzatishlari:
 - **Boshlanish/tugash vaqti endi soat:daqiqa bilan** (sukut 00:00 — 23:59). Oraliq Toshkent vaqtida hisoblanadi —

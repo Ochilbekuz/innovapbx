@@ -47,6 +47,9 @@ import * as paging from '@/i18n/paging';
 import * as phonebook from '@/i18n/phonebook';
 import * as pinsets from '@/i18n/pinsets';
 import * as cidsources from '@/i18n/cidsources';
+import * as quality from '@/i18n/quality';
+import * as callback from '@/i18n/callback';
+import * as missedcalls from '@/i18n/missedcalls';
 import { apiClient } from '@/api';
 
 export const LANGS = ['uz', 'ru', 'en'] as const;
@@ -58,7 +61,7 @@ const NAMESPACES = {
   voicemail, notify, featurecodes, conferences, blacklist,
   users, me, live, analytics, security, alerts, integrations, recordings, devices, backup, migration, followme, campaigns,
   status, network,
-  announcements, misc, parking, paging, phonebook, pinsets, cidsources,
+  announcements, misc, parking, paging, phonebook, pinsets, cidsources, quality, callback, missedcalls,
 } as const;
 
 function resourcesFor(lang: Lang) {

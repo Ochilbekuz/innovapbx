@@ -41,6 +41,10 @@ export function RequireAuth({ children }: { children: ReactNode }) {
   if (user.must_change_password && location.pathname !== '/change-password') {
     return <Navigate to="/change-password" replace />;
   }
+  // M10 C B2 — admin `require_2fa` siyosati majburlagan foydalanuvchi ro'yxatdan o'tmaguncha boshqa yerga kirmaydi.
+  if (user.must_enroll_2fa && location.pathname !== '/enroll-2fa') {
+    return <Navigate to="/enroll-2fa" replace />;
+  }
   return <>{children}</>;
 }
 

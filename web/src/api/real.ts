@@ -1,5 +1,5 @@
 import type { ApiClient, Created, Mutated } from './client';
-import { request, requestBlob, requestMultipart } from './http';
+import { request, requestBlob, requestBlobPost, requestMultipart } from './http';
 import type {
   AuditEntry, AuthResult, Audio, BlacklistEntry, Call, Conference, ConfigRevision, CreateBlacklistPayload,
   CreateConferencePayload, CreateExtensionPayload, CreateHolidayPayload,
@@ -65,6 +65,17 @@ import type {
   ParkingCall, ParkingSettings, PinSet, PinSetPin, UpdateAnnouncementPayload, UpdateCidSourcePayload,
   UpdateContactPayload, UpdateMiscApplicationPayload, UpdateMiscDestinationPayload, UpdatePageGroupPayload,
   UpdateParkingSettingsPayload, UpdatePinSetPayload,
+  // M10 C — qarang ../../replica/m10-onlinepbx-contract.md (Bo'lak C)
+  CallbackWidget, CreateCallbackWidgetPayload, UpdateCallbackWidgetPayload,
+  CallbackRequest, ListCallbackRequestsParams,
+  MissedCallRule, CreateMissedCallRulePayload, UpdateMissedCallRulePayload, MissedCallRuleMutated, TestMissedCallRuleResult,
+  MissedCallNotice, ListMissedCallNoticesParams,
+  TtsSettings, TtsSettingsMutated, UpdateTtsSettingsPayload, TtsTestResult, CreateTtsAudioPayload, TtsPreviewPayload,
+  QaChecklist, CreateQaChecklistPayload, UpdateQaChecklistPayload,
+  QaEvaluation, CreateQaEvaluationPayload, UpdateQaEvaluationPayload, ListQaEvaluationsParams,
+  QaSummary,
+  TotpSetup, TotpEnablePayload, TotpEnableResult, TotpDisablePayload, TotpRecoveryCodesPayload,
+  TotpRecoveryCodesResult, LoginTotpPayload,
 } from './types';
 import type { ApplyResult } from './types';
 
@@ -495,4 +506,48 @@ export const realClient: ApiClient = {
     form.append('dry_run', String(params.dry_run));
     return requestMultipart<ImportExtensionsResult>('/extensions/import', form);
   },
+
+  // M10 C A1 — Callback vidjet
+  listCallbackWidgets: () => request<{ items: CallbackWidget[] }>('/callback-widgets'),
+  createCallbackWidget: (payload: CreateCallbackWidgetPayload) => request<Mutated<CallbackWidget>>('/callback-widgets', { method: 'POST', body: payload }),
+  updateCallbackWidget: (id: string, payload: UpdateCallbackWidgetPayload) => request<Mutated<CallbackWidget>>(`/callback-widgets/${id}`, { method: 'PATCH', body: payload }),
+  deleteCallbackWidget: (id: string) => request<void>(`/callback-widgets/${id}`, { method: 'DELETE' }),
+  rotateCallbackWidgetKey: (id: string) => request<Mutated<CallbackWidget>>(`/callback-widgets/${id}/rotate-key`, { method: 'POST' }),
+  listCallbackRequests: (params: ListCallbackRequestsParams) => request<Paged<CallbackRequest>>(`/callback-requests${qs(params)}`),
+
+  // M10 C A2 — Javobsiz qoʻngʻiroq xabari (backend `{items}`, filtr/`total` YO'Q)
+  listMissedCallRules: () => request<{ items: MissedCallRule[] }>('/missed-call-rules'),
+  createMissedCallRule: (payload: CreateMissedCallRulePayload) => request<MissedCallRuleMutated>('/missed-call-rules', { method: 'POST', body: payload }),
+  updateMissedCallRule: (id: string, payload: UpdateMissedCallRulePayload) => request<MissedCallRuleMutated>(`/missed-call-rules/${id}`, { method: 'PATCH', body: payload }),
+  deleteMissedCallRule: (id: string) => request<void>(`/missed-call-rules/${id}`, { method: 'DELETE' }),
+  testMissedCallRule: (id: string) => request<TestMissedCallRuleResult>(`/missed-call-rules/${id}/test`, { method: 'POST' }),
+  listMissedCallNotices: (params: ListMissedCallNoticesParams) => request<Paged<MissedCallNotice>>(`/missed-call-notices${qs(params)}`),
+
+  // M10 C A3 — TTS
+  getTtsSettings: () => request<TtsSettings>('/settings/tts'),
+  updateTtsSettings: (payload: UpdateTtsSettingsPayload) => request<TtsSettingsMutated>('/settings/tts', { method: 'PATCH', body: payload }),
+  testTtsSettings: () => request<TtsTestResult>('/settings/tts/test', { method: 'POST' }),
+  createTtsAudio: (payload: CreateTtsAudioPayload) => request<{ item: Audio }>('/audio/tts', { method: 'POST', body: payload }),
+  previewTts: (payload: TtsPreviewPayload) => requestBlobPost('/audio/tts/preview', payload),
+
+  // M10 C B1 — Sifat baholash (varaqa/baholash CRUD flat — Mutated/apply YO'Q)
+  listQaChecklists: () => request<{ items: QaChecklist[] }>('/qa/checklists'),
+  createQaChecklist: (payload: CreateQaChecklistPayload) => request<QaChecklist>('/qa/checklists', { method: 'POST', body: payload }),
+  updateQaChecklist: (id: string, payload: UpdateQaChecklistPayload) => request<QaChecklist>(`/qa/checklists/${id}`, { method: 'PATCH', body: payload }),
+  deleteQaChecklist: (id: string) => request<void>(`/qa/checklists/${id}`, { method: 'DELETE' }),
+  listQaEvaluations: (params: ListQaEvaluationsParams) => request<Paged<QaEvaluation>>(`/qa/evaluations${qs(params)}`),
+  createQaEvaluation: (payload: CreateQaEvaluationPayload) => request<QaEvaluation>('/qa/evaluations', { method: 'POST', body: payload }),
+  updateQaEvaluation: (id: string, payload: UpdateQaEvaluationPayload) => request<QaEvaluation>(`/qa/evaluations/${id}`, { method: 'PATCH', body: payload }),
+  deleteQaEvaluation: (id: string) => request<void>(`/qa/evaluations/${id}`, { method: 'DELETE' }),
+  qaSummary: () => request<QaSummary>('/qa/summary'),
+  listCallEvaluations: (linkedid: string) => request<Paged<QaEvaluation>>(`/calls/${linkedid}/evaluations`),
+  listMyEvaluations: (params: { page?: number; size?: number }) => request<Paged<QaEvaluation>>(`/me/evaluations${qs(params)}`),
+
+  // M10 C B2 — 2FA (TOTP)
+  loginTotp: (payload: LoginTotpPayload) => request<AuthResult>('/auth/login/totp', { method: 'POST', body: payload, auth: false }),
+  setupTotp: () => request<TotpSetup>('/me/2fa/setup', { method: 'POST' }),
+  enableTotp: (payload: TotpEnablePayload) => request<TotpEnableResult>('/me/2fa/enable', { method: 'POST', body: payload }),
+  disableTotp: (payload: TotpDisablePayload) => request<void>('/me/2fa/disable', { method: 'POST', body: payload }),
+  regenerateTotpRecoveryCodes: (payload: TotpRecoveryCodesPayload) => request<TotpRecoveryCodesResult>('/me/2fa/recovery-codes', { method: 'POST', body: payload }),
+  resetUserTotp: (userId: string) => request<void>(`/users/${userId}/2fa/reset`, { method: 'POST' }),
 };

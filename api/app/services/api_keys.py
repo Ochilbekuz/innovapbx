@@ -14,7 +14,8 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Any
 
-SCOPES = ("calls:read", "recordings:read", "calls:originate", "extensions:read")
+SCOPES = ("calls:read", "recordings:read", "calls:originate", "extensions:read",
+          "events:read")  # M10 B3 — tashqi WS hodisalar obunasi
 KEY_RE = re.compile(r"ipk_([a-z0-9]{8})_[A-Za-z0-9]{32}")
 _PREFIX_ALPHABET = string.ascii_lowercase + string.digits
 _SECRET_ALPHABET = string.ascii_letters + string.digits

@@ -1,15 +1,14 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import QRCode from 'qrcode';
 import { Copy, RefreshCw, ShieldCheck } from 'lucide-react';
 import { useCreateQrProvisioning } from '@/api/queries';
 import { apiErrorMessage, isApiError } from '@/api/errors';
 import type { FollowMeTarget, QrProvisioning, SipTransport } from '@/api/types';
 import { usePermission } from '@/auth/permissions';
-import { cn } from '@/lib/cn';
 import { Button } from '@/ui/Button';
 import { Modal } from '@/ui/Dialog';
+import { QrImage } from '@/ui/QrImage';
 import { Badge } from '@/ui/Status';
 import { useToast } from '@/ui/Toast';
 import { copyText } from '@/lib/browser';
@@ -32,25 +31,6 @@ function useSecondsLeft(expiresAt: string | undefined): number {
 
 export function formatCountdown(seconds: number): string {
   return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
-}
-
-/** QR brauzerda yasaladi (havola tashqi xizmatga yuborilmaydi); tema qorong'i bo'lsa ham oq fonda — skanerlansin. */
-function QrImage({ url, alt, faded }: { url: string; alt: string; faded: boolean }) {
-  const [src, setSrc] = useState<string | null>(null);
-  useEffect(() => {
-    let alive = true;
-    QRCode.toDataURL(url, { margin: 1, width: QR_SIZE * 2, errorCorrectionLevel: 'M' })
-      .then((data) => { if (alive) setSrc(data); })
-      .catch(() => { if (alive) setSrc(null); });
-    return () => { alive = false; };
-  }, [url]);
-  return (
-    <div className="rounded-lg border border-line bg-white p-2.5 shadow-card">
-      {src
-        ? <img src={src} alt={alt} width={QR_SIZE} height={QR_SIZE} data-testid="qr-image" className={cn('block transition duration-base', faded && 'opacity-15 blur-[3px]')} />
-        : <div className="skeleton" style={{ width: QR_SIZE, height: QR_SIZE }} />}
-    </div>
-  );
 }
 
 /** M5b §2 — «Telefonga ulash»: bir martalik Linphone havolasi QR ko'rinishida, qolgan vaqt va ko'rsatma bilan. */

@@ -26,8 +26,12 @@ export const uz = {
     copy: 'Nusxalash', copied: 'Nusxalandi', close: 'Yopish',
     revoke: 'Bekor qilish', revokeConfirmTitle: 'Kalitni bekor qilasizmi?', revokeConfirmBody: '«{{name}}» kaliti bilan ishlayotgan integratsiyalar darhol toʻxtaydi.',
     confirm: 'Ha, bekor qilish', cancel: 'Bekor qilish',
-    scope: { callsRead: 'Qoʻngʻiroqlarni oʻqish', recordingsRead: 'Yozuvlarni oʻqish', callsOriginate: 'Chaqiruv boshlash', extensionsRead: 'Ichki raqamlarni oʻqish' },
+    scope: { callsRead: 'Qoʻngʻiroqlarni oʻqish', recordingsRead: 'Yozuvlarni oʻqish', callsOriginate: 'Chaqiruv boshlash', extensionsRead: 'Ichki raqamlarni oʻqish', eventsRead: 'Hodisalar oqimi (WebSocket)' },
     errors: { bad_name: 'Nom kiritilishi shart.', bad_scopes: 'Kamida bitta ruxsat tanlang.' },
+    ws: {
+      title: 'WebSocket ulanish namunasi', desc: '`events:read` ruxsati bilan yaratilgan kalit — qoʻngʻiroq hodisalarini jonli oqim sifatida qabul qiladi.',
+      copy: 'Nusxalash', copied: 'Nusxalandi',
+    },
   },
   webhooks: {
     title: 'Vebhuklar', desc: 'Qoʻngʻiroq hodisalari haqida oʻz serveringizga HTTP POST yuboriladi.',
@@ -87,6 +91,14 @@ export const uz = {
     recordingTitle: 'Qoʻngʻiroq yozib olish',
     retentionDays: 'Saqlash muddati (kun)', externalOnly: 'Faqat tashqi qoʻngʻiroqlar yoziladi',
     save: 'Saqlash', saved: 'Saqlandi.',
+    speechkit: {
+      title: 'Nutq sintezi (Yandex SpeechKit)',
+      providerLabel: 'Provayder', provider: { none: 'Oʻchirilgan', yandex: 'Yandex SpeechKit' },
+      apiKeyLabel: 'API kalit', apiKeySetHint: 'Kalit saqlangan — oʻzgartirish uchun qayta kiriting.', apiKeyPlaceholder: 'AQVN...',
+      folderIdLabel: 'Katalog ID (folder_id)',
+      voicesTitle: 'Ovozlar', voiceUz: 'Oʻzbekcha ovoz', voiceRu: 'Ruscha ovoz', voiceEn: 'Inglizcha ovoz',
+      test: 'Sinash', testOk: 'Ulanish muvaffaqiyatli.', testFail: 'Sinov muvaffaqiyatsiz: {{message}}',
+    },
   },
 };
 
@@ -115,8 +127,12 @@ export const ru = {
     copy: 'Копировать', copied: 'Скопировано', close: 'Закрыть',
     revoke: 'Отозвать', revokeConfirmTitle: 'Отозвать ключ?', revokeConfirmBody: 'Интеграции, использующие ключ «{{name}}», сразу перестанут работать.',
     confirm: 'Отозвать', cancel: 'Отмена',
-    scope: { callsRead: 'Чтение звонков', recordingsRead: 'Чтение записей', callsOriginate: 'Инициация звонка', extensionsRead: 'Чтение внутренних номеров' },
+    scope: { callsRead: 'Чтение звонков', recordingsRead: 'Чтение записей', callsOriginate: 'Инициация звонка', extensionsRead: 'Чтение внутренних номеров', eventsRead: 'Поток событий (WebSocket)' },
     errors: { bad_name: 'Укажите название.', bad_scopes: 'Выберите хотя бы одно право.' },
+    ws: {
+      title: 'Пример подключения по WebSocket', desc: 'Ключ с правом `events:read` — получает события звонков в виде живого потока.',
+      copy: 'Копировать', copied: 'Скопировано',
+    },
   },
   webhooks: {
     title: 'Вебхуки', desc: 'О событиях звонков отправляется HTTP POST на ваш сервер.',
@@ -176,6 +192,14 @@ export const ru = {
     recordingTitle: 'Запись звонков',
     retentionDays: 'Срок хранения (дней)', externalOnly: 'Записывать только внешние звонки',
     save: 'Сохранить', saved: 'Сохранено.',
+    speechkit: {
+      title: 'Синтез речи (Yandex SpeechKit)',
+      providerLabel: 'Провайдер', provider: { none: 'Отключено', yandex: 'Yandex SpeechKit' },
+      apiKeyLabel: 'API-ключ', apiKeySetHint: 'Ключ сохранён — введите заново, чтобы изменить.', apiKeyPlaceholder: 'AQVN...',
+      folderIdLabel: 'ID каталога (folder_id)',
+      voicesTitle: 'Голоса', voiceUz: 'Узбекский голос', voiceRu: 'Русский голос', voiceEn: 'Английский голос',
+      test: 'Проверить', testOk: 'Соединение успешно.', testFail: 'Проверка не удалась: {{message}}',
+    },
   },
 };
 
@@ -204,8 +228,12 @@ export const en = {
     copy: 'Copy', copied: 'Copied', close: 'Close',
     revoke: 'Revoke', revokeConfirmTitle: 'Revoke this key?', revokeConfirmBody: 'Integrations using the key "{{name}}" will stop working immediately.',
     confirm: 'Revoke', cancel: 'Cancel',
-    scope: { callsRead: 'Read calls', recordingsRead: 'Read recordings', callsOriginate: 'Originate calls', extensionsRead: 'Read extensions' },
+    scope: { callsRead: 'Read calls', recordingsRead: 'Read recordings', callsOriginate: 'Originate calls', extensionsRead: 'Read extensions', eventsRead: 'Events stream (WebSocket)' },
     errors: { bad_name: 'Enter a name.', bad_scopes: 'Select at least one scope.' },
+    ws: {
+      title: 'WebSocket connection example', desc: 'A key with the `events:read` scope receives call events as a live stream.',
+      copy: 'Copy', copied: 'Copied',
+    },
   },
   webhooks: {
     title: 'Webhooks', desc: 'Call events are sent as an HTTP POST to your server.',
@@ -265,5 +293,13 @@ export const en = {
     recordingTitle: 'Call recording',
     retentionDays: 'Retention (days)', externalOnly: 'Only record external calls',
     save: 'Save', saved: 'Saved.',
+    speechkit: {
+      title: 'Speech synthesis (Yandex SpeechKit)',
+      providerLabel: 'Provider', provider: { none: 'Disabled', yandex: 'Yandex SpeechKit' },
+      apiKeyLabel: 'API key', apiKeySetHint: 'Key saved — re-enter it to change.', apiKeyPlaceholder: 'AQVN...',
+      folderIdLabel: 'Folder ID (folder_id)',
+      voicesTitle: 'Voices', voiceUz: 'Uzbek voice', voiceRu: 'Russian voice', voiceEn: 'English voice',
+      test: 'Test', testOk: 'Connection successful.', testFail: 'Test failed: {{message}}',
+    },
   },
 };

@@ -63,6 +63,12 @@ class User(Base):
     email: Mapped[str | None] = mapped_column(Text, nullable=True)
     password_hash: Mapped[str] = mapped_column(Text)
     totp_secret_enc: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # M10 B2 — 2FA (TOTP, RFC 6238). `totp_enabled_at` NULL = o'chirilgan.
+    # `totp_last_step` — oxirgi qabul qilingan qadam (takror himoyasi).
+    # `totp_recovery_hashes` — 10 ta bir martalik tiklash kodi (bcrypt hash).
+    totp_enabled_at: Mapped[datetime | None] = mapped_column(nullable=True)
+    totp_recovery_hashes: Mapped[list[str]] = mapped_column(ARRAY(Text), default=list)
+    totp_last_step: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
     role_id: Mapped[str] = mapped_column(UUID(as_uuid=False),
                                                 ForeignKey("roles.id", ondelete="RESTRICT"))
     # FK DBda `0001_schema.sql`da bor (on delete set null) — shu yerda ham
@@ -753,6 +759,8 @@ class SystemSettings(Base):
     restart_required: Mapped[bool] = mapped_column(default=False)
     # M4b §1 — shakli `app/services/backup_settings.py`; sukut (0021) passphrase/jadval/nishonlar.
     backup: Mapped[dict] = mapped_column(JSONB, server_default=FetchedValue())
+    # M10 B2 — 2FA siyosati: 'off' (sukut) / 'admins' / 'all'; DB `check` cheklovi 0034_m10b'da.
+    require_2fa: Mapped[str] = mapped_column(Text, default="off")
     updated_at: Mapped[datetime] = mapped_column(server_default=text("now()"))
 
 
@@ -1495,4 +1503,206 @@ class CidLookupSource(Base):
     timeout_ms: Mapped[int] = mapped_column(Integer, default=1500)
     cache_ttl_s: Mapped[int] = mapped_column(Integer, default=3600)
     enabled: Mapped[bool] = mapped_column(default=True)
+    updated_at: Mapped[datetime] = mapped_column(server_default=text("now()"))
+
+
+class QaChecklist(Base):
+    """M10 B1 — sifat baholash varaqasi: nomlangan mezonlar to'plami. Ball
+    hisobi sof funksiyada (`app/services/qa_scoring.py`); bu yerda faqat
+    mezon ta'rifi (`kind`/`weight`/`critical`) saqlanadi."""
+    __tablename__ = "qa_checklists"
+    __table_args__ = (Index("ix_qa_checklists_tenant_name", "tenant_id", "name", unique=True),)
+
+    id: Mapped[str] = _uuid_pk()
+    tenant_id: Mapped[str] = mapped_column(UUID(as_uuid=False),
+                                                  ForeignKey("tenants.id", ondelete="CASCADE"))
+    name: Mapped[str] = mapped_column(Text)
+    is_active: Mapped[bool] = mapped_column(default=True)
+    created_at: Mapped[datetime] = mapped_column(server_default=text("now()"))
+    updated_at: Mapped[datetime] = mapped_column(server_default=text("now()"))
+
+    criteria: Mapped[list["QaCriterion"]] = relationship(
+        back_populates="checklist", cascade="all, delete-orphan", order_by="QaCriterion.position")
+
+
+class QaCriterion(Base):
+    """M10 B1 — bitta mezon: `kind` 'yesno'/'scale5', `critical`=True bo'lsa
+    muvaffaqiyatsizlik butun baholashni 0% qiladi (`qa_scoring.is_critical_fail`)."""
+    __tablename__ = "qa_criteria"
+
+    id: Mapped[str] = _uuid_pk()
+    checklist_id: Mapped[str] = mapped_column(
+        UUID(as_uuid=False), ForeignKey("qa_checklists.id", ondelete="CASCADE"))
+    label: Mapped[str] = mapped_column(Text)
+    kind: Mapped[str] = mapped_column(Text)
+    weight: Mapped[float] = mapped_column(default=1.0)
+    critical: Mapped[bool] = mapped_column(default=False)
+    position: Mapped[int] = mapped_column(Integer, default=0)
+
+    checklist: Mapped[QaChecklist] = relationship(back_populates="criteria")
+
+
+class QaEvaluation(Base):
+    """M10 B1 — bitta qo'ng'iroqning bitta baholashi: `answers` JSONB
+    `{criterion_id: value}` (bool yoki 1..5 int), `score_pct` saqlanadi
+    (qayta hisoblash — `qa_scoring.score_pct`, chiqishda keshlanadi, tahrirda
+    qayta hisoblanadi) — snapshot sifatida mezon o'chirilsa/o'zgarsa ham
+    tarixiy ball o'zgarmasin."""
+    __tablename__ = "qa_evaluations"
+    __table_args__ = (Index("ix_qa_evaluations_tenant_call", "tenant_id", "call_id"),)
+
+    id: Mapped[str] = _uuid_pk()
+    tenant_id: Mapped[str] = mapped_column(UUID(as_uuid=False),
+                                                  ForeignKey("tenants.id", ondelete="CASCADE"))
+    checklist_id: Mapped[str] = mapped_column(
+        UUID(as_uuid=False), ForeignKey("qa_checklists.id", ondelete="RESTRICT"))
+    call_id: Mapped[str] = mapped_column(Text)  # cdr.linkedid (CDR'da real FK yo'q)
+    extension_id: Mapped[str | None] = mapped_column(
+        UUID(as_uuid=False), ForeignKey("extensions.id", ondelete="SET NULL"), nullable=True)
+    evaluator_id: Mapped[str] = mapped_column(
+        UUID(as_uuid=False), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    answers: Mapped[dict] = mapped_column(JSONB, default=dict)
+    comment: Mapped[str | None] = mapped_column(Text, nullable=True)
+    score_pct: Mapped[float] = mapped_column(default=0.0)
+    created_at: Mapped[datetime] = mapped_column(server_default=text("now()"))
+    updated_at: Mapped[datetime] = mapped_column(server_default=text("now()"))
+
+    checklist: Mapped[QaChecklist] = relationship()
+
+
+class TotpChallenge(Base):
+    """M10 B2 — ikki bosqichli login oraliq holati: `POST /auth/login`
+    parolni tasdiqlagandan keyin shu yerga yoziladi, `token_hash`
+    (`RefreshToken.token_hash` qolipi) `POST /auth/login/totp`da taqdim
+    etiladi. `expires_at` — 5 daqiqa; `attempts` 5 dan oshsa bekor
+    (`app/api/v1/auth.py`da tekshiriladi)."""
+    __tablename__ = "totp_challenges"
+
+    id: Mapped[str] = _uuid_pk()
+    user_id: Mapped[str] = mapped_column(
+        UUID(as_uuid=False), ForeignKey("users.id", ondelete="CASCADE"))
+    token_hash: Mapped[str] = mapped_column(Text, unique=True)
+    attempts: Mapped[int] = mapped_column(Integer, default=0)
+    created_at: Mapped[datetime] = mapped_column(server_default=text("now()"))
+    expires_at: Mapped[datetime] = mapped_column()
+
+
+# =============================================================== M10 Bo'lak A
+class CallbackWidget(Base):
+    """A1 — qayta chaqirish vidjeti (S17): sayt tashrifchisi raqamini qoldiradi,
+    tizim avval operatorni (`target_id`), javob bersa mijozni teradi
+    (`app/services/dialplan_callback.py`). `public_key` — ochiq, URL'da
+    (`GET /widget/{public_key}.js`) — maxfiy EMAS, faqat vidjetni aniqlaydi."""
+    __tablename__ = "callback_widgets"
+
+    id: Mapped[str] = _uuid_pk()
+    tenant_id: Mapped[str] = mapped_column(UUID(as_uuid=False),
+                                                  ForeignKey("tenants.id", ondelete="CASCADE"))
+    name: Mapped[str] = mapped_column(Text)
+    public_key: Mapped[str] = mapped_column(Text, unique=True)
+    target_id: Mapped[str] = mapped_column(
+        UUID(as_uuid=False), ForeignKey("call_targets.id", ondelete="RESTRICT"))
+    allowed_origins: Mapped[list[str]] = mapped_column(ARRAY(Text), default=list)
+    time_group_id: Mapped[str | None] = mapped_column(
+        UUID(as_uuid=False), ForeignKey("time_groups.id", ondelete="SET NULL"), nullable=True)
+    offhours_mode: Mapped[str] = mapped_column(Text, default="schedule")
+    max_attempts: Mapped[int] = mapped_column(Integer, default=2)
+    retry_interval_s: Mapped[int] = mapped_column(Integer, default=120)
+    callerid_prefix: Mapped[str | None] = mapped_column(Text, nullable=True)
+    allow_international: Mapped[bool] = mapped_column(default=False)
+    appearance: Mapped[dict] = mapped_column(JSONB, default=dict)
+    enabled: Mapped[bool] = mapped_column(default=True)
+    created_at: Mapped[datetime] = mapped_column(server_default=text("now()"))
+    updated_at: Mapped[datetime] = mapped_column(server_default=text("now()"))
+
+
+class CallbackRequest(Base):
+    """A1 — vidjetdan kelgan bitta qayta chaqirish so'rovi (jamoatchilik
+    terminal holati: `connected`/`failed`/`rejected`/`cancelled`).
+    `linkedid` — AMI Originate'dan keyin dialplan CURL orqali yoziladi."""
+    __tablename__ = "callback_requests"
+    __table_args__ = (
+        Index("ix_callback_requests_tenant_created", "tenant_id", "created_at"),
+        Index("ix_callback_requests_status_next", "status", "next_attempt_at"),
+    )
+
+    id: Mapped[str] = _uuid_pk()
+    tenant_id: Mapped[str] = mapped_column(UUID(as_uuid=False),
+                                                  ForeignKey("tenants.id", ondelete="CASCADE"))
+    widget_id: Mapped[str] = mapped_column(
+        UUID(as_uuid=False), ForeignKey("callback_widgets.id", ondelete="CASCADE"))
+    phone: Mapped[str] = mapped_column(Text)
+    name: Mapped[str | None] = mapped_column(Text, nullable=True)
+    page_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+    ip: Mapped[str | None] = mapped_column(INET, nullable=True)
+    status: Mapped[str] = mapped_column(Text, default="pending")
+    attempts: Mapped[int] = mapped_column(Integer, default=0)
+    next_attempt_at: Mapped[datetime | None] = mapped_column(nullable=True)
+    linkedid: Mapped[str | None] = mapped_column(Text, nullable=True)
+    last_error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(server_default=text("now()"))
+    updated_at: Mapped[datetime] = mapped_column(server_default=text("now()"))
+
+
+class MissedCallRule(Base):
+    """A2 — o'tkazib yuborilgan qo'ng'iroq bo'yicha bildirishnoma qoidasi
+    (`scope_kind`/`scope_value` — `call.ended` hodisasi maydonlari bilan
+    solishtiriladi, `app/services/missed_call_notify.py::rule_matches`)."""
+    __tablename__ = "missed_call_rules"
+
+    id: Mapped[str] = _uuid_pk()
+    tenant_id: Mapped[str] = mapped_column(UUID(as_uuid=False),
+                                                  ForeignKey("tenants.id", ondelete="CASCADE"))
+    name: Mapped[str] = mapped_column(Text)
+    scope_kind: Mapped[str] = mapped_column(Text)
+    scope_value: Mapped[str | None] = mapped_column(Text, nullable=True)
+    telegram_chat_ids: Mapped[list[str]] = mapped_column(ARRAY(Text), default=list)
+    emails: Mapped[list[str]] = mapped_column(ARRAY(Text), default=list)
+    include_internal: Mapped[bool] = mapped_column(default=False)
+    enabled: Mapped[bool] = mapped_column(default=True)
+    created_at: Mapped[datetime] = mapped_column(server_default=text("now()"))
+    updated_at: Mapped[datetime] = mapped_column(server_default=text("now()"))
+
+
+class MissedCallNotice(Base):
+    """A2 — bitta qoida uchun bitta qo'ng'iroq bo'yicha yuborilgan/muvaffaqiyatsiz
+    bildirishnoma (`unique(rule_id, call_id)` — takror yuborishdan himoya)."""
+    __tablename__ = "missed_call_notices"
+    __table_args__ = (Index("ix_missed_call_notices_rule_call", "rule_id", "call_id", unique=True),)
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    tenant_id: Mapped[str] = mapped_column(UUID(as_uuid=False),
+                                                  ForeignKey("tenants.id", ondelete="CASCADE"))
+    rule_id: Mapped[str] = mapped_column(
+        UUID(as_uuid=False), ForeignKey("missed_call_rules.id", ondelete="CASCADE"))
+    call_id: Mapped[str] = mapped_column(Text)
+    status: Mapped[str] = mapped_column(Text)
+    attempts: Mapped[int] = mapped_column(Integer, default=0)
+    last_error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(server_default=text("now()"))
+    sent_at: Mapped[datetime | None] = mapped_column(nullable=True)
+
+
+class MissedNotifyCursor(Base):
+    """A2 — tenant bo'yicha `integration_events.seq` o'qish kursori (fon vazifa
+    `missed_call_notify.py::run_forever` har aylanishda shundan davom etadi)."""
+    __tablename__ = "missed_notify_cursor"
+
+    tenant_id: Mapped[str] = mapped_column(
+        UUID(as_uuid=False), ForeignKey("tenants.id", ondelete="CASCADE"), primary_key=True)
+    last_seq: Mapped[int] = mapped_column(BigInteger, default=0)
+
+
+class TtsSettings(Base):
+    """A3 — Yandex SpeechKit TTS sozlamalari (tenant bo'yicha YAGONA qator).
+    `api_key_enc` — `crypto.encrypt_secret`, hech qachon qaytarilmaydi
+    (`crypto_registry.py`da ro'yxatdan o'tgan)."""
+    __tablename__ = "tts_settings"
+
+    tenant_id: Mapped[str] = mapped_column(
+        UUID(as_uuid=False), ForeignKey("tenants.id", ondelete="CASCADE"), primary_key=True)
+    provider: Mapped[str] = mapped_column(Text, default="none")
+    api_key_enc: Mapped[str | None] = mapped_column(Text, nullable=True)
+    folder_id: Mapped[str | None] = mapped_column(Text, nullable=True)
+    voices: Mapped[dict] = mapped_column(JSONB, default=lambda: {"uz": "nigora", "ru": "alena", "en": "john"})
     updated_at: Mapped[datetime] = mapped_column(server_default=text("now()"))

@@ -90,6 +90,10 @@ class UserOut(BaseModel):
     must_change_password: bool = False
     # M2b: shell (yuqori panel) foydalanuvchining O'Z ichki raqamini ko'rsatadi; yo'q bo'lsa null.
     extension: "ExtensionRef | None" = None
+    # M10 B2: 2FA holati — `must_enroll_2fa`=True bo'lsa frontend to'g'ridan-to'g'ri
+    # `/me/2fa/setup`ga yo'naltirishi kerak (`app/api/deps.py` server tomonida ham bloklaydi).
+    totp_enabled: bool = False
+    must_enroll_2fa: bool = False
 
 
 class UpdateMePayload(BaseModel):
@@ -98,9 +102,14 @@ class UpdateMePayload(BaseModel):
 
 
 class AuthResult(BaseModel):
-    access: str
-    refresh: str
-    user: UserOut
+    # M10 B2: 2FA yoqilgan bo'lsa `status="totp_required"` va faqat `challenge`
+    # qaytadi (access/refresh/user — HALI yo'q); eski klient uchun sukut
+    # `status="ok"` + to'liq maydonlar (orqaga mos).
+    status: Literal["ok", "totp_required"] = "ok"
+    access: str | None = None
+    refresh: str | None = None
+    user: UserOut | None = None
+    challenge: str | None = None
 
 
 class TokenPair(BaseModel):
@@ -368,6 +377,15 @@ class CallRecordingRef(BaseModel):
     duration_s: int
 
 
+class CallQaBadge(BaseModel):
+    """M10 B1 — `/calls` ro'yxatida bitta yengil belgi (ro'yxat uchun to'liq
+    `QaEvaluationOut` EMAS): bir nechta baholash bo'lsa ENG OXIRGISI (eng
+    yangi `created_at`)."""
+    evaluation_id: str
+    checklist_name: str
+    score_pct: float
+
+
 class CallOut(BaseModel):
     uniqueid: str
     started_at: datetime
@@ -385,6 +403,8 @@ class CallOut(BaseModel):
     # M3b §1 — `linkedid` bo'yicha yozuvlar (transfer — bir nechta fayl).
     linkedid: str | None = None
     recordings: list[CallRecordingRef] = Field(default_factory=list)
+    # M10 B1: ko'p N+1'siz (bir martalik bulk so'rov — `qa.attach_qa()`) belgi.
+    qa: CallQaBadge | None = None
 
 
 # --------------------------------------------------------------------------- system
@@ -1776,3 +1796,189 @@ QueueOut.model_rebuild()
 
 
 UserOut.model_rebuild()  # `ExtensionRef` UserOut'dan keyin e'lon qilingan (forward ref)
+
+
+# ================================================================ M10 A1: qayta chaqirish vidjeti
+class CallbackWidgetOut(BaseModel):
+    id: str
+    name: str
+    public_key: str
+    target: RouteTarget
+    allowed_origins: list[str]
+    time_group_id: str | None = None
+    time_group_name: str | None = None
+    offhours_mode: Literal["reject", "schedule"]
+    max_attempts: int
+    retry_interval_s: int
+    callerid_prefix: str | None = None
+    allow_international: bool
+    appearance: dict
+    enabled: bool
+    # Bo'sh — `public_base_url` sozlanmagan (UI ogohlantiradi, 409 EMAS).
+    embed_snippet: str | None = None
+    updated_at: datetime
+
+
+class CreateCallbackWidgetPayload(BaseModel):
+    name: str = Field(min_length=1, max_length=128)
+    target_id: str
+    allowed_origins: list[str] = Field(default_factory=list)
+    time_group_id: str | None = None
+    offhours_mode: Literal["reject", "schedule"] = "schedule"
+    max_attempts: int = Field(default=2, ge=1, le=5)
+    retry_interval_s: int = Field(default=120, ge=60, le=1800)
+    callerid_prefix: str | None = Field(default=None, max_length=16)
+    allow_international: bool = False
+    appearance: dict = Field(default_factory=dict)
+    enabled: bool = True
+
+
+class UpdateCallbackWidgetPayload(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=128)
+    target_id: str | None = None
+    allowed_origins: list[str] | None = None
+    time_group_id: str | None = None
+    offhours_mode: Literal["reject", "schedule"] | None = None
+    max_attempts: int | None = Field(default=None, ge=1, le=5)
+    retry_interval_s: int | None = Field(default=None, ge=60, le=1800)
+    callerid_prefix: str | None = Field(default=None, max_length=16)
+    allow_international: bool | None = None
+    appearance: dict | None = None
+    enabled: bool | None = None
+    updated_at: datetime
+
+
+class CallbackWidgetMutated(BaseModel):
+    item: CallbackWidgetOut
+    apply: ApplyResult
+
+
+class RotateWidgetKeyResult(BaseModel):
+    item: CallbackWidgetOut
+    apply: ApplyResult
+
+
+class CallbackRequestOut(BaseModel):
+    id: str
+    widget_id: str
+    widget_name: str
+    phone: str
+    name: str | None = None
+    page_url: str | None = None
+    status: str
+    attempts: int
+    next_attempt_at: datetime | None = None
+    linkedid: str | None = None
+    last_error: str | None = None
+    created_at: datetime
+    updated_at: datetime
+
+
+# --- Ommaviy (JWT'siz) vidjet endpointlari — `api/public_widget.py`
+class PublicWidgetConfig(BaseModel):
+    name: str
+    appearance: dict
+    allow_international: bool
+
+
+class PublicCallbackPayload(BaseModel):
+    phone: str = Field(min_length=3, max_length=32)
+    # Honeypot — bo'lsa botga 200 OK (jim) qaytariladi, yozuv yaratilmaydi.
+    hp: str = Field(default="", max_length=64)
+
+
+class PublicCallbackAccepted(BaseModel):
+    accepted: bool
+    message: str
+
+
+# ================================================================ M10 A2: o'tkazib yuborilgan qo'ng'iroq bildirishnomasi
+class MissedCallRuleOut(BaseModel):
+    id: str
+    name: str
+    scope_kind: Literal["any", "did", "queue", "ring_group", "extension"]
+    scope_value: str | None = None
+    scope_label: str | None = None
+    telegram_chat_ids: list[str]
+    emails: list[str]
+    include_internal: bool
+    enabled: bool
+    updated_at: datetime
+
+
+class CreateMissedCallRulePayload(BaseModel):
+    name: str = Field(min_length=1, max_length=128)
+    scope_kind: Literal["any", "did", "queue", "ring_group", "extension"] = "any"
+    scope_value: str | None = None
+    telegram_chat_ids: list[str] = Field(default_factory=list)
+    emails: list[str] = Field(default_factory=list)
+    include_internal: bool = False
+    enabled: bool = True
+
+
+class UpdateMissedCallRulePayload(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=128)
+    scope_kind: Literal["any", "did", "queue", "ring_group", "extension"] | None = None
+    scope_value: str | None = None
+    telegram_chat_ids: list[str] | None = None
+    emails: list[str] | None = None
+    include_internal: bool | None = None
+    enabled: bool | None = None
+    updated_at: datetime
+
+
+class MissedCallRuleMutated(BaseModel):
+    item: MissedCallRuleOut
+
+
+class MissedCallRuleTestResult(BaseModel):
+    ok: bool
+    message: str
+
+
+class MissedCallNoticeOut(BaseModel):
+    id: int
+    rule_id: str
+    rule_name: str
+    call_id: str
+    status: Literal["pending", "sent", "failed"]
+    last_error: str | None = None
+    attempts: int
+    created_at: datetime
+    sent_at: datetime | None = None
+
+
+# ================================================================ M10 A3: Yandex SpeechKit TTS
+class TtsSettingsOut(BaseModel):
+    provider: Literal["none", "yandex"]
+    has_api_key: bool
+    folder_id: str | None = None
+    voices: dict
+    # `NotifySettingsOut` qolipi — qator hali yaratilmagan bo'lsa (yangi tenant) `None` (frontend-check: 500 topildi, tuzatildi).
+    updated_at: datetime | None = None
+
+
+class UpdateTtsSettingsPayload(BaseModel):
+    provider: Literal["none", "yandex"] | None = None
+    folder_id: str | None = Field(default=None, max_length=128)
+    api_key: str | None = Field(default=None, max_length=512)
+    voices: dict | None = None
+    updated_at: datetime | None = None
+
+
+class TtsSettingsMutated(BaseModel):
+    item: TtsSettingsOut
+
+
+class TtsTestResult(BaseModel):
+    ok: bool
+    message: str
+
+
+class TtsSynthesizePayload(BaseModel):
+    text: str = Field(min_length=1, max_length=4000)
+    name: str = Field(min_length=1, max_length=128)
+
+
+class TtsPreviewPayload(BaseModel):
+    text: str = Field(min_length=1, max_length=500)

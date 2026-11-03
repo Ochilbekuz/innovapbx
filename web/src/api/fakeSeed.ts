@@ -159,6 +159,8 @@ export function seedCalls(): Call[] {
       src_name: dir === 'in' && i % 6 === 0 ? CALLER_NAMES[i % CALLER_NAMES.length] ?? null : null,
       // M9 CDR — faqat chiquvchida (PIN-to'plam ishlatilgan bo'lsa) accountcode qayd etiladi.
       pin_label: dir === 'out' && i % 5 === 0 ? PIN_LABELS[i % PIN_LABELS.length] ?? null : null,
+      // M10 B1 — sifat bahosi dinamik: `fake.ts`da baholash yaratilganda bu maydon toʻldiriladi.
+      qa: null,
     });
   }
   return rows;
@@ -238,17 +240,17 @@ export function seedUsers(extensions: Extension[]): ManagedUser[] {
     {
       id: SEED_ADMIN.id, username: SEED_ADMIN.login, full_name: SEED_ADMIN.full_name, email: null,
       role: 'admin', extension: null, is_active: true, language: 'uz', must_change_password: false,
-      last_login_at: null, updated_at: now,
+      totp_enabled: false, last_login_at: null, updated_at: now,
     },
     {
       id: SEED_OPERATOR.id, username: SEED_OPERATOR.login, full_name: SEED_OPERATOR.full_name, email: null,
       role: 'operator', extension: opExt ? { id: opExt.id, number: opExt.number, name: opExt.name } : null,
-      is_active: true, language: 'uz', must_change_password: false, last_login_at: null, updated_at: now,
+      is_active: true, language: 'uz', must_change_password: false, totp_enabled: false, last_login_at: null, updated_at: now,
     },
     {
       id: SEED_CUSTOM_USER.id, username: SEED_CUSTOM_USER.login, full_name: SEED_CUSTOM_USER.full_name, email: null,
       role: SEED_CUSTOM_ROLE_NAME, extension: null, is_active: true, language: 'uz', must_change_password: false,
-      last_login_at: null, updated_at: now,
+      totp_enabled: false, last_login_at: null, updated_at: now,
     },
   ];
 }
@@ -440,6 +442,7 @@ export function seedSecuritySettings(): SecuritySettings {
   return {
     sip_guard: { enabled: true, max_failures: 5, window_s: 60, ban_s: 3600, trusted_nets: ['10.0.0.0/8'], trust_lan: true },
     toll_fraud: { enabled: true, max_concurrent_outbound: 0, ext_max_per_hour: 60, ext_international_per_day: 20 },
+    require_2fa: 'off',
     updated_at: '2026-10-27T05:00:00Z',
   };
 }

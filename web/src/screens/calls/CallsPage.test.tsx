@@ -14,12 +14,20 @@ vi.mock('@/api', async (importOriginal) => {
 
 const { CallsPage } = await import('./CallsPage');
 
+// `fakeSeed.ts`dagi demo qoʻngʻiroqlar qotgan sanaga bogʻlangan (2026-10-27 atrofida) — sukut
+// filtr esa doim "bugundan 7 kun orqaga" (haqiqiy soatga bogʻliq). Vaqt oʻtishi bilan demo
+// yozuvlar oynadan chiqib ketmasligi uchun "Boshlanishi"ni ataylab kengaytiramiz.
+function widenDateRange() {
+  fireEvent.change(screen.getByLabelText('Boshlanishi'), { target: { value: '2026-10-01' } });
+}
+
 describe('CallsPage', () => {
   afterEach(() => useSession.getState().clear());
 
   it('«Yozuv» — oxirgi ustun, yozilgan qoʻngʻiroqda tinglash va yuklab olish tugmalari bor', async () => {
     await loginAs(client, 'admin');
     renderPage(<CallsPage />);
+    widenDateRange();
 
     const plays = await screen.findAllByTestId(/^recording-play-/);
     const headers = screen.getAllByRole('columnheader').map((h) => h.textContent?.trim());
@@ -36,6 +44,7 @@ describe('CallsPage', () => {
     const spy = vi.spyOn(client, 'listCalls');
     await loginAs(client, 'admin');
     renderPage(<CallsPage />);
+    widenDateRange();
     await screen.findAllByTestId(/^recording-play-/);
 
     const fromTime = screen.getByLabelText('Boshlanish vaqti (soat:daqiqa)') as HTMLInputElement;
@@ -51,6 +60,7 @@ describe('CallsPage', () => {
     const user = userEvent.setup();
     await loginAs(client, 'admin');
     renderPage(<CallsPage />);
+    widenDateRange();
     await screen.findAllByTestId(/^recording-play-/);
 
     expect(screen.queryByTestId('advanced-search-panel')).toBeNull();
@@ -63,6 +73,7 @@ describe('CallsPage', () => {
     const user = userEvent.setup();
     await loginAs(client, 'admin');
     renderPage(<CallsPage />);
+    widenDateRange();
     await screen.findAllByTestId(/^recording-play-/);
 
     await user.click(screen.getByRole('button', { name: 'Kengaytirilgan qidiruv' }));
@@ -84,6 +95,7 @@ describe('CallsPage', () => {
     const user = userEvent.setup();
     await loginAs(client, 'admin');
     renderPage(<CallsPage />);
+    widenDateRange();
     await screen.findAllByTestId(/^recording-play-/);
 
     await user.click(screen.getByRole('button', { name: 'Kengaytirilgan qidiruv' }));

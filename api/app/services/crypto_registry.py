@@ -43,6 +43,9 @@ ENCRYPTED_COLUMNS: tuple[EncryptedColumn, ...] = (
     EncryptedColumn("system_settings", "backup", json_path="targets.s3.secret_key_enc"),
     EncryptedColumn("system_settings", "backup", json_path="targets.sftp.password_enc"),
     EncryptedColumn("system_settings", "backup", json_path="targets.sftp.key_enc"),
+    # M10 A3: Yandex SpeechKit API kaliti — `services/tts_yandex.py` ishlatishdan
+    # oldin `crypto.decrypt_secret` bilan ochadi.
+    EncryptedColumn("tts_settings", "api_key_enc"),
 )
 
 

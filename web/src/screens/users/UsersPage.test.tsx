@@ -12,6 +12,7 @@ import { loginAs, renderPage } from '@/test-pages';
 /** M7 — maxsus (koʻrish-tahrirlash) rolli «nazoratchi» sifatida kiradi (qarang fakeSeed.ts, `*` ruxsati yoʻq). */
 async function loginAsCustomRole() {
   const res = await client.login(SEED_CUSTOM_USER.login, SEED_CUSTOM_USER_PASSWORD);
+  if (res.status !== 'ok') throw new Error('2FA kutilmagan edi');
   useSession.setState({ access: res.access, refresh: res.refresh, user: res.user });
 }
 
