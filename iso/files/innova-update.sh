@@ -194,8 +194,12 @@ changelog_write() {
   fi
 }
 
+# Agent qulfni KUTADI: chiqib ketsa `request` qoladi va systemd path uni qayta-qayta
+# ishga tushirib start-limit'ga uradi (path unit kuzatishni to'xtatadi). Kutish
+# chegarasi — xizmatning TimeoutStartSec. CLI esa kutmaydi.
 acquire_lock() {
   exec 9>"$LOCK" || die "lock fayl ochilmadi: $LOCK"
+  if [ "$AGENT" = 1 ]; then flock 9; return; fi
   flock -n 9 || die "boshqa yangilanish ishlab turibdi (band: $LOCK)"
 }
 

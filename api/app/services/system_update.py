@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import os
 import re
+import tempfile
 from datetime import datetime
 from pathlib import Path
 
@@ -127,14 +128,17 @@ def parse_changelog(markdown: str, current_version: str | None) -> list[Changelo
 
 
 def write_request(update_dir: Path, word: str) -> None:
-    """`O_CREAT|O_EXCL` — ikki so'rov bir vaqtda yozilmasligi (agent
-    o'qib-o'chirgunча bittadan): fayl bor bo'lsa `FileExistsError`."""
+    """Atomik: avval vaqtinchalik faylga to'liq yoziladi, keyin `os.link` bilan
+    `request` nomi beriladi — agent (systemd `PathExists`) faylni hech qachon
+    bo'sh/yarim ko'rmaydi; nom band bo'lsa `FileExistsError` (O_EXCL kabi)."""
     path = update_dir / REQUEST_FILENAME
-    fd = os.open(str(path), os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
+    fd, tmp = tempfile.mkstemp(dir=str(update_dir), prefix=".request.")
     try:
         os.write(fd, f"{word}\n".encode())
-    finally:
         os.close(fd)
+        os.link(tmp, path)
+    finally:
+        os.unlink(tmp)
 
 
 def read_log_chunk(path: Path, offset: int, max_bytes: int = MAX_LOG_CHUNK) -> tuple[int, int, str]:

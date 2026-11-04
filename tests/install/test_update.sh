@@ -283,16 +283,26 @@ ok eq "$(status_val state)" failed
 ok eq "$(status_val error)" interrupted
 ok contains "$(cat "$AUPD/history")" $'\t2.0.1\t2.0.3\tfailed:interrupted'
 
-# a10) busy-lock — boshqa yangilanish ishlab turganda so'rov bajarilmaydi, o'chirilmaydi
-flock -n "$T/lock.lock" sleep 5 &
+# a10) busy-lock — agent qulf bo'shashini KUTADI va so'rovni bajaradi (chiqib ketsa
+# request qoladi → systemd path qayta-qayta ishga tushirib start-limit'ga uriladi)
+flock -n "$T/lock.lock" sleep 1 &
 BGPID=$!
 for _ in $(seq 1 50); do flock -n "$T/lock.lock" -c true 2>/dev/null || break; sleep 0.05; done
-echo update > "$AUPD/request"
+echo check > "$AUPD/request"
 out=$(arun); rc=$?
-ok not eq "$rc" 0
-ok test -e "$AUPD/request"
+ok eq "$rc" 0
+ok not test -e "$AUPD/request"
+ok eq "$(status_val state)" idle
+wait "$BGPID" 2>/dev/null
+
+# a11) CLI rejimi qulf band bo'lsa kutmaydi — darhol xato
+flock -n "$T/lock.lock" sleep 3 &
+BGPID=$!
+for _ in $(seq 1 50); do flock -n "$T/lock.lock" -c true 2>/dev/null || break; sleep 0.05; done
+out=$(INNOVA_DEST=$DEST bash "$UPDATE" --check 2>&1); rc=$?
+ok eq "$rc" 1
+ok contains "$out" "band"
 kill "$BGPID" 2>/dev/null; wait "$BGPID" 2>/dev/null
-rm -f "$AUPD/request"
 
 echo "innova-update: $PASSES o'tdi, $FAILS xato"
 [ "$FAILS" = 0 ]

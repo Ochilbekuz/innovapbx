@@ -124,3 +124,13 @@ def test_read_log_chunk_respects_max_bytes(tmp_path):
     assert size == 100
     assert offset == 10
     assert text == "a" * 10
+
+
+def test_write_request_leaves_no_temp_files_even_when_busy(tmp_path):
+    su.write_request(tmp_path, "check")
+    try:
+        su.write_request(tmp_path, "update")
+    except FileExistsError:
+        pass
+    assert sorted(p.name for p in tmp_path.iterdir()) == ["request"]
+    assert (tmp_path / "request").read_text() == "check\n"

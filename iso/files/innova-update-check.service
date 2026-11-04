@@ -3,5 +3,7 @@ Description=Innova PBX — yangilanish tekshiruvi (innova-update --check)
 
 [Service]
 Type=oneshot
+# git/ssh (deploy kalit, ~/.ssh/config) root uyidan o'qisin
+Environment=HOME=/root
 ExecStart=/usr/local/sbin/innova-update --check
 SuccessExitStatus=10
