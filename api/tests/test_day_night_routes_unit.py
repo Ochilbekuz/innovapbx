@@ -277,3 +277,57 @@ async def test_delete_ok_removes_entity_and_applies(monkeypatch, audit, stub_app
     s = _Session()
     await dn.delete_day_night("dn1", s, USER, ami=None)
     assert audit[0]["action"] == "day_night.delete" and s.commits == 1
+
+
+# ------------------------------------------------------------------- unique → 409 (500 emas)
+class _UniqueViolationSession(_Session):
+    def __init__(self, constraint: str):
+        super().__init__()
+        self.constraint = constraint
+        self.rollbacks = 0
+
+    async def flush(self):
+        from sqlalchemy.exc import IntegrityError
+        raise IntegrityError("insert", {}, Exception(f'duplicate key value violates unique constraint "{self.constraint}"'))
+
+    async def rollback(self):
+        self.rollbacks += 1
+
+
+async def _no_clash(session, tenant_id, code):
+    return None
+
+
+async def _fake_create_target(session, tenant_id, kind, name):
+    return SimpleNamespace(id="tgt-new")
+
+
+@pytest.mark.parametrize("constraint, code", [
+    ("day_night_tenant_id_code_key", "code_taken"),
+    ("day_night_tenant_id_name_key", "name_taken"),
+])
+async def test_create_duplicate_is_409_not_500(monkeypatch, audit, stub_apply, constraint, code):
+    monkeypatch.setattr(dn, "_validate_exten_code", _no_clash)
+    monkeypatch.setattr(dn, "create_target", _fake_create_target)
+    session = _UniqueViolationSession(constraint)
+    payload = CreateDayNightPayload(name="X", code="1", day_target_id="tgt-day", night_target_id="tgt-night")
+    with pytest.raises(ApiError) as exc:
+        await dn.create_day_night(payload, session, USER, ami=None)
+    assert (exc.value.status_code, exc.value.code) == (409, code)
+    assert session.rollbacks == 1 and session.commits == 0 and audit == [] and stub_apply == []
+
+
+async def test_update_duplicate_code_is_409(monkeypatch, audit, stub_apply):
+    item = _item()
+
+    async def get_item(session, tenant_id, row_id):
+        return item
+
+    monkeypatch.setattr(dn, "_get_or_404", get_item)
+    monkeypatch.setattr(dn, "_validate_exten_code", _no_clash)
+    session = _UniqueViolationSession("day_night_tenant_id_code_key")
+    payload = UpdateDayNightPayload(code="2", updated_at=NOW)
+    with pytest.raises(ApiError) as exc:
+        await dn.update_day_night("dn1", payload, session, USER, ami=None)
+    assert (exc.value.status_code, exc.value.code) == (409, "code_taken")
+    assert session.commits == 0 and audit == []

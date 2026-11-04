@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_ami, get_session, require_access
@@ -63,6 +64,18 @@ async def _validate_exten_code(session: AsyncSession, tenant_id: str, code: str)
     validate_feature_code(exten, await feature_code_strings(session, tenant_id))
 
 
+async def _flush_unique(session: AsyncSession) -> None:
+    """`unique (tenant_id, code)` / `unique (tenant_id, name)` buzilishi 500 emas,
+    aniq 409 bo'lsin (parallel so'rov poygasi ham shu yerga tushadi)."""
+    try:
+        await session.flush()
+    except IntegrityError as exc:
+        await session.rollback()
+        field = "code" if "code" in str(exc.orig) else "name"
+        message = "Bu kod band" if field == "code" else "Bu nom band"
+        raise ApiError(409, f"{field}_taken", message, field=field) from exc
+
+
 @router.get("")
 async def list_day_night(
     session: AsyncSession = Depends(get_session), user: User = Depends(require_access),
@@ -90,7 +103,7 @@ async def create_day_night(
         day_target_id=payload.day_target_id, night_target_id=payload.night_target_id, pin_hmac=pin_hmac,
     )
     session.add(row)
-    await session.flush()
+    await _flush_unique(session)
 
     await record_audit(session, tenant_id=tenant_id, user_id=str(user.id), action="day_night.create",
                         entity="day_night", entity_id=str(row.id), diff={"name": payload.name, "code": payload.code})
@@ -133,7 +146,7 @@ async def update_day_night(
         row.pin_hmac = hash_pin(settings.require_secret_key(), payload.pin)
         diff["pin"] = "***"
 
-    await session.flush()
+    await _flush_unique(session)
     await record_audit(session, tenant_id=tenant_id, user_id=str(user.id), action="day_night.update",
                         entity="day_night", entity_id=str(row.id), diff=diff)
     apply_result = await apply_config(session, tenant_id=tenant_id, user_id=str(user.id), ami=ami)

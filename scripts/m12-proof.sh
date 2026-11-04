@@ -27,16 +27,16 @@
 #   - Ikkinchi tenant yaratib tenant izolyatsiyasini QAYTA ISBOTLAMAYMIZ — bu
 #     allaqachon backend unit testlarida qoplangan (`_get_or_404` tenant_id
 #     filtri); shu yerda faqat eslatma sifatida qayd etiladi.
-#   - `day_night.code` dublikat to'qnashuvi (API orqali 409 EMAS, DB UNIQUE
-#     constraint'dan keladigan ishlov qilinmagan 500) ataylab SINALMAYDI —
-#     oldindan mavjud, brief doirasidan tashqari backend bo'shlig'i, mo'rt/
-#     noaniq xatolikni "o'tdi" deb belgilash xavfi bor.
+#   - `day_night` dublikat kod/nom — DB UNIQUE buzilishi 409 `code_taken`/`name_taken`
+#     (`day_night.py::_flush_unique`; ilgari 500 edi).
 #
 # Foydalanish:
 #   scripts/m12-proof.sh            # joriy `innova-m0` stackka qarshi (--fresh YO'Q)
 #
 # MUHIM: faqat `innova-m0` compose loyihasiga tegadi; `--fresh`/`down -v` ISHLATILMAYDI.
 set -uo pipefail
+# DIQQAT: `echo "$X" | grep -q` pipefail ostida beqaror — grep erta chiqsa echo SIGPIPE (141)
+# oladi va tekshiruv «topilmadi» deb yiqiladi (2026-11-04: 12 dan 5 marta). Faqat `grep -q ... <<<"$X"`.
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 DEPLOY_DIR="$ROOT_DIR/deploy"
@@ -71,7 +71,7 @@ ast_wait() { # ctx pattern max_tries delay_s -> stdout: oxirgi "ast dialplan sho
   local ctx="$1" pattern="$2" tries="${3:-24}" delay="${4:-1}" out="" i=0
   while (( i < tries )); do
     out=$(ast "dialplan show $ctx")
-    echo "$out" | grep -q -- "$pattern" && break
+    grep -q -- "$pattern" <<<"$out" && break
     sleep "$delay"
     i=$((i + 1))
   done
@@ -127,10 +127,15 @@ DN_BODY=$(jbody "$DN_RESP")
 DN_ID=$(jget "$DN_BODY" item id)
 DN_UPDATED_AT=$(jget "$DN_BODY" item updated_at)
 check "$([[ "$(jget "$DN_BODY" item has_pin)" == "True" ]]; echo $?)" "A1: has_pin=true, PIN o'zi javobda yo'q"
-check "$(echo "$DN_BODY" | grep -q '"pin"'; [[ $? -ne 0 ]]; echo $?)" "A1: javobda 'pin' kaliti umuman yo'q"
+check "$(grep -q '"pin"' <<<"$DN_BODY"; [[ $? -ne 0 ]]; echo $?)" "A1: javobda 'pin' kaliti umuman yo'q"
 
 BAD_TARGET=$(api POST /day-night "{\"name\":\"M12DayNightBad\",\"code\":\"8\",\"day_target_id\":\"00000000-0000-0000-0000-000000000000\",\"night_target_id\":\"$BUSY_ID\"}")
 check "$(err_is "$BAD_TARGET" 422 invalid_target; echo $?)" "A1: noto'g'ri day_target_id -> 422 invalid_target" "$BAD_TARGET"
+
+DUP_CODE=$(api POST /day-night "{\"name\":\"M12DayNightDup\",\"code\":\"7\",\"day_target_id\":\"$HANGUP_ID\",\"night_target_id\":\"$BUSY_ID\",\"pin\":\"2468\"}")
+check "$(err_is "$DUP_CODE" 409 code_taken; echo $?)" "A1: dublikat kod -> 409 code_taken (500 emas)" "$DUP_CODE"
+DUP_NAME=$(api POST /day-night "{\"name\":\"M12DayNight\",\"code\":\"6\",\"day_target_id\":\"$HANGUP_ID\",\"night_target_id\":\"$BUSY_ID\",\"pin\":\"2468\"}")
+check "$(err_is "$DUP_NAME" 409 name_taken; echo $?)" "A1: dublikat nom -> 409 name_taken" "$DUP_NAME"
 
 echo "=== A1: POST /{id}/toggle (admin API, PIN'siz) ==="
 TOGGLE1=$(api POST "/day-night/$DN_ID/toggle" "")
@@ -147,15 +152,15 @@ DN_TARGET_ID=$(day_night_target_id "$DN_ID")
 DN_WIRE=$(api POST /inbound-routes "{\"name\":\"M12DnWire\",\"did\":\"998712200071\",\"target_id\":\"$DN_TARGET_ID\"}")
 check "$([[ "$(jcode "$DN_WIRE")" == "201" ]]; echo $?)" "A1: kun/tun qoidasini kiruvchi marshrutga ulash" "$DN_WIRE"
 DN_DEST=$(ast "dialplan show t1-dest-$DN_TARGET_ID")
-check "$(echo "$DN_DEST" | grep -q 'NoOp(Innova: kun/tun M12DayNight)'; echo $?)" "A1 dialplan: NoOp nom ko'rsatiladi"
-check "$(echo "$DN_DEST" | grep -q 'CURL(.*internal/day-night/'"$DN_ID"'/state'; echo $?)" "A1 dialplan: holatni ICHKI CURL bilan o'qiydi (reload shart emas)"
-check "$(echo "$DN_DEST" | grep -q 'night'; echo $?)" "A1 dialplan: tun yo'nalishi label mavjud"
+check "$(grep -q 'NoOp(Innova: kun/tun M12DayNight)' <<<"$DN_DEST"; echo $?)" "A1 dialplan: NoOp nom ko'rsatiladi"
+check "$(grep -q 'CURL(.*internal/day-night/'"$DN_ID"'/state' <<<"$DN_DEST"; echo $?)" "A1 dialplan: holatni ICHKI CURL bilan o'qiydi (reload shart emas)"
+check "$(grep -q 'night' <<<"$DN_DEST"; echo $?)" "A1 dialplan: tun yo'nalishi label mavjud"
 
 echo "=== A1: dialplan — t1-from-internal (*28<code> xizmat kodi + BLF hint) ==="
 FROM_INTERNAL=$(ast_wait "t1-from-internal" 'DEVICE_STATE(Custom:DAYNIGHT7)')
-check "$(echo "$FROM_INTERNAL" | grep -q '\*287.*hint.*Custom:DAYNIGHT7'; echo $?)" "A1 dialplan: *287 uchun BLF hint Custom:DAYNIGHT7"
-check "$(echo "$FROM_INTERNAL" | grep -q 'CURL(.*internal/day-night/'"$DN_ID"'/toggle'; echo $?)" "A1 dialplan: *287 ichki toggle CURL'ni chaqiradi"
-check "$(echo "$FROM_INTERNAL" | grep -q 'DEVICE_STATE(Custom:DAYNIGHT7)'; echo $?)" "A1 dialplan: DEVICE_STATE(Custom:DAYNIGHT7) yangilanadi"
+check "$(grep -q '\*287.*hint.*Custom:DAYNIGHT7' <<<"$FROM_INTERNAL"; echo $?)" "A1 dialplan: *287 uchun BLF hint Custom:DAYNIGHT7"
+check "$(grep -q 'CURL(.*internal/day-night/'"$DN_ID"'/toggle' <<<"$FROM_INTERNAL"; echo $?)" "A1 dialplan: *287 ichki toggle CURL'ni chaqiradi"
+check "$(grep -q 'DEVICE_STATE(Custom:DAYNIGHT7)' <<<"$FROM_INTERNAL"; echo $?)" "A1 dialplan: DEVICE_STATE(Custom:DAYNIGHT7) yangilanadi"
 
 echo "=== A1: *287 ni jonli chaqirish (PIN bor -> Read so'raydi, biz PIN yubormaymiz -> xato yo'li) va ICHKI endpoint orqali toggle (dialplan CURL qiladigan XUDDI SHU so'rov) ==="
 STATE_BEFORE=$(curl -s "$API_ROOT/internal/day-night/$DN_ID/state?token=$INTERNAL_TOKEN")
@@ -178,7 +183,7 @@ DISA_ALLOW_ID=$(jget "$(jbody "$DISA_ALLOW")" item id)
 
 DISA_PIN=$(api POST /disa "{\"name\":\"M12DisaPin\",\"pin\":\"1357\",\"max_attempts\":3,\"cid_override\":\"998712223344\"}")
 check "$([[ "$(jcode "$DISA_PIN")" == "201" && "$(jget "$(jbody "$DISA_PIN")" item has_pin)" == "True" ]]; echo $?)" "A2: PIN bilan -> 201 has_pin=true" "$DISA_PIN"
-check "$(echo "$(jbody "$DISA_PIN")" | grep -q '"pin"'; [[ $? -ne 0 ]]; echo $?)" "A2: javobda 'pin' kaliti umuman yo'q"
+check "$(grep -q '"pin"' <<<"$(jbody "$DISA_PIN")"; [[ $? -ne 0 ]]; echo $?)" "A2: javobda 'pin' kaliti umuman yo'q"
 DISA_PIN_ID=$(jget "$(jbody "$DISA_PIN")" item id)
 DISA_PIN_UPDATED_AT=$(jget "$(jbody "$DISA_PIN")" item updated_at)
 
@@ -190,14 +195,14 @@ DISA_TARGET_ID=$(disa_target_id "$DISA_PIN_ID")
 DISA_WIRE=$(api POST /inbound-routes "{\"name\":\"M12DisaWire\",\"did\":\"998712200072\",\"target_id\":\"$DISA_TARGET_ID\"}")
 check "$([[ "$(jcode "$DISA_WIRE")" == "201" ]]; echo $?)" "A2: DISA'ni kiruvchi marshrutga ulash" "$DISA_WIRE"
 DISA_DEST=$(ast "dialplan show t1-dest-$DISA_TARGET_ID")
-check "$(echo "$DISA_DEST" | grep -q 'NoOp(Innova: DISA M12DisaPin)'; echo $?)" "A2 dialplan: NoOp nom ko'rsatiladi"
-check "$(echo "$DISA_DEST" | grep -q 'Answer()'; echo $?)" "A2 dialplan: Answer() bor"
-check "$(echo "$DISA_DEST" | grep -q 'CURL(.*internal/disa/'"$DISA_PIN_ID"'/pin-check'; echo $?)" "A2 dialplan: ichki pin-check CURL chaqiriladi"
-check "$(echo "$DISA_DEST" | grep -qi 'INNOVA_DISA_TRY'; echo $?)" "A2 dialplan: urinish hisoblagichi (max_attempts bilan qoyoslash) bor"
-check "$(echo "$DISA_DEST" | grep -q 'Hangup()'; echo $?)" "A2 dialplan: urinishlar tugagach Hangup() bor"
-check "$(echo "$DISA_DEST" | grep -q 't1-outbound-rg'; echo $?)" "A2 dialplan: muvaffaqiyatdan keyin FAQAT t1-outbound-rg'ga Goto"
-check "$(echo "$DISA_DEST" | grep -q 'from-internal'; [[ $? -ne 0 ]]; echo $?)" "A2 dialplan: ichki xizmat kodlariga (-from-internal) YO'L YO'Q"
-check "$(echo "$DISA_DEST" | grep -q 'CALLERID(num)=998712223344'; echo $?)" "A2 dialplan: cid_override to'g'ri qo'llanadi"
+check "$(grep -q 'NoOp(Innova: DISA M12DisaPin)' <<<"$DISA_DEST"; echo $?)" "A2 dialplan: NoOp nom ko'rsatiladi"
+check "$(grep -q 'Answer()' <<<"$DISA_DEST"; echo $?)" "A2 dialplan: Answer() bor"
+check "$(grep -q 'CURL(.*internal/disa/'"$DISA_PIN_ID"'/pin-check' <<<"$DISA_DEST"; echo $?)" "A2 dialplan: ichki pin-check CURL chaqiriladi"
+check "$(grep -qi 'INNOVA_DISA_TRY' <<<"$DISA_DEST"; echo $?)" "A2 dialplan: urinish hisoblagichi (max_attempts bilan qoyoslash) bor"
+check "$(grep -q 'Hangup()' <<<"$DISA_DEST"; echo $?)" "A2 dialplan: urinishlar tugagach Hangup() bor"
+check "$(grep -q 't1-outbound-rg' <<<"$DISA_DEST"; echo $?)" "A2 dialplan: muvaffaqiyatdan keyin FAQAT t1-outbound-rg'ga Goto"
+check "$(grep -q 'from-internal' <<<"$DISA_DEST"; [[ $? -ne 0 ]]; echo $?)" "A2 dialplan: ichki xizmat kodlariga (-from-internal) YO'L YO'Q"
+check "$(grep -q 'CALLERID(num)=998712223344' <<<"$DISA_DEST"; echo $?)" "A2 dialplan: cid_override to'g'ri qo'llanadi"
 
 echo "=== A2: ichki /pin-check endpoint'ini jonli chaqirish (dialplan CURL qiladigan XUDDI SHU so'rov) ==="
 PIN_BAD_TOKEN=$(curl -s "$API_ROOT/internal/disa/$DISA_PIN_ID/pin-check?token=yomon&pin=1357")
@@ -220,8 +225,8 @@ INJECT_TARGET_ID=$(day_night_target_id "$INJECT_ID")
 INJECT_WIRE=$(api POST /inbound-routes "{\"name\":\"M12InjWire\",\"did\":\"998712200073\",\"target_id\":\"$INJECT_TARGET_ID\"}")
 check "$([[ "$(jcode "$INJECT_WIRE")" == "201" ]]; echo $?)" "sanitizatsiya: inj yozuvini kiruvchi marshrutga ulash"
 INJECT_DEST=$(ast "dialplan show t1-dest-$INJECT_TARGET_ID")
-check "$(echo "$INJECT_DEST" | grep -q '\${SHELL('; [[ $? -ne 0 ]]; echo $?)" "sanitizatsiya: render vaqtida '\${SHELL(' YO'Q (sanitize_dialplan_text olib tashladi)"
-check "$(echo "$INJECT_DEST" | grep -q 'M12Inj'; echo $?)" "sanitizatsiya: xavfsiz qism (M12Inj) qolgan"
+check "$(grep -q '\${SHELL(' <<<"$INJECT_DEST"; [[ $? -ne 0 ]]; echo $?)" "sanitizatsiya: render vaqtida '\${SHELL(' YO'Q (sanitize_dialplan_text olib tashladi)"
+check "$(grep -q 'M12Inj' <<<"$INJECT_DEST"; echo $?)" "sanitizatsiya: xavfsiz qism (M12Inj) qolgan"
 
 echo "=== L3: render vaqtida CODE_RE qayta tekshiruvi (API'ni chetlab o'tib DB'ga to'g'ridan-to'g'ri yozilgan buzilgan kod) ==="
 T1_TENANT=$(sql "select id from tenants where code='t1'")
@@ -239,14 +244,14 @@ sql "update feature_codes set code='*98X' where tenant_id='$T1_TENANT' and featu
 # DN_ID shu skript oxirida o'chiriladi, mode flip'ning o'zi muhim emas — faqat recompile kerak).
 api POST "/day-night/$DN_ID/toggle" "" >/dev/null
 FROM_INTERNAL_BAD=$(ast "dialplan show t1-from-internal")
-check "$(echo "$FROM_INTERNAL_BAD" | grep -q '\*98X'; [[ $? -ne 0 ]]; echo $?)" "L3: buzilgan kod (*98X) dialplan'ga YOZILMAGAN"
-check "$(docker logs "$API_CTR" 2>&1 | tail -n 400 | grep -q "feature_code_lines: noto'g'ri kod"; echo $?)" "L3: API logiga ogohlantirish yozilgan"
+check "$(grep -q '\*98X' <<<"$FROM_INTERNAL_BAD"; [[ $? -ne 0 ]]; echo $?)" "L3: buzilgan kod (*98X) dialplan'ga YOZILMAGAN"
+check "$(grep -q "feature_code_lines: noto'g'ri kod" <<<"$(docker logs "$API_CTR" 2>&1 | tail -n 400)"; echo $?)" "L3: API logiga ogohlantirish yozilgan"
 # tiklash: avval ASL qiymat, SO'NGRA CHECK qaytariladi
 sql "update feature_codes set code='$ORIG_VM_OTHER_CODE' where tenant_id='$T1_TENANT' and feature='voicemail_other'" >/dev/null
 sql "alter table feature_codes add constraint feature_codes_code_check check (code ~ '^\*[0-9*#]{1,6}\$')" >/dev/null
 api POST "/day-night/$DN_ID/toggle" "" >/dev/null
 FROM_INTERNAL_FIXED=$(ast_wait "t1-from-internal" "${ORIG_VM_OTHER_CODE//\*/\\*}")
-check "$(echo "$FROM_INTERNAL_FIXED" | grep -q "${ORIG_VM_OTHER_CODE//\*/\\*}"; echo $?)" "L3: tiklangach original kod ($ORIG_VM_OTHER_CODE) dialplan'da qayta mavjud"
+check "$(grep -q "${ORIG_VM_OTHER_CODE//\*/\\*}" <<<"$FROM_INTERNAL_FIXED"; echo $?)" "L3: tiklangach original kod ($ORIG_VM_OTHER_CODE) dialplan'da qayta mavjud"
 
 echo "=== Audit jurnali ==="
 # ESLATMA: `app/services/audit.py::normalize_action()` DB'ga yozishdan OLDIN
