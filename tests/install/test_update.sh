@@ -160,7 +160,7 @@ echo 2.0.0 > "$ADEST/VERSION"
 echo "$AT/src" > "$ADEST/SOURCE"
 printf 'POSTGRES_USER=innova\nPOSTGRES_DB=innova\nWEB_HOST_PORT=8080\n' > "$ADEST/deploy/.env"
 AUPD=$AT/update
-mkdir -p "$AUPD"
+mkdir -p "$AUPD/req" # H1c: API (`request`) uchun alohida yoziladigan quyi papka
 export INNOVA_DEST=$ADEST INNOVA_UPDATE_DIR=$AUPD INSTALL_LOG=$AT/install.log DOCKER_LOG=$AT/docker.log
 : > "$INSTALL_LOG"; : > "$DOCKER_LOG"
 
@@ -181,10 +181,10 @@ ok not test -e "$AUPD/status"
 
 # a2) check — yangilanish bor
 apublish 2.0.1 "ikkinchi versiya"
-echo check > "$AUPD/request"
+echo check > "$AUPD/req/request"
 out=$(arun); rc=$?
 ok eq "$rc" 0
-ok not test -e "$AUPD/request"
+ok not test -e "$AUPD/req/request"
 ok eq "$(status_val state)" idle
 ok eq "$(status_val current)" 2.0.0
 ok eq "$(status_val latest)" 2.0.1
@@ -192,10 +192,10 @@ ok eq "$(status_val available)" 1
 ok contains "$(cat "$AUPD/changelog.md" 2>/dev/null)" "## 2.0.1"
 
 # a3) update — mavjud yangilanishni qo'llaydi
-echo update > "$AUPD/request"
+echo update > "$AUPD/req/request"
 out=$(arun); rc=$?
 ok eq "$rc" 0
-ok not test -e "$AUPD/request"
+ok not test -e "$AUPD/req/request"
 # shellcheck disable=SC1010 # "done" — status qiymati, bash kalit so'zi emas
 ok eq "$(status_val state)" done
 ok eq "$(status_val current)" 2.0.1
@@ -210,7 +210,7 @@ ok contains "$(cat "$AUPD/history")" $'\t2.0.0\t2.0.1\tok'
 echo 2.0.1 > "$ADEST/VERSION" # haqiqiy install.sh DEST/VERSION'ni yozardi — soxtasi yozmaydi
 
 # a4) check — yangilanish yo'q
-echo check > "$AUPD/request"
+echo check > "$AUPD/req/request"
 out=$(arun); rc=$?
 ok eq "$rc" 0
 ok eq "$(status_val available)" 0
@@ -219,10 +219,10 @@ ok eq "$(status_val latest)" 2.0.1
 
 # a5) update — yangilanish yo'q bo'lsa install.sh chaqirilmaydi
 : > "$INSTALL_LOG"
-echo update > "$AUPD/request"
+echo update > "$AUPD/req/request"
 out=$(arun); rc=$?
 ok eq "$rc" 0
-ok not test -e "$AUPD/request"
+ok not test -e "$AUPD/req/request"
 ok eq "$(status_val state)" idle
 ok eq "$(wc -c < "$INSTALL_LOG" | tr -d ' ')" 0
 
@@ -230,10 +230,10 @@ ok eq "$(wc -c < "$INSTALL_LOG" | tr -d ' ')" 0
 apublish 2.0.2 "uchinchi versiya"
 echo local > "$AT/src/VERSION"
 : > "$INSTALL_LOG"
-echo update > "$AUPD/request"
+echo update > "$AUPD/req/request"
 out=$(arun); rc=$?
 ok not eq "$rc" 0
-ok not test -e "$AUPD/request"
+ok not test -e "$AUPD/req/request"
 ok eq "$(status_val state)" failed
 ok eq "$(status_val error)" git_dirty
 backup_name=$(status_val backup)
@@ -245,10 +245,10 @@ git -C "$AT/src" checkout -q -- VERSION
 # a7) install_failed — kod birlashadi, install.sh yiqiladi, orqaga qaytarish yo'riqnomasi logga yoziladi
 apublish 2.0.3 "to'rtinchi versiya"
 : > "$INSTALL_LOG"
-echo update > "$AUPD/request"
+echo update > "$AUPD/req/request"
 out=$(INSTALL_FAIL=1 arun); rc=$?
 ok not eq "$rc" 0
-ok not test -e "$AUPD/request"
+ok not test -e "$AUPD/req/request"
 ok eq "$(status_val state)" failed
 ok eq "$(status_val error)" install_failed
 ok eq "$(cat "$AT/src/VERSION")" 2.0.3
@@ -256,10 +256,10 @@ ok contains "$(cat "$AUPD/update.log")" "checkout"
 ok no_ansi "$AUPD/update.log"
 
 # a8) bad_request — noma'lum so'rov matni
-echo chiqindi > "$AUPD/request"
+echo chiqindi > "$AUPD/req/request"
 out=$(arun); rc=$?
 ok eq "$rc" 0
-ok not test -e "$AUPD/request"
+ok not test -e "$AUPD/req/request"
 ok eq "$(status_val state)" failed
 ok eq "$(status_val error)" bad_request
 
@@ -276,7 +276,7 @@ finished_at=
 error=
 backup=
 EOF
-rm -f "$AUPD/request"
+rm -f "$AUPD/req/request"
 out=$(arun); rc=$?
 ok eq "$rc" 0
 ok eq "$(status_val state)" failed
@@ -288,10 +288,10 @@ ok contains "$(cat "$AUPD/history")" $'\t2.0.1\t2.0.3\tfailed:interrupted'
 flock -n "$T/lock.lock" sleep 1 &
 BGPID=$!
 for _ in $(seq 1 50); do flock -n "$T/lock.lock" -c true 2>/dev/null || break; sleep 0.05; done
-echo check > "$AUPD/request"
+echo check > "$AUPD/req/request"
 out=$(arun); rc=$?
 ok eq "$rc" 0
-ok not test -e "$AUPD/request"
+ok not test -e "$AUPD/req/request"
 ok eq "$(status_val state)" idle
 wait "$BGPID" 2>/dev/null
 
@@ -310,20 +310,60 @@ mkdir -p "$AT/rmspy"
 cat > "$AT/rmspy/rm" <<EOF
 #!/bin/bash
 for a in "\$@"; do
-  [ "\$a" = "$AUPD/request" ] && sed -n 's/^state=//p' "$AUPD/status" >> "$AT/rm-seen"
+  [ "\$a" = "$AUPD/req/request" ] && sed -n 's/^state=//p' "$AUPD/status" >> "$AT/rm-seen"
 done
 exec /bin/rm "\$@"
 EOF
 chmod +x "$AT/rmspy/rm"
 for word in check update; do
   : > "$AT/rm-seen"
-  echo "$word" > "$AUPD/request"
+  echo "$word" > "$AUPD/req/request"
   PATH="$AT/rmspy:$PATH" arun >/dev/null; rc=$?
   ok eq "$rc" 0
-  ok not test -e "$AUPD/request"
+  ok not test -e "$AUPD/req/request"
   case $word in check) want=checking ;; update) want=updating ;; esac
   ok eq "$(head -n1 "$AT/rm-seen")" "$want"
 done
+
+# ---------------------------------------------------------------- H1: symlink/TOCTOU hujumi
+# a13) update.log/history belgilangan joy ($UPD ichida) symlink bo'lib,
+# $UPD TASHQARISIDAGI qurbon faylga ko'rsatsa — yangilash muvaffaqiyatli
+# tugaydi, LEKIN qurbon fayl o'zgarmay qoladi (update.log — mktemp+mv bilan
+# ALMASHTIRILADI, history — yozish butunlay RAD etiladi).
+victim_log=$AT/victim-log.txt
+echo VICTIM-LOG-ORIGINAL > "$victim_log"
+victim_hist=$AT/victim-hist.txt
+echo VICTIM-HIST-ORIGINAL > "$victim_hist"
+rm -f "$AUPD/update.log" "$AUPD/history"
+ln -s "$victim_log" "$AUPD/update.log"
+ln -s "$victim_hist" "$AUPD/history"
+apublish 2.0.4 "beshinchi versiya"
+echo update > "$AUPD/req/request"
+out=$(arun); rc=$?
+ok eq "$rc" 0
+ok eq "$(cat "$victim_log")" VICTIM-LOG-ORIGINAL
+ok eq "$(cat "$victim_hist")" VICTIM-HIST-ORIGINAL
+ok not test -L "$AUPD/update.log"
+# shellcheck disable=SC1010 # "done" — status qiymati, bash kalit so'zi emas
+ok eq "$(status_val state)" done
+ok eq "$(status_val current)" 2.0.4
+echo 2.0.4 > "$ADEST/VERSION"
+
+# a14) status fayli symlink bo'lib $UPD tashqarisidagi qurbon faylga
+# ko'rsatsa — status_load begona (soxta) qiymatlarni O'QIMAYDI (sukut
+# idle/bo'sh ishlatadi), qurbon fayl o'zgarmay qoladi, keyin status_flush
+# symlinkni xavfsiz (mktemp+mv) oddiy faylga almashtiradi.
+victim_status=$AT/victim-status.txt
+printf 'state=HACKED\navailable=999\ncurrent=9.9.9\n' > "$victim_status"
+victim_status_before=$(cat "$victim_status")
+rm -f "$AUPD/status"
+ln -s "$victim_status" "$AUPD/status"
+echo check > "$AUPD/req/request"
+out=$(arun); rc=$?
+ok eq "$rc" 0
+ok eq "$(cat "$victim_status")" "$victim_status_before"
+ok not test -L "$AUPD/status"
+ok eq "$(status_val state)" idle
 
 echo "innova-update: $PASSES o'tdi, $FAILS xato"
 [ "$FAILS" = 0 ]

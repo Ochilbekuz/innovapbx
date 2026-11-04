@@ -39,6 +39,7 @@ from app.schemas_2fa import LoginTotpPayload
 from app.schemas_users import ChangePasswordPayload
 from app.services.audio_tools import synth_tone_wav
 from app.services.audit import record_audit
+from app.services.login_guard import guard as login_guard
 from app.services.setup_guard import guard as setup_code_guard
 from app.services.sip_transport import BOOT_DEFAULT, current_sip_config, needs_restart, write_sip_files
 from app.services.tokens import revoke_refresh_tokens
@@ -50,6 +51,11 @@ router = APIRouter(tags=["auth"])
 _TOTP_CHALLENGE_TTL = timedelta(minutes=5)
 _TOTP_MAX_ATTEMPTS = 5
 _INVALID_CODE = ApiError(401, "invalid_code", "Kod noto'g'ri yoki muddati o'tgan")
+# M12 C M5: foydalanuvchi topilmaganda/faolsiz bo'lganda HAM bcrypt bir marta
+# ishlashi uchun soxta hash (vaqt-kanal orqali hisob mavjudligini bilib
+# olishning oldini olish). Import vaqtida BIR MARTA hisoblanadi (har so'rovda
+# emas) — real parol solishtirishning o'zidek sekin, lekin takror hisoblanmaydi.
+_DUMMY_PASSWORD_HASH = hash_password(secrets.token_urlsafe(32))
 
 
 async def _must_enroll_2fa(session: AsyncSession, user: User) -> bool:
@@ -241,14 +247,30 @@ async def login(
     payload: LoginPayload, request: Request, session: AsyncSession = Depends(get_session),
 ) -> AuthResult:
     ip = _client_ip(request)
+    ip_key = ip or "unknown"
+    # M12 C M5: IP bo'yicha cheklov HISOBGA tegishdan OLDIN tekshiriladi —
+    # shuning uchun anonim hujumchi bitta IP'dan cheksiz urinib, admin
+    # hisobini abadiy qulflab qo'ya olmaydi (hisob-qulfi hisoblagichi pastda
+    # shu limiterdan KEYIN ishlaydi). 423/`locked` IP haqida, ANIQ HISOB
+    # haqida emas — shu bilan "bu login mavjud/qulflangan" oshkor bo'lmaydi.
+    if login_guard.is_blocked(ip_key):
+        raise ApiError(423, "locked", "Ko'p marta xato urinish. Keyinroq qayta urining.")
+
     user = await _find_user_by_login(session, payload.login)
-    if user is not None and _is_locked(user):
-        raise ApiError(423, "locked", "Hisob vaqtincha bloklangan — keyinroq urining")
-    # M2b §3: faolsizlantirilgan foydalanuvchi kira olmaydi — hisob holatini
-    # OSHKOR qilmaslik uchun (web/src/api/fake.ts bilan bir xil) parol xato
-    # bilan BIR XIL xato (`bad_credentials`) qaytariladi, alohida kod YO'Q.
-    if user is None or not user.is_active or not verify_password(payload.password, user.password_hash):
-        if user is not None:
+    locked = user is not None and _is_locked(user)
+    # M2b/M12 C M5: hisob yo'q / faolsiz / qulflangan / parol xato — HAMMASI
+    # bir xil javob (`bad_credentials`) va bir xil vaqt (bcrypt HAR DOIM bir
+    # marta ishlaydi — mavjud bo'lmagan foydalanuvchi uchun soxta hash bilan)
+    # — hisob-enumeration va vaqt-kanal ikkisi ham yopiladi.
+    active = user is not None and user.is_active and not locked
+    hash_to_check = user.password_hash if active else _DUMMY_PASSWORD_HASH
+    password_ok = verify_password(payload.password, hash_to_check)
+    if not active or not password_ok:
+        login_guard.record_failure(ip_key)
+        # Allaqachon qulflangan hisobni yana-yana qulflash SHART emas — aks
+        # holda bitta IP (yoki ko'p IP'dan tarqalgan hujum) hisobni cheksiz
+        # qulf holida tutib turishi mumkin edi (xuddi shu DoS hisob darajasida).
+        if user is not None and not locked:
             await _register_failed_login(session, user)
         await _audit_login_failure(session, user, payload.login, ip)
         await session.commit()

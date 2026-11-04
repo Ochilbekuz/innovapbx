@@ -69,18 +69,26 @@ def host_key_fingerprint(public_data: bytes) -> str:
     return "SHA256:" + base64.b64encode(digest).decode("ascii").rstrip("=")
 
 
-def pinned_client_factory(expected_fp: str | None):
+def pinned_client_factory(expected_fp: str | None, *, observed: list[str] | None = None):
     """`asyncssh.connect(known_hosts=([], [], []), client_factory=...)` bilan
     ishlatiladi — shunda asyncssh AUTENTIFIKATSIYADAN OLDIN (parol/xususiy kalit
     yuborilishidan OLDIN) shu klassning `validate_host_public_key`sini chaqiradi.
     Avvalgi xato: `known_hosts=None` bilan ulanib, parol/kalit YUBORILGANDAN KEYIN
     barmoq izi solishtirilardi — MITM parolni allaqachon olib bo'lgan bo'lardi.
-    `backup_targets.py` VA `ssh_fetch.py` BIR XIL qolip (DRY)."""
+    `backup_targets.py` VA `ssh_fetch.py` BIR XIL qolip (DRY).
+
+    `observed` (ixtiyoriy) berilsa — ko'rilgan barmoq izi (mos kelsa ham, mos
+    kelmasa ham) shu ro'yxatga qo'shiladi — `test_sftp()`ga mos kelmagan
+    taqdirda ham qaysi kalit ko'rilganini ko'rsatish uchun kerak (bu HALI
+    autentifikatsiyadan oldingi bosqich, sirni oshkor qilmaydi)."""
     import asyncssh
 
     class _PinnedHostKeyClient(asyncssh.SSHClient):
         def validate_host_public_key(self, host: str, addr: str, port: int, key) -> bool:
-            return expected_fp is not None and host_key_fingerprint(key.public_data) == expected_fp
+            fp = host_key_fingerprint(key.public_data)
+            if observed is not None:
+                observed.append(fp)
+            return expected_fp is not None and fp == expected_fp
 
     return _PinnedHostKeyClient
 
@@ -236,7 +244,15 @@ async def test_sftp(target: SftpTarget) -> tuple[bool, str | None, str | None]:
     SFTP protokoliga ruxsat, qobiq YO'Q) buni HAR DOIM `ProcessError`/chiqish holati 1
     bilan rad etardi, garchi haqiqiy yuklash/olish/o'chirish ishlagan bo'lsa ham. Endi
     o'zi vaqtinchalik probe faylni SFTP orqali yozib-o'qib-o'chiradi (shu sabab qobiqsiz
-    serverlarda ham to'g'ri ishlaydi)."""
+    serverlarda ham to'g'ri ishlaydi).
+
+    M12 C M1: `host_key_fp` allaqachon PIN qilingan bo'lsa — `_sftp_connect()`
+    BILAN BIR XIL qolip (`pinned_client_factory` + `known_hosts=([], [], [])`)
+    ishlatiladi, ya'ni kalit AUTENTIFIKATSIYADAN OLDIN tasdiqlanadi. Ilgari
+    bu yerda har doim `known_hosts=None` (TOFU) bilan ulanib, parol/kalit
+    YUBORILGANDAN KEYIN solishtirilardi — mos kelmagan taqdirda ham MITM
+    parolni allaqachon olib bo'lgan bo'lardi. `host_key_fp` yo'q bo'lsagina
+    (ya'ni admin hali «ishonish»ni bosmagan, birinchi ulanish) — TOFU qoladi."""
     import tempfile
     import uuid
 
@@ -244,9 +260,15 @@ async def test_sftp(target: SftpTarget) -> tuple[bool, str | None, str | None]:
 
     probe_name = f".innova-probe-{uuid.uuid4().hex}"
     probe_path = sftp_remote_path(target, probe_name)
+    observed_box: list[str] = []
+    kwargs = dict(_sftp_connect_kwargs(target))
+    if target.host_key_fp:
+        kwargs["known_hosts"] = ([], [], [])
+        kwargs["client_factory"] = pinned_client_factory(target.host_key_fp, observed=observed_box)
     try:
-        async with asyncssh.connect(**_sftp_connect_kwargs(target)) as conn:
-            observed = host_key_fingerprint(conn.get_server_host_key().public_data)
+        async with asyncssh.connect(**kwargs) as conn:
+            observed = observed_box[0] if observed_box else \
+                host_key_fingerprint(conn.get_server_host_key().public_data)
             async with conn.start_sftp_client() as sftp:
                 with tempfile.NamedTemporaryFile() as tmp_write:
                     tmp_write.write(b"innova-probe")
@@ -255,10 +277,12 @@ async def test_sftp(target: SftpTarget) -> tuple[bool, str | None, str | None]:
                 with tempfile.NamedTemporaryFile() as tmp_read:
                     await sftp.get(probe_path, tmp_read.name)
                 await sftp.remove(probe_path)
+    except asyncssh.HostKeyNotVerifiable:
+        # Pin mos kelmadi — `validate_host_public_key` autentifikatsiyadan OLDIN
+        # chaqirilgani uchun parol/kalit hech qachon yuborilmagan.
+        return False, "host_key_mismatch", observed_box[0] if observed_box else None
     except Exception as exc:  # noqa: BLE001
         return False, str(exc)[:500], None
-    if target.host_key_fp and target.host_key_fp != observed:
-        return False, "host_key_mismatch", observed
     return True, None, observed
 
 

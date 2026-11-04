@@ -81,13 +81,21 @@ def test_agent_available_false_when_dir_missing(tmp_path):
     assert su.agent_available(tmp_path / "no-such-dir") is False
 
 
-def test_agent_available_true_when_writable(tmp_path):
+def test_agent_available_false_when_req_subdir_missing(tmp_path):
+    """H1c: API faqat `req/`ga yozadi — ota papka bor-u, `req/` yo'q/yozib
+    bo'lmasa (masalan `:ro` bog'langan), agent mavjud emas deyiladi."""
+    assert su.agent_available(tmp_path) is False
+
+
+def test_agent_available_true_when_req_subdir_writable(tmp_path):
+    (tmp_path / "req").mkdir()
     assert su.agent_available(tmp_path) is True
 
 
 def test_write_request_then_duplicate_raises_file_exists(tmp_path):
+    (tmp_path / "req").mkdir()
     su.write_request(tmp_path, "check")
-    assert (tmp_path / "request").read_text() == "check\n"
+    assert (tmp_path / "req" / "request").read_text() == "check\n"
     try:
         su.write_request(tmp_path, "update")
         raised = False
@@ -127,10 +135,11 @@ def test_read_log_chunk_respects_max_bytes(tmp_path):
 
 
 def test_write_request_leaves_no_temp_files_even_when_busy(tmp_path):
+    (tmp_path / "req").mkdir()
     su.write_request(tmp_path, "check")
     try:
         su.write_request(tmp_path, "update")
     except FileExistsError:
         pass
-    assert sorted(p.name for p in tmp_path.iterdir()) == ["request"]
-    assert (tmp_path / "request").read_text() == "check\n"
+    assert sorted(p.name for p in (tmp_path / "req").iterdir()) == ["request"]
+    assert (tmp_path / "req" / "request").read_text() == "check\n"

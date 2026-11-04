@@ -2,7 +2,10 @@
 Description=Innova PBX — paneldan yangilash so'rovini kutish
 
 [Path]
-PathExists=/var/lib/innova/update/request
+# H1c: API konteyneri endi faqat `req/` quyi papkaga yozadi (install.sh
+# oldindan yaratadi — `MakeDirectory=` `PathExists=` bilan BIR XIL HOLDA
+# e'tiborsiz, systemd.path(5)).
+PathExists=/var/lib/innova/update/req/request
 MakeDirectory=yes
 Unit=innova-update-agent.service
 

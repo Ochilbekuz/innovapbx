@@ -16,6 +16,9 @@ DEST=${INNOVA_DEST:-/opt/innova}
 UNIT=/etc/systemd/system/innova-pbx.service
 DROPIN=$UNIT.d
 SBIN=/usr/local/sbin
+# `iso/files/innova-update.sh` bilan BIR XIL env (INNOVA_UPDATE_DIR) — testda
+# haqiqiy /var/lib/innova'ga tegmasdan almashtirish uchun (H1c).
+UPDATE_DIR=${INNOVA_UPDATE_DIR:-/var/lib/innova/update}
 SERVICES="api asterisk web"
 MIN_COMPOSE=2.24 # deploy/docker-compose.appliance.yml dagi `!reset` shuni talab qiladi
 
@@ -146,6 +149,12 @@ install_docker() {
 install_update_units() {
   local sysdir u
   sysdir=$(dirname "$UNIT")
+  # H1c: `req/` — API konteyneri YOZADIGAN YAGONA quyi papka (`request`);
+  # qolgan status/history/update.log/changelog.md konteynerga faqat `:ro`
+  # bog'lanadi (docker-compose.appliance.yml). Oldindan yaratish — API
+  # birinchi marta ishga tushganda bog'lash nuqtasi tasodifiy TARTIBDA
+  # yaratilishiga tayanmaslik uchun.
+  install -d -m 0755 "$UPDATE_DIR/req"
   for u in innova-update-agent.path innova-update-agent.service \
            innova-update-check.timer innova-update-check.service; do
     install -m 0644 "$ROOT/iso/files/$u" "$sysdir/$u"

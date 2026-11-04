@@ -32,6 +32,7 @@ class _Session:
 def update_dir(tmp_path, monkeypatch):
     monkeypatch.setattr(settings, "update_dir", str(tmp_path))
     monkeypatch.setattr(settings, "innova_version", "1.0.12")
+    (tmp_path / "req").mkdir()  # H1c: API faqat shu quyi papkaga yozadi
     return tmp_path
 
 
@@ -91,12 +92,12 @@ async def test_check_agent_missing_raises_503(tmp_path, monkeypatch):
 async def test_check_writes_request_file_and_returns_pending(update_dir):
     out = await route.start_system_update_check(user=USER)
     assert out.pending == "check"
-    assert (update_dir / "request").read_text() == "check\n"
+    assert (update_dir / "req" / "request").read_text() == "check\n"
 
 
 @pytest.mark.asyncio
 async def test_check_busy_when_request_already_exists(update_dir):
-    (update_dir / "request").write_text("check\n")
+    (update_dir / "req" / "request").write_text("check\n")
     with pytest.raises(ApiError) as exc:
         await route.start_system_update_check(user=USER)
     assert exc.value.status_code == 409
@@ -152,7 +153,7 @@ async def test_start_success_writes_request_audits_and_commits(update_dir):
     session = _Session()
     out = await route.start_system_update(SystemUpdateStartIn(version="1.0.13"), session=session, user=USER)
     assert out.pending == "update"
-    assert (update_dir / "request").read_text() == "update\n"
+    assert (update_dir / "req" / "request").read_text() == "update\n"
     assert session.commits == 1
     assert len(session.added) == 1
     audit = session.added[0]

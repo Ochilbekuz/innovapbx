@@ -13,6 +13,11 @@ from pathlib import Path
 from app.schemas_update import ChangelogEntryOut, SystemUpdateOut
 
 REQUEST_FILENAME = "request"
+# H1c: `request`ni API konteyneri yozadi — shu SABAB o'z alohida yozish
+# mumkin bo'lgan quyi papkada (`req/`), qolgani (status/changelog/log)
+# konteynerga faqat `:ro` bog'lanadi (docker-compose.appliance.yml,
+# install.sh papkani oldindan yaratadi).
+REQUEST_DIRNAME = "req"
 STATUS_FILENAME = "status"
 CHANGELOG_FILENAME = "changelog.md"
 LOG_FILENAME = "update.log"
@@ -34,10 +39,21 @@ def strip_ansi(text: str) -> str:
     return _ANSI_RE.sub("", text)
 
 
+def request_dir(update_dir: Path) -> Path:
+    """H1c: API YOZADIGAN yagona quyi papka — `request_path()` ham shu
+    yerdan hisoblanadi (bitta manba, ikki joyda qayta yozilmasin)."""
+    return update_dir / REQUEST_DIRNAME
+
+
+def request_path(update_dir: Path) -> Path:
+    return request_dir(update_dir) / REQUEST_FILENAME
+
+
 def agent_available(update_dir: Path) -> bool:
-    """Shell agentining `upd_usable()` bilan BIR XIL qoida: papka bor va
-    yozish mumkin (M0: agentsiz muhitda — dev docker-compose — papka yo'q)."""
-    return update_dir.is_dir() and os.access(update_dir, os.W_OK)
+    """Shell agentining `upd_usable()` bilan BIR XIL qoida — status/log
+    o'qish uchun `update_dir` (host konteynerga `:ro` bog'laydi), yozish
+    uchun esa FAQAT `req/` quyi papka (H1c, API `rw` faqat shu yerda)."""
+    return update_dir.is_dir() and os.access(request_dir(update_dir), os.W_OK)
 
 
 def parse_status(text: str) -> dict[str, str]:
@@ -130,9 +146,12 @@ def parse_changelog(markdown: str, current_version: str | None) -> list[Changelo
 def write_request(update_dir: Path, word: str) -> None:
     """Atomik: avval vaqtinchalik faylga to'liq yoziladi, keyin `os.link` bilan
     `request` nomi beriladi — agent (systemd `PathExists`) faylni hech qachon
-    bo'sh/yarim ko'rmaydi; nom band bo'lsa `FileExistsError` (O_EXCL kabi)."""
-    path = update_dir / REQUEST_FILENAME
-    fd, tmp = tempfile.mkstemp(dir=str(update_dir), prefix=".request.")
+    bo'sh/yarim ko'rmaydi; nom band bo'lsa `FileExistsError` (O_EXCL kabi).
+    H1c: vaqtinchalik fayl ham `req/` ICHIDA — `os.link` faqat BIR XIL fayl
+    tizimida ishlaydi, `req/` esa API uchun yagona `rw` bog'lanish nuqtasi."""
+    req = request_dir(update_dir)
+    path = req / REQUEST_FILENAME
+    fd, tmp = tempfile.mkstemp(dir=str(req), prefix=".request.")
     try:
         os.write(fd, f"{word}\n".encode())
         os.close(fd)

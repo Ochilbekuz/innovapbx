@@ -73,7 +73,8 @@ ok eval '[[ $(cat "$HERE/../../VERSION") =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]'
 # install_files: innova-update buyrug'i va manba papka (keyingi yangilashlar uchun)
 TMPD=$(mktemp -d)
 SYSTEMCTL_LOG=$TMPD/systemctl.log
-stub_root() { (DEST=$TMPD/opt UNIT=$TMPD/unit DROPIN=$TMPD/dropin VERSION=1.0.1 WEB_PORT=80 SBIN=$TMPD/sbin
+stub_root() { (DEST=$TMPD/opt UNIT=$TMPD/unit DROPIN=$TMPD/dropin VERSION=1.0.1 WEB_PORT=80 SBIN=$TMPD/sbin \
+  UPDATE_DIR=$TMPD/update
   systemctl() { echo "systemctl $*" >> "$SYSTEMCTL_LOG"; }; install_files >/dev/null 2>&1); }
 mkdir -p "$TMPD/sbin"
 stub_root
@@ -86,6 +87,9 @@ for u in innova-update-agent.path innova-update-agent.service \
   ok test -f "$TMPD/$u"
 done
 ok contains "$(cat "$SYSTEMCTL_LOG")" "enable --now innova-update-agent.path innova-update-check.timer"
+# H1c: API yozadigan yagona quyi papka ($UPDATE_DIR/req) oldindan yaratiladi
+# — haqiqiy /var/lib/innova'ga TEGMAYDI ($UPDATE_DIR test uchun almashtirilgan)
+ok test -d "$TMPD/update/req"
 rm -rf "$TMPD"
 
 # detect_os: os-release dagi VERSION bizning VERSION'ni bosib ketmasin (VM'da topilgan xato)

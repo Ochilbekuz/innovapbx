@@ -55,7 +55,7 @@ def _failing_authenticate(status_code: int):
 async def test_auth_via_header(monkeypatch):
     monkeypatch.setattr(mod, "authenticate", _ok_authenticate())
     ws = _FakeWebSocket(headers={"authorization": "Bearer ipk_abc"})
-    key = await mod._authenticate_ws(ws, session=object())
+    key = await mod._authenticate_ws(ws)
     assert key.key_id == "k1"
     assert ws.closed_code is None
 
@@ -64,7 +64,7 @@ async def test_auth_via_header(monkeypatch):
 async def test_auth_via_first_message(monkeypatch):
     monkeypatch.setattr(mod, "authenticate", _ok_authenticate())
     ws = _FakeWebSocket(messages=['{"token": "ipk_abc"}'])
-    key = await mod._authenticate_ws(ws, session=object())
+    key = await mod._authenticate_ws(ws)
     assert key.key_id == "k1"
 
 
@@ -72,7 +72,7 @@ async def test_auth_via_first_message(monkeypatch):
 async def test_auth_no_token_closes_4401(monkeypatch):
     monkeypatch.setattr(mod, "authenticate", _failing_authenticate(401))
     ws = _FakeWebSocket()
-    key = await mod._authenticate_ws(ws, session=object())
+    key = await mod._authenticate_ws(ws)
     assert key is None
     assert ws.closed_code == mod.CLOSE_UNAUTHORIZED
 
@@ -81,7 +81,7 @@ async def test_auth_no_token_closes_4401(monkeypatch):
 async def test_auth_missing_scope_closes_4403(monkeypatch):
     monkeypatch.setattr(mod, "authenticate", _failing_authenticate(403))
     ws = _FakeWebSocket(headers={"authorization": "Bearer ipk_abc"})
-    key = await mod._authenticate_ws(ws, session=object())
+    key = await mod._authenticate_ws(ws)
     assert key is None
     assert ws.closed_code == mod.CLOSE_FORBIDDEN_SCOPE
 
@@ -90,7 +90,7 @@ async def test_auth_missing_scope_closes_4403(monkeypatch):
 async def test_auth_rate_limited_closes_4429(monkeypatch):
     monkeypatch.setattr(mod, "authenticate", _failing_authenticate(429))
     ws = _FakeWebSocket(headers={"authorization": "Bearer ipk_abc"})
-    key = await mod._authenticate_ws(ws, session=object())
+    key = await mod._authenticate_ws(ws)
     assert key is None
     assert ws.closed_code == mod.CLOSE_TOO_MANY_CONNECTIONS
 
@@ -102,7 +102,7 @@ async def test_handle_subscribe_updates_registry(monkeypatch):
     conn = Connection(conn_id="c1", key_id="k1", tenant_id="t1", websocket=ws)
     reg.add(conn)
     monkeypatch.setattr(mod, "registry", reg)
-    await mod._handle_subscribe(session=object(), websocket=ws, conn=conn,
+    await mod._handle_subscribe(websocket=ws, conn=conn,
                                 raw='{"type": "subscribe", "events": ["call.ended"]}', latest_seq=0)
     assert conn.subscribed == ("call.ended",)
 
@@ -111,7 +111,19 @@ async def test_handle_subscribe_updates_registry(monkeypatch):
 async def test_handle_subscribe_ignores_invalid_json():
     ws = _FakeWebSocket()
     conn = Connection(conn_id="c1", key_id="k1", tenant_id="t1", websocket=ws)
-    await mod._handle_subscribe(session=object(), websocket=ws, conn=conn, raw="not-json", latest_seq=0)
+    await mod._handle_subscribe(websocket=ws, conn=conn, raw="not-json", latest_seq=0)
+    assert ws.sent == []
+
+
+@pytest.mark.asyncio
+async def test_handle_subscribe_ignores_non_dict_json():
+    """L10: JSON to'g'ri parse bo'lsa ham dict bo'lmasa (ro'yxat/son/satr) —
+    `.get()` chaqirilmasdan jim rad etiladi (AttributeError bermasligi
+    kerak)."""
+    ws = _FakeWebSocket()
+    conn = Connection(conn_id="c1", key_id="k1", tenant_id="t1", websocket=ws)
+    for raw in ("[1, 2, 3]", "42", '"just-a-string"', "null"):
+        await mod._handle_subscribe(websocket=ws, conn=conn, raw=raw, latest_seq=0)
     assert ws.sent == []
 
 
@@ -119,7 +131,7 @@ async def test_handle_subscribe_ignores_invalid_json():
 async def test_handle_subscribe_rejects_blank_event_name():
     ws = _FakeWebSocket()
     conn = Connection(conn_id="c1", key_id="k1", tenant_id="t1", websocket=ws)
-    await mod._handle_subscribe(session=object(), websocket=ws, conn=conn,
+    await mod._handle_subscribe(websocket=ws, conn=conn,
                                 raw='{"type": "subscribe", "events": [""]}', latest_seq=0)
     assert ws.sent == [{"type": "error", "error": "invalid_subscribe"}]
 
@@ -199,7 +211,7 @@ async def test_handle_subscribe_passes_include_internal_through(monkeypatch):
     conn = Connection(conn_id="c1", key_id="k1", tenant_id="t1", websocket=ws)
     reg.add(conn)
     monkeypatch.setattr(mod, "registry", reg)
-    await mod._handle_subscribe(session=object(), websocket=ws, conn=conn,
+    await mod._handle_subscribe(websocket=ws, conn=conn,
                                 raw='{"type": "subscribe", "events": ["*"], "include_internal": true}',
                                 latest_seq=0)
     assert conn.include_internal is True

@@ -21,15 +21,15 @@ import logging
 import uuid
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_session
 from app.api.public import authenticate, bearer_key
 from app.core.config import settings
 from app.core.errors import ApiError
 from app.db.models import IntegrationEvent
+from app.db.session import SessionLocal
 from app.services.events_ws import (
     CLOSE_FORBIDDEN_SCOPE,
     CLOSE_TOO_MANY_CONNECTIONS,
@@ -49,9 +49,13 @@ _SCOPE = "events:read"
 _FIRST_MESSAGE_TIMEOUT_S = 5.0
 
 
-async def _authenticate_ws(websocket: WebSocket, session: AsyncSession):
+async def _authenticate_ws(websocket: WebSocket):
     """`None` qaytaradi — chaqiruvchi ulanishni allaqachon yopgan (yopish kodi
-    shu yerda tanlanadi); aks holda `public.KeyContext`."""
+    shu yerda tanlanadi); aks holda `public.KeyContext`.
+
+    M12 C M2: sessiya FAQAT shu tekshiruv davomida ochiq (`Depends(get_session)`
+    bilan BUTUN WS umri davomida band bo'lib turmaydi — pool 10+10,
+    `db/session.py`)."""
     token = bearer_key(websocket)
     if token is None:
         try:
@@ -60,7 +64,8 @@ async def _authenticate_ws(websocket: WebSocket, session: AsyncSession):
         except (TimeoutError, asyncio.TimeoutError, ValueError, json.JSONDecodeError, WebSocketDisconnect):
             token = None
     try:
-        return await authenticate(session, token, _SCOPE)
+        async with SessionLocal() as session:
+            return await authenticate(session, token, _SCOPE)
     except ApiError as exc:
         # 429 (`api_key_rate_limit_per_min`) — ulanish chegarasi bilan bir xil
         # yopish kodini ishlatamiz (ataylab soddalashtirish, hisobotda bayon
@@ -72,10 +77,12 @@ async def _authenticate_ws(websocket: WebSocket, session: AsyncSession):
         return None
 
 
-async def _latest_seq(session: AsyncSession) -> int:
-    row = (await session.execute(select(IntegrationEvent.seq).order_by(IntegrationEvent.seq.desc()).limit(1))
-          ).scalar_one_or_none()
-    return row or 0
+async def _latest_seq() -> int:
+    """M12 C M2: qisqa muddatli sessiya — faqat shu bir so'rov uchun."""
+    async with SessionLocal() as session:
+        row = (await session.execute(select(IntegrationEvent.seq).order_by(IntegrationEvent.seq.desc()).limit(1))
+              ).scalar_one_or_none()
+        return row or 0
 
 
 async def _replay(session: AsyncSession, websocket: WebSocket, tenant_id: str, *, since_seq: int,
@@ -94,11 +101,14 @@ async def _replay(session: AsyncSession, websocket: WebSocket, tenant_id: str, *
             await websocket.send_json({"type": "event", "seq": row.seq, "event": row.type, "data": row.payload})
 
 
-async def _handle_subscribe(session: AsyncSession, websocket: WebSocket, conn: Connection, raw: str,
-                            latest_seq: int) -> None:
+async def _handle_subscribe(websocket: WebSocket, conn: Connection, raw: str, latest_seq: int) -> None:
     try:
         data = json.loads(raw)
     except (ValueError, json.JSONDecodeError):
+        return
+    # L10: JSON mazmuni dict bo'lmasa (masalan ro'yxat/son/satr) — `.get()`
+    # `AttributeError` ko'tarardi (ulanish yiqilardi). Jim rad etiladi.
+    if not isinstance(data, dict):
         return
     if data.get("type") != "subscribe":
         return
@@ -110,14 +120,20 @@ async def _handle_subscribe(session: AsyncSession, websocket: WebSocket, conn: C
     registry.update_subscription(conn.conn_id, subscribed, include_internal=include_internal)
     since_seq = data.get("since_seq")
     if isinstance(since_seq, int):
-        await _replay(session, websocket, conn.tenant_id, since_seq=since_seq, subscribed=subscribed,
-                      latest_seq=latest_seq, include_internal=include_internal)
+        # M12 C M2: replay faqat so'ralganda — shu holatda ham sessiya
+        # qisqa muddatli (replay davomidan tashqari ochiq TURMAYDI).
+        async with SessionLocal() as session:
+            await _replay(session, websocket, conn.tenant_id, since_seq=since_seq, subscribed=subscribed,
+                          latest_seq=latest_seq, include_internal=include_internal)
 
 
 @router.websocket("/events/ws")
-async def events_ws(websocket: WebSocket, session: AsyncSession = Depends(get_session)) -> None:
+async def events_ws(websocket: WebSocket) -> None:
+    """M12 C M2: ILGARI `Depends(get_session)` butun WS umri davomida bitta
+    DB ulanishini band qilib turardi (pool 10+10) — endi har bir DB amali
+    o'z qisqa muddatli `SessionLocal()`sini ochib-yopadi."""
     await websocket.accept()
-    key = await _authenticate_ws(websocket, session)
+    key = await _authenticate_ws(websocket)
     if key is None:
         return
 
@@ -128,7 +144,7 @@ async def events_ws(websocket: WebSocket, session: AsyncSession = Depends(get_se
     conn = Connection(conn_id=str(uuid.uuid4()), key_id=key.key_id, tenant_id=key.tenant_id, websocket=websocket)
     registry.add(conn)
     try:
-        latest_seq = await _latest_seq(session)
+        latest_seq = await _latest_seq()
         await websocket.send_json({"type": "ready", "seq": latest_seq})
         while True:
             try:
@@ -137,7 +153,7 @@ async def events_ws(websocket: WebSocket, session: AsyncSession = Depends(get_se
             except (TimeoutError, asyncio.TimeoutError):
                 await websocket.send_json({"type": "ping"})
                 continue
-            await _handle_subscribe(session, websocket, conn, raw, latest_seq)
+            await _handle_subscribe(websocket, conn, raw, latest_seq)
     except WebSocketDisconnect:
         pass
     finally:

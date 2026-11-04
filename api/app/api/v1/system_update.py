@@ -36,7 +36,7 @@ def _load(update_dir: Path) -> SystemUpdateOut:
             configured_version=settings.innova_version, changelog=[],
         )
     raw_status = system_update.parse_status(_read_text(update_dir / system_update.STATUS_FILENAME))
-    request_text = _read_text(update_dir / system_update.REQUEST_FILENAME) or None
+    request_text = _read_text(system_update.request_path(update_dir)) or None
     current = raw_status.get("current") or settings.innova_version
     changelog_text = _read_text(update_dir / system_update.CHANGELOG_FILENAME)
     changelog = system_update.parse_changelog(changelog_text, current)
@@ -51,7 +51,7 @@ def _guard_can_request(update_dir: Path) -> None:
     yoki agent hozir ishlamoqda)."""
     if not system_update.agent_available(update_dir):
         raise ApiError(503, "update_agent_missing", "Paneldan yangilash agenti o'rnatilmagan")
-    if (update_dir / system_update.REQUEST_FILENAME).exists():
+    if system_update.request_path(update_dir).exists():
         raise ApiError(409, "update_busy", "Boshqa so'rov hali kutilmoqda")
     raw_status = system_update.parse_status(_read_text(update_dir / system_update.STATUS_FILENAME))
     if raw_status.get("state") in _BUSY_STATES:

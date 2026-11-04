@@ -11,12 +11,15 @@ set -euo pipefail
 : "${POSTGRES_PASSWORD:?POSTGRES_PASSWORD kerak}"
 : "${AMI_USERNAME:?AMI_USERNAME kerak}"
 : "${AMI_PASSWORD:?AMI_PASSWORD kerak}"
+# M12 C L8: AMI ACL subnet'i — `docker-compose.yml`/`.appliance.yml` haqiqiy
+# `innova-net` subnet'iga mos sukut beradi (xavfsizlik hisoboti).
+: "${AMI_PERMIT_CIDR:=172.28.0.0/24}"
 : "${DIALPLAN_DIR:=/srv/dialplan}"
 : "${DIALPLAN_FILENAME:=extensions_innova.conf}"
 : "${SECURITY_LOG_PATH:=/var/log/asterisk/innova/security.log}"
 : "${SIP_ACL_FILENAME:=pjsip_acl_innova.conf}"
 
-export POSTGRES_HOST POSTGRES_PORT POSTGRES_DB POSTGRES_USER POSTGRES_PASSWORD AMI_USERNAME AMI_PASSWORD SECURITY_LOG_PATH
+export POSTGRES_HOST POSTGRES_PORT POSTGRES_DB POSTGRES_USER POSTGRES_PASSWORD AMI_USERNAME AMI_PASSWORD AMI_PERMIT_CIDR SECURITY_LOG_PATH
 
 # Image'dagi konfiguratsiya `/etc/asterisk` (baza image VOLUME'i — eski anonim
 # hajm saqlanib qolishi mumkin) ga har ishga tushishda o'rnatiladi (Dockerfile izohi).

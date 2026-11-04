@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 
+from app.services import events_ws as ws_mod
 from app.services.events_ws import (
     MAX_CONNECTIONS_PER_KEY,
     MAX_CONNECTIONS_PER_TENANT,
@@ -104,7 +105,29 @@ def test_connection_limiter_release_frees_slot():
 
 
 def test_connection_limiter_different_tenants_independent():
+    """GLOBAL chegaradan (M12 C M2) PASTDA — tenant'lar bir-biridan mustaqil."""
     limiter = ConnectionLimiter()
-    for i in range(MAX_CONNECTIONS_PER_TENANT):
+    for i in range(MAX_CONNECTIONS_PER_TENANT - 1):
         limiter.register(key_id=f"k{i}", tenant_id="t1")
     assert limiter.can_connect(key_id="other", tenant_id="t2") is True
+
+
+def test_connection_limiter_global_cap_blocks_even_new_tenant(monkeypatch):
+    """M12 C M2: GLOBAL chegara (`MAX_CONNECTIONS_TOTAL`) tenant/kalit bo'yicha
+    chegaralardan QAT'I NAZAR ishlaydi — bitta tenant to'lsa, YANGI tenant ham
+    ulana olmaydi (DB pool/jarayon resursini ko'p tenant birgalikda tugata
+    olmasligi uchun, pastroq sinov qiymati bilan — testlar sekin bo'lmasin)."""
+    monkeypatch.setattr(ws_mod, "MAX_CONNECTIONS_TOTAL", 3)
+    limiter = ConnectionLimiter()
+    for i in range(3):
+        limiter.register(key_id=f"k{i}", tenant_id="t1")
+    assert limiter.can_connect(key_id="new-key", tenant_id="t2-yangi") is False
+
+
+def test_connection_limiter_global_cap_release_frees_slot_for_other_tenant(monkeypatch):
+    monkeypatch.setattr(ws_mod, "MAX_CONNECTIONS_TOTAL", 3)
+    limiter = ConnectionLimiter()
+    for i in range(3):
+        limiter.register(key_id=f"k{i}", tenant_id="t1")
+    limiter.release(key_id="k0", tenant_id="t1")
+    assert limiter.can_connect(key_id="new-key", tenant_id="t2-yangi") is True

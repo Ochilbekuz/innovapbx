@@ -12,4 +12,18 @@ ExecStart=/usr/local/sbin/innova-update --agent
 TimeoutStartSec=3600
 # Agent so'rovni o'chirishdan oldin yiqilsa `request` qoladi va PathExists uni qayta-qayta
 # ishga tushirib start-limit'ga uradi — path unit kuzatishni butunlay to'xtatadi.
-ExecStopPost=/bin/sh -c 'test "$$SERVICE_RESULT" = success || rm -f /var/lib/innova/update/request'
+ExecStopPost=/bin/sh -c 'test "$$SERVICE_RESULT" = success || rm -f /var/lib/innova/update/req/request'
+# H1d: xizmat root sifatida `docker`/`systemctl`/`git` chaqiradi (install.sh —
+# `/etc`, `/usr/local`, systemd, docker boshqaradi) — shuning uchun
+# `ProtectSystem=`/`ProtectHome=` ATAYLAB QO'YILMAYDI (yozishni buzadi).
+# Quyidagilar esa install.sh/innova-update.sh HECH QACHON ishlatmaydigan
+# imkoniyatlarni yopadi (tasdiqlangan: sysctl/modprobe/mount/unshare/nsenter/
+# setcap/chroot/hostnamectl/timedatectl — grep natijasi bo'sh) — xavfsiz.
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectHostname=yes
+ProtectKernelLogs=yes
+ProtectKernelTunables=yes
+ProtectClock=yes
+RestrictRealtime=yes
+LockPersonality=yes

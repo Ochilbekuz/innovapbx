@@ -267,6 +267,25 @@ def _awaitable_connect(conn):
     return _connect
 
 
+def _connect_checking_pin_sync(conn):
+    """`test_sftp()` `asyncssh.connect(...)`ni AWAIT qilmaydi (`async with`
+    to'g'ridan-to'g'ri natija ustida ishlaydi, `_sftp_connect`dan farqli) —
+    shu sabab bu soxta `connect` SINXRON funksiya (`_awaitable_connect_checking_pin`
+    kabi, lekin coroutine emas): `client_factory` berilgan bo'lsa pinni tekshiradi,
+    mos kelmasa HAQIQIY asyncssh kabi `HostKeyNotVerifiable` ko'taradi (M12 C M1:
+    `test_sftp` endi `host_key_fp` mavjud bo'lsa shu rejimda ishlaydi)."""
+    import asyncssh
+
+    def _connect(*args, **kwargs):
+        client_factory = kwargs.get("client_factory")
+        if client_factory is not None:
+            client = client_factory()
+            if not client.validate_host_public_key("h", "h", 22, conn.get_server_host_key()):
+                raise asyncssh.HostKeyNotVerifiable("host key mismatch")
+        return conn
+    return _connect
+
+
 def _awaitable_connect_checking_pin(conn):
     """`_awaitable_connect` kabi, LEKIN haqiqiy asyncssh'ning pin bilan bog'liq
     MUHIM qismini ham taqlid qiladi: `client_factory` berilgan bo'lsa (pin rejimi,
@@ -383,9 +402,13 @@ async def test_test_sftp_works_on_shell_restricted_server(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_test_sftp_mismatch_when_fp_differs(monkeypatch):
-    import asyncssh
+    """M12 C M1: pin mos kelmasa — `validate_host_public_key`
+    AUTENTIFIKATSIYADAN OLDIN rad etadi (parol/kalit YUBORILMAYDI), xuddi
+    `_sftp_connect` kabi — avvalgi "ulanib, keyin solishtir" (MITM'ga parol
+    ketadi) qolipi emas."""
     conn = _FakeSshConn(host_key=b"server-key-2")
-    monkeypatch.setattr(asyncssh, "connect", lambda *a, **k: conn)
+    import asyncssh
+    monkeypatch.setattr(asyncssh, "connect", _connect_checking_pin_sync(conn))
     ok, error, fp = await bt.test_sftp(_sftptarget(host_key_fp="SHA256:wrong"))
     assert ok is False
     assert error == "host_key_mismatch"
@@ -397,9 +420,33 @@ async def test_test_sftp_matches_trusted_fingerprint(monkeypatch):
     import asyncssh
     conn = _FakeSshConn(host_key=b"server-key-3")
     expected = bt.host_key_fingerprint(b"server-key-3")
-    monkeypatch.setattr(asyncssh, "connect", lambda *a, **k: conn)
+    monkeypatch.setattr(asyncssh, "connect", _connect_checking_pin_sync(conn))
     ok, error, fp = await bt.test_sftp(_sftptarget(host_key_fp=expected))
     assert (ok, error, fp) == (True, None, expected)
+
+
+@pytest.mark.asyncio
+async def test_test_sftp_pinned_mode_never_sends_credentials_before_pin_check(monkeypatch):
+    """M12 C M1 — regressiya: `host_key_fp` berilgan bo'lsa `test_sftp()`
+    `known_hosts=None` (TOFU) EMAS, pinlangan rejimda ulanishi SHART —
+    aks holda parol kalit tasdiqlanishidan OLDIN yuboriladi (MITM)."""
+    import asyncssh
+
+    conn = _FakeSshConn(host_key=b"server-key-4")
+    seen_kwargs: dict = {}
+
+    def _connect(*_args, **kwargs):
+        seen_kwargs.update(kwargs)
+        client_factory = kwargs.get("client_factory")
+        if client_factory is not None:
+            client_factory()  # pin mos — qabul qilinadi
+        return conn
+
+    monkeypatch.setattr(asyncssh, "connect", _connect)
+    expected = bt.host_key_fingerprint(b"server-key-4")
+    await bt.test_sftp(_sftptarget(host_key_fp=expected))
+    assert seen_kwargs["known_hosts"] == ([], [], [])
+    assert seen_kwargs["client_factory"] is not None
 
 
 @pytest.mark.asyncio

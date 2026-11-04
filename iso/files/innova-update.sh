@@ -20,6 +20,12 @@ DEST=${INNOVA_DEST:-/opt/innova}
 PG_CONTAINER=innova-m0-postgres-1
 KEEP_BACKUPS=5
 UPD=${INNOVA_UPDATE_DIR:-/var/lib/innova/update}
+# H1c: `request`ni API konteyneri yozadi — shu SABAB o'z ALOHIDA yozish
+# mumkin bo'lgan quyi papkada ($UPD/req), `status`/`history`/`update.log`/
+# `changelog.md` esa $UPD TUBIDA qoladi (API konteyneriga FAQAT o'qish uchun
+# `:ro` bog'lanadi, `deploy/docker-compose.appliance.yml`). Host agenti
+# (shu skript) ikkisiga ham to'liq (haqiqiy fayl tizimi) kirishi davom etadi.
+REQ=$UPD/req
 LOCK=${INNOVA_UPDATE_LOCK:-/run/innova-update.lock}
 
 # status fayli kalitlari (m11-update-contract.md bo'lim 1)
@@ -30,14 +36,31 @@ AGENT_LOG_ACTIVE=0
 ERRCODE=""
 CUR_VERSION="" NEW_VERSION="" SRC="" OLD_REV="" BACKUP="" CHECK_AVAILABLE=0
 
+# H1a: `$UPD` ichidagi fayllarga yozishdan OLDIN har doim shu tekshiruv —
+# fayl o'zi symlink BO'LMASLIGI va (mavjud bo'lsa) oddiy fayl bo'lishi kerak.
+# Aks holda jim rad etiladi (symlink-hujum: `>>`/`tee -a` symlink'ni
+# KUZATIB o'tib, nishon faylga yozardi). `mktemp+mv` (status/changelog,
+# pastda yangi log-reset) BUTUNLAY xavfsiz — `mv` yo'lning o'zini
+# almashtiradi, symlink nishoniga YOZMAYDI.
+is_safe_append_target() {
+  local path=$1
+  [ -L "$path" ] && return 1
+  [ -e "$path" ] && [ ! -f "$path" ] && return 1
+  return 0
+}
+
 log() {
   printf '\033[1;33m==>\033[0m %s\n' "$*"
-  [ "$AGENT_LOG_ACTIVE" = 1 ] && printf '==> %s\n' "$*" >> "$UPD/update.log"
+  if [ "$AGENT_LOG_ACTIVE" = 1 ] && is_safe_append_target "$UPD/update.log"; then
+    printf '==> %s\n' "$*" >> "$UPD/update.log"
+  fi
   return 0
 }
 die() {
   printf '\033[1;31mXATO:\033[0m %s\n' "$*" >&2
-  [ "$AGENT_LOG_ACTIVE" = 1 ] && printf 'XATO: %s\n' "$*" >> "$UPD/update.log"
+  if [ "$AGENT_LOG_ACTIVE" = 1 ] && is_safe_append_target "$UPD/update.log"; then
+    printf 'XATO: %s\n' "$*" >> "$UPD/update.log"
+  fi
   exit 1
 }
 
@@ -113,9 +136,13 @@ run_install() {
   [ -z "$IMAGES" ] || args+=(--images "$IMAGES")
   # Izoh: `set -e` ostida "CMD; rc=$?" CMD muvaffaqiyatsiz bo'lsa `rc=$?` ga
   # yetmasdan skript to'xtaydi — shu uchun natija OR-ro'yxat orqali olinadi.
-  if [ "$AGENT_LOG_ACTIVE" = 1 ]; then
+  if [ "$AGENT_LOG_ACTIVE" = 1 ] && is_safe_append_target "$UPD/update.log"; then
     "$SRC/install.sh" "${args[@]}" 2>&1 | strip_ansi | tee -a "$UPD/update.log" >/dev/null \
       || rc=${PIPESTATUS[0]}
+  elif [ "$AGENT_LOG_ACTIVE" = 1 ]; then
+    # H1a: update.log xavfsiz EMAS (symlink/g'ayrioddiy fayl) — faylga
+    # yozilmaydi, faqat konsolga (pastdagi xato xabari bilan bir xil holat).
+    "$SRC/install.sh" "${args[@]}" 2>&1 | strip_ansi || rc=${PIPESTATUS[0]}
   else
     "$SRC/install.sh" "${args[@]}" || rc=$?
   fi
@@ -123,7 +150,7 @@ run_install() {
   printf '\033[1;31mXATO:\033[0m yangilash yakunlanmadi. Orqaga qaytarish:\n' >&2
   printf '  git -C %s checkout %s && %s/install.sh --web-port %s\n' "$SRC" "$OLD_REV" "$SRC" "${args[1]}" >&2
   printf '  baza zaxirasi: %s\n' "$BACKUP" >&2
-  if [ "$AGENT_LOG_ACTIVE" = 1 ]; then
+  if [ "$AGENT_LOG_ACTIVE" = 1 ] && is_safe_append_target "$UPD/update.log"; then
     {
       printf 'XATO: yangilash yakunlanmadi. Orqaga qaytarish:\n'
       printf '  git -C %s checkout %s && %s/install.sh --web-port %s\n' "$SRC" "$OLD_REV" "$SRC" "${args[1]}"
@@ -136,17 +163,30 @@ run_install() {
 # ---------------------------------------------------------------- status papka
 upd_usable() { [ -d "$UPD" ] && [ -w "$UPD" ]; }
 now_iso() { date -u +%Y-%m-%dT%H:%M:%SZ; }
-sanitize_value() { printf '%s' "$1" | tr -cd 'A-Za-z0-9._:+-'; }
+# H1b: ruxsat etilgan belgilar + uzunlik qopqog'i (32) — versiya/holat/vaqt
+# belgilari uchun yetarli, lekin shell-metabelgilar/haddan tashqari uzun
+# qiymatlarni (keyinroq history/log fayllariga, yoki boshqa status_set
+# chaqiruvlariga oqib o'tishi mumkin bo'lgan) kesib tashlaydi. Qat'iy
+# ro'yxatga olingan ro'yxat o'rniga umumiy belgilar to'plami ishlatiladi —
+# `state`/`phase` ham, `current`/`latest` versiyalar ham, ISO vaqt
+# belgilari ham shu bitta qolipga mos keladi (DRY).
+sanitize_value() { printf '%s' "$1" | tr -cd 'A-Za-z0-9._:+-' | cut -c1-32; }
 
 status_load() {
   local k
   for k in $STATUS_KEYS; do STATUS[$k]=""; done
   STATUS[state]=idle
   STATUS[available]=0
+  # H1b: `[ -f ]` symlink'ni KUZATIB o'tib, nishon oddiy fayl bo'lsa TO'G'RI
+  # deb topardi — tashqi (masalan /etc/shadow emas, lekin ixtiyoriy) faylni
+  # status sifatida o'qib olish xavfi. `-L` BIRINCHI tekshiriladi.
+  if [ -L "$UPD/status" ]; then
+    return 0
+  fi
   [ -f "$UPD/status" ] || return 0
   local k2 v
   while IFS='=' read -r k2 v; do
-    case " $STATUS_KEYS " in *" $k2 "*) STATUS[$k2]=$v ;; esac
+    case " $STATUS_KEYS " in *" $k2 "*) STATUS[$k2]=$(sanitize_value "$v") ;; esac
   done < "$UPD/status"
 }
 
@@ -181,6 +221,7 @@ status_fix_interrupted() {
 
 history_append() { # from to result
   upd_usable || return 0
+  is_safe_append_target "$UPD/history" || return 0  # H1a
   printf '%s\t%s\t%s\t%s\n' "$(now_iso)" "$1" "$2" "$3" >> "$UPD/history"
 }
 
@@ -226,7 +267,7 @@ perform_check_and_record() {
 # API «request yo'q, state=idle» ko'rib yangi so'rov qabul qiladi.
 claim_request() {
   status_flush
-  rm -f "$UPD/request"
+  rm -f "$REQ/request"
 }
 
 agent_check() {
@@ -246,7 +287,13 @@ agent_update() {
     status_flush
     return 0
   fi
-  : > "$UPD/update.log"
+  # H1a: ILGARI `: > "$UPD/update.log"` — symlink bo'lsa NISHONNI bo'shatardi.
+  # `mktemp+mv` — `mv` yo'l nomining O'ZINI almashtiradi (symlink bo'lsa ham),
+  # nishonga HECH QACHON tegmaydi (status_flush/changelog_write bilan BIR XIL
+  # allaqachon xavfsiz qolip).
+  local log_reset_tmp
+  log_reset_tmp=$(mktemp "$UPD/.update_log.XXXXXX")
+  mv -f "$log_reset_tmp" "$UPD/update.log"
   AGENT_LOG_ACTIVE=1
   log "yangilash boshlandi: $CUR_VERSION → $NEW_VERSION"
   status_set phase=backup
@@ -271,9 +318,9 @@ agent_main() {
   upd_usable || { log "status papkasi mavjud emas yoki yozib bo'lmaydi: $UPD"; return 0; }
   status_load
   status_fix_interrupted
-  [ -f "$UPD/request" ] || { log "so'rov yo'q"; return 0; }
+  [ -f "$REQ/request" ] || { log "so'rov yo'q"; return 0; }
   local req
-  req=$(cat "$UPD/request" 2>/dev/null)
+  req=$(cat "$REQ/request" 2>/dev/null)
   WRITE_STATUS=1
   case "$req" in
     check) agent_check ;;

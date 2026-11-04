@@ -13,6 +13,11 @@ MAX_REPLAY_EVENTS = 1000
 MAX_REPLAY_AGE = timedelta(hours=24)
 MAX_CONNECTIONS_PER_KEY = 5
 MAX_CONNECTIONS_PER_TENANT = 50
+# M12 C M2: tenant-bo'yicha chegaradan tashqari GLOBAL chegara ham kerak —
+# aks holda ko'p tenant birgalikda DB pool'ni (10+10, `db/session.py`) WS
+# ulanishlari bilan tugata oladi (har biri endi qisqa muddatli sessiya
+# ishlatsa ham, soni cheksiz bo'lsa baribir navbat bosimi oshadi).
+MAX_CONNECTIONS_TOTAL = 50
 
 CLOSE_TOO_MANY_CONNECTIONS = 4429
 CLOSE_FORBIDDEN_SCOPE = 4403
@@ -65,14 +70,17 @@ class ConnectionLimiter:
 
     per_key: dict[str, int] = field(default_factory=dict)
     per_tenant: dict[str, int] = field(default_factory=dict)
+    total: int = 0
 
     def can_connect(self, *, key_id: str, tenant_id: str) -> bool:
-        return (self.per_key.get(key_id, 0) < MAX_CONNECTIONS_PER_KEY
+        return (self.total < MAX_CONNECTIONS_TOTAL
+                and self.per_key.get(key_id, 0) < MAX_CONNECTIONS_PER_KEY
                 and self.per_tenant.get(tenant_id, 0) < MAX_CONNECTIONS_PER_TENANT)
 
     def register(self, *, key_id: str, tenant_id: str) -> None:
         self.per_key[key_id] = self.per_key.get(key_id, 0) + 1
         self.per_tenant[tenant_id] = self.per_tenant.get(tenant_id, 0) + 1
+        self.total += 1
 
     def release(self, *, key_id: str, tenant_id: str) -> None:
         if key_id in self.per_key:
@@ -83,3 +91,4 @@ class ConnectionLimiter:
             self.per_tenant[tenant_id] = max(0, self.per_tenant[tenant_id] - 1)
             if self.per_tenant[tenant_id] == 0:
                 del self.per_tenant[tenant_id]
+        self.total = max(0, self.total - 1)

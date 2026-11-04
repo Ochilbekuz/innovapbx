@@ -63,6 +63,11 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       AMI_USERNAME: ${AMI_USERNAME}
       AMI_PASSWORD: ${AMI_PASSWORD}
+      # M12 C L8: ILGARI `permit = 172.16.0.0/12` + `192.168.0.0/16` — deyarli
+      # har qanday LAN manzili AMI'ga parol-brute-force qila olardi. Endi FAQAT
+      # `api` konteyneri chiqadigan haqiqiy `innova-net` subnet'i (L7 bilan pin
+      # qilingan). Appliance qatlami o'z subnet'i uchun qayta belgilaydi.
+      AMI_PERMIT_CIDR: ${AMI_PERMIT_CIDR:-172.28.0.0/24}
       DIALPLAN_DIR: /srv/dialplan
       DIALPLAN_FILENAME: extensions_innova.conf
       SECURITY_LOG_PATH: ${SECURITY_LOG_PATH:-/var/log/asterisk/innova/security.log}
@@ -126,7 +131,12 @@ services:
       TRUNK_MONITOR_INTERVAL_S: ${TRUNK_MONITOR_INTERVAL_S:-30}
       # M3a: API endi `web` (nginx) orqasida — audit/login IP'si X-Forwarded-For'dan olinsin.
       # uvicorn faqat shu tarmoqlardagi proksiga ishonadi (eng o'ngdagi ishonchsiz manzil = mijoz).
-      FORWARDED_ALLOW_IPS: ${FORWARDED_ALLOW_IPS:-172.16.0.0/12,10.0.0.0/8,192.168.0.0/16}
+      # M12 C L7: ILGARI butun 172.16/12+10/8+192.168/16 (deyarli har qanday
+      # LAN manzili) ishonchli proksi hisoblanardi — soxta X-Forwarded-For
+      # bilan login limiter (M5) chetlanishi mumkin edi. Endi sukut FAQAT
+      # haqiqiy `innova-net` subnet'i (yuqorida pin qilingan). Appliance
+      # qatlami o'z subnet'i uchun shu o'zgaruvchini qayta belgilaydi.
+      FORWARDED_ALLOW_IPS: ${FORWARDED_ALLOW_IPS:-172.28.0.0/24}
       SOFTPHONE_TICKET_TTL_S: ${SOFTPHONE_TICKET_TTL_S:-600}
       # M3b: yozuvlar, hodisalar, integratsiyalar (sukutlar app/core/config.py da).
       RECORDINGS_DIR: /var/spool/asterisk/monitor
@@ -188,6 +198,14 @@ services:
 networks:
   innova-net:
     driver: bridge
+    # M12 C L7: aniq subnet — avvalgi sukut (Docker avtomatik tanlagan pool)
+    # `FORWARDED_ALLOW_IPS`ni butun 172.16/12+10/8+192.168/16 bilan mos
+    # keltirib bo'lmasligi uchun kerak edi (quyida tor qilindi). Appliance
+    # qatlami (`docker-compose.appliance.yml`) o'z subnet'ini ustiga qo'yadi.
+    ipam:
+      config:
+        - subnet: 172.28.0.0/24
+          gateway: 172.28.0.1
 
 volumes:
   pgdata:
