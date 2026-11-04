@@ -13,7 +13,7 @@ export type ToastInput = {
   action?: { label: string; altText: string; onClick: () => void };
 };
 
-type Item = ToastInput & { id: number };
+export type Item = ToastInput & { id: number };
 
 const STYLE: Record<ToastKind, { icon: ReactNode; bar: string; iconCls: string }> = {
   success: { icon: <CircleCheck />, bar: 'bg-success', iconCls: 'text-success' },
@@ -23,8 +23,15 @@ const STYLE: Record<ToastKind, { icon: ReactNode; bar: string; iconCls: string }
   'not-applied': { icon: <RotateCcw />, bar: 'bg-danger', iconCls: 'text-danger' },
 };
 
-/** Xato va «qo'llanmadi» o'zi yopilmaydi — admin o'qib, harakat qilishi kerak. */
-const DURATION: Record<ToastKind, number> = { success: 4000, info: 5000, error: Infinity, 'not-applied': Infinity };
+/** Hammasi o'zi yopiladi (foydalanuvchi talabi, 2026-11-04); xato/«qo'llanmadi» o'qish uchun uzunroq turadi.
+ * Sichqoncha ustida yoki fokusda bo'lsa Radix taymerni to'xtatib turadi. */
+export const DURATION: Record<ToastKind, number> = { success: 4000, info: 5000, error: 8000, 'not-applied': 12000 };
+
+/** Bir xil (tur + sarlavha) xabar takrorlansa — ustma-ust qo'shilmaydi, eskisi yangisi bilan almashadi (taymer qaytadan). */
+export function pushToast(xs: Item[], t: ToastInput, id: number): Item[] {
+  const rest = xs.filter((x) => !(x.kind === t.kind && x.title === t.title));
+  return [...rest.slice(-3), { ...t, id }];
+}
 
 const Ctx = createContext<(t: ToastInput) => void>(() => undefined);
 export const useToast = () => useContext(Ctx);
@@ -32,7 +39,7 @@ export const useToast = () => useContext(Ctx);
 export function ToastProvider({ children }: { children: ReactNode }) {
   const { t } = useTranslation('common');
   const [items, setItems] = useState<Item[]>([]);
-  const push = useCallback((t: ToastInput) => setItems((xs) => [...xs.slice(-3), { ...t, id: Date.now() + Math.random() }]), []);
+  const push = useCallback((t: ToastInput) => setItems((xs) => pushToast(xs, t, Date.now() + Math.random())), []);
   const drop = (id: number) => setItems((xs) => xs.filter((x) => x.id !== id));
   const value = useMemo(() => push, [push]);
   return (
