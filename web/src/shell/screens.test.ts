@@ -2,6 +2,7 @@
 // (M7 kontrakti §1/§4). Qarang ../../replica/m7-roles-contract.md.
 import { describe, expect, it } from 'vitest';
 import { byGroup, isScreenVisible, OPERATOR_VISIBLE_IDS, SCREENS } from './screens';
+import * as shellLocales from '@/i18n/shell';
 
 const OPERATOR_PERMISSIONS = ['calls:read:own'];
 
@@ -46,5 +47,13 @@ describe('isScreenVisible / byGroup — ruxsat boʻyicha koʻrinish', () => {
 
   it('`reports:view` bilan "cdr" koʻrinadi (hammaning qoʻngʻiroqlari)', () => {
     expect(isScreenVisible({ id: 'cdr', group: 'reports' }, ['reports:view'])).toBe(true);
+  });
+});
+
+describe('menyu nomlari — har ekranning har tilda tarjimasi bor', () => {
+  it.each(Object.entries(shellLocales))('%s: SCREENS dagi har id uchun nav kaliti bor', (_lang, locale) => {
+    const nav = locale.nav as Record<string, string>;
+    const missing = SCREENS.map((s) => s.id).filter((id) => !nav[id]);
+    expect(missing).toEqual([]);
   });
 });
