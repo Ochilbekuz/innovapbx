@@ -3,3 +3,4 @@ dist
 .metrics
 coverage
 target
+*.tsbuildinfo

@@ -3,6 +3,7 @@
 *
 !web
 !replica/design
+!docs/qollanma
 !deploy/web-nginx.conf
 !deploy/web-tls-wait.sh
 web/node_modules

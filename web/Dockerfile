@@ -11,6 +11,8 @@ WORKDIR /src/web
 COPY web/package.json web/package-lock.json ./
 RUN npm ci --no-audit --no-fund
 COPY replica/design /src/replica/design
+# Qo'llanma (yon menyudagi «Qo'llanma» — `@docs` taxallusi, `src/docs/content.ts`).
+COPY docs/qollanma /src/docs/qollanma
 COPY web/ ./
 # Haqiqiy backend (`src/api/index.ts`: VITE_API=real bo'lmasa — soxta API).
 ENV VITE_API=real

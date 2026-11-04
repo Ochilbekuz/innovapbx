@@ -2,7 +2,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import * as Popover from '@radix-ui/react-popover';
-import { ChevronDown, CircleCheck, LoaderCircle, LogOut, Menu, Moon, RotateCcw, Search, Sun } from 'lucide-react';
+import { BookOpenText, ChevronDown, CircleCheck, CircleHelp, LoaderCircle, LogOut, Menu, Moon, RotateCcw, Search, Sun } from 'lucide-react';
 import { cn } from '@/lib/cn';
 import { LANGS, persistLanguage, type Lang } from '@/lib/i18n';
 import { useTheme } from '@/lib/theme';
@@ -17,7 +17,11 @@ import { SoftphoneChip, type CallState } from '@/pbx/Softphone';
 import { SoftphoneWidget } from '@/softphone/SoftphoneWidget';
 import { useSoftphoneStore } from '@/softphone/store';
 import { loadCollapsedGroups, saveCollapsedGroups } from './navCollapse';
-import { byGroup, GROUP_ORDER, SCREENS, type ScreenGroupId } from './screens';
+import { helpPathFor } from './helpLink';
+import { byGroup, GROUP_ORDER, SCREENS, type ScreenDef, type ScreenGroupId } from './screens';
+
+/** «Qo'llanma» — hamma rolga ko'rinadi (SCREENS'dan tashqarida: ruxsat filtri va hudud xaritasiga kirmaydi). */
+const DOCS_NAV = { id: 'docs', path: '/docs', icon: <BookOpenText /> } satisfies NavEntry;
 
 function initialsOf(name: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean);
@@ -161,8 +165,10 @@ function UpdateAvailableDot() {
   );
 }
 
+type NavEntry = Pick<ScreenDef, 'id' | 'path' | 'icon' | 'live' | 'count'>;
+
 function NavItem({ item: it, on, focusable, showUpdateDot, onNavigate }: {
-  item: ReturnType<typeof byGroup>[number];
+  item: NavEntry;
   on: boolean;
   focusable: boolean;
   showUpdateDot: boolean;
@@ -246,6 +252,7 @@ export function AppShell({ active, title, crumbs = [], health, revision, system,
   const showSystem = embedded || hasPermission(permissions, '*');
   const activeId = active ?? SCREENS.find((s) => location.pathname === s.path || location.pathname.startsWith(`${s.path}/`))?.id;
   const activeGroup = SCREENS.find((s) => s.id === activeId)?.group;
+  const docsActive = location.pathname === DOCS_NAV.path || location.pathname.startsWith(`${DOCS_NAV.path}/`);
   // M12 B4 — `/system/update`ni faqat haqiqiy adminlarga (`embedded` demo'da emas) soʻraydi, qarang ../../replica/m12-contract.md §B4.
   const updateAvailable = useUpdateAvailableDot(!embedded && hasPermission(permissions, '*'));
   const updateDotId = updateAvailable ? 'update' : null;
@@ -294,6 +301,9 @@ export function AppShell({ active, title, crumbs = [], health, revision, system,
               />
             );
           })}
+          <ul className="mt-1 border-t border-sidebar-border pt-3">
+            <NavItem item={DOCS_NAV} on={docsActive} focusable showUpdateDot={false} onNavigate={() => setNavOpen(false)} />
+          </ul>
         </nav>
         {showSystem && <div className="flex items-center justify-between gap-3 border-t border-sidebar-border px-4 py-3">
           <div className="min-w-0">
@@ -318,6 +328,14 @@ export function AppShell({ active, title, crumbs = [], health, revision, system,
           </label>
           <div className="ml-auto flex items-center gap-2">
             {showSystem && <RevisionBadge rev={revision} />}
+            <Link
+              to={helpPathFor(location.pathname, activeId)}
+              aria-label={t('helpLink')}
+              title={t('helpLink')}
+              className="grid size-ctl-md place-items-center rounded-md border border-line bg-surface text-muted hover:bg-surface-2 hover:text-fg"
+            >
+              <CircleHelp aria-hidden className="size-4" />
+            </Link>
             <Segmented<Lang>
               label={t('lang')}
               value={(LANGS.find((l) => l === i18n.language) ?? 'uz')}

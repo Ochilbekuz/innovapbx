@@ -55,6 +55,7 @@ import * as daynight from '@/i18n/daynight';
 import * as disa from '@/i18n/disa';
 import * as time from '@/i18n/time';
 import * as firewall from '@/i18n/firewall';
+import * as docs from '@/i18n/docs';
 import { apiClient } from '@/api';
 
 export const LANGS = ['uz', 'ru', 'en'] as const;
@@ -70,6 +71,7 @@ const NAMESPACES = {
   update,
   daynight, disa,
   time, firewall,
+  docs,
 } as const;
 
 function resourcesFor(lang: Lang) {

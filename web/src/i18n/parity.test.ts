@@ -38,6 +38,7 @@ import * as followme from './followme';
 import * as campaigns from './campaigns';
 import * as status from './status';
 import * as network from './network';
+import * as docs from './docs';
 
 type AnyObj = Record<string, unknown>;
 
@@ -56,6 +57,7 @@ const NAMESPACES: Record<string, { uz: AnyObj; ru: AnyObj; en: AnyObj }> = {
   voicemail, notify, featurecodes, conferences, blacklist,
   users, me, live, analytics, security, alerts, integrations, recordings, devices, backup, migration, followme, campaigns,
   status, network,
+  docs,
 };
 
 describe('i18n namespace key parity', () => {

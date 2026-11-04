@@ -4,10 +4,11 @@ import react from '@vitejs/plugin-react';
 import { fileURLToPath } from 'node:url';
 
 const design = fileURLToPath(new URL('../replica/design', import.meta.url));
+const docs = fileURLToPath(new URL('../docs/qollanma', import.meta.url));
 
 export default defineConfig({
   plugins: [react()],
-  resolve: { alias: { '@design': design, '@': fileURLToPath(new URL('./src', import.meta.url)) } },
+  resolve: { alias: { '@design': design, '@docs': docs, '@': fileURLToPath(new URL('./src', import.meta.url)) } },
   server: {
     fs: { allow: ['..'] },
     proxy: {

@@ -1,4 +1,4 @@
-import type { ComponentType } from 'react';
+import { lazy, Suspense, type ComponentType } from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { homeFor, RedirectIfAuthed, RedirectIfSetupDone, RequireAuth, RequireFullAccess } from '@/auth/guards';
 import { useSession } from '@/api/session';
@@ -55,6 +55,9 @@ import { DayNightPage } from '@/screens/daynight/DayNightPage';
 import { DisaPage } from '@/screens/disa/DisaPage';
 import { TimeSettingsPage } from '@/screens/time/TimeSettingsPage';
 import { FirewallPage } from '@/screens/firewall/FirewallPage';
+
+// Qo'llanma matnlari (~300 KB) asosiy bundle'ga kirmasin — alohida chunk, birinchi ochilganda yuklanadi.
+const DocsPage = lazy(() => import('@/screens/docs/DocsPage').then((m) => ({ default: m.DocsPage })));
 
 /** M0/M1a/M2b'da to'liq qurilgan ekranlar — qolganlari `ScreenStub` orqali "tez orada". */
 const FULL_PAGES: Record<string, ComponentType> = {
@@ -146,6 +149,10 @@ export function AppRouter() {
       <Route path="/change-password" element={<RequireAuth><ChangePasswordPage /></RequireAuth>} />
       {/* Sidebarda ko'rsatilmaydi — `must_enroll_2fa` bo'lsa `RequireAuth` shu yerga qaytaradi (M10 C B2). */}
       <Route path="/enroll-2fa" element={<RequireAuth><Enroll2faPage /></RequireAuth>} />
+
+      {/* Qo'llanma — hamma rolga (sidebar pastidagi «Qo'llanma» va sarlavhadagi «?» tugmasi). */}
+      <Route path="/docs" element={<RequireAuth><Suspense fallback={null}><DocsPage /></Suspense></RequireAuth>} />
+      <Route path="/docs/:id" element={<RequireAuth><Suspense fallback={null}><DocsPage /></Suspense></RequireAuth>} />
 
       <Route path="/" element={<RequireAuth><RoleHome /></RequireAuth>} />
       <Route path="*" element={<RequireAuth><RoleHome /></RequireAuth>} />
