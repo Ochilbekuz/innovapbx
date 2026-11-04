@@ -1,0 +1,10 @@
+[Unit]
+Description=Innova PBX — paneldan yangilash so'rovini kutish
+
+[Path]
+PathExists=/var/lib/innova/update/request
+MakeDirectory=yes
+Unit=innova-update-agent.service
+
+[Install]
+WantedBy=multi-user.target

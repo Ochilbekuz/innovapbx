@@ -43,6 +43,7 @@ case "$*" in *pg_dump*) [ -z "${DUMP_FAIL:-}" ] || exit 3; echo "-- dump";; esac
 EOF
 chmod +x "$T/bin/docker"
 export PATH="$T/bin:$PATH" INNOVA_DEST=$DEST INSTALL_LOG=$T/install.log DOCKER_LOG=$T/docker.log
+export INNOVA_UPDATE_LOCK="$T/lock.lock" # /run yozib bo'lmasligi mumkin — testlar o'z qulfidan foydalanadi
 : > "$INSTALL_LOG"
 
 run() { bash "$UPDATE" "$@" 2>&1; }
@@ -135,6 +136,163 @@ ok contains "$out" "git clone"
 # 12) noma'lum parametr
 out=$(run --foo); rc=$?
 ok not eq "$rc" 0
+
+# ---------------------------------------------------------------- --agent (status papka, m11-update-contract.md)
+AT=$T/agent
+mkdir -p "$AT"
+
+git init -q -b main "$AT/work"
+cat > "$AT/work/install.sh" <<'EOF'
+#!/usr/bin/env bash
+echo "$*" >> "$INSTALL_LOG"
+[ -z "${INSTALL_FAIL:-}" ] || exit 7
+EOF
+chmod +x "$AT/work/install.sh"
+echo 2.0.0 > "$AT/work/VERSION"
+printf '## 2.0.0\n- boshlangich\n' > "$AT/work/CHANGELOG.md"
+git -C "$AT/work" add -A && git -C "$AT/work" commit -qm v2.0.0
+git clone -q --bare "$AT/work" "$AT/origin.git"
+git clone -q "$AT/origin.git" "$AT/src"
+
+ADEST=$AT/opt
+mkdir -p "$ADEST/deploy"
+echo 2.0.0 > "$ADEST/VERSION"
+echo "$AT/src" > "$ADEST/SOURCE"
+printf 'POSTGRES_USER=innova\nPOSTGRES_DB=innova\nWEB_HOST_PORT=8080\n' > "$ADEST/deploy/.env"
+AUPD=$AT/update
+mkdir -p "$AUPD"
+export INNOVA_DEST=$ADEST INNOVA_UPDATE_DIR=$AUPD INSTALL_LOG=$AT/install.log DOCKER_LOG=$AT/docker.log
+: > "$INSTALL_LOG"; : > "$DOCKER_LOG"
+
+arun() { bash "$UPDATE" --agent 2>&1; }
+apublish() { # versiya changelog-qatori
+  echo "$1" > "$AT/work/VERSION"
+  { printf '## %s\n- %s\n\n' "$1" "$2"; cat "$AT/work/CHANGELOG.md"; } > "$AT/work/CHANGELOG.md.new"
+  mv "$AT/work/CHANGELOG.md.new" "$AT/work/CHANGELOG.md"
+  git -C "$AT/work" add -A && git -C "$AT/work" commit -qam "v$1" && git -C "$AT/work" push -q "$AT/origin.git" main
+}
+status_val() { sed -n "s/^$1=//p" "$AUPD/status" 2>/dev/null; }
+no_ansi() { ! grep -qP '\x1b' "$1"; }
+
+# a1) so'rov yo'q, status ham yo'q — hech narsa yozilmaydi
+out=$(arun); rc=$?
+ok eq "$rc" 0
+ok not test -e "$AUPD/status"
+
+# a2) check — yangilanish bor
+apublish 2.0.1 "ikkinchi versiya"
+echo check > "$AUPD/request"
+out=$(arun); rc=$?
+ok eq "$rc" 0
+ok not test -e "$AUPD/request"
+ok eq "$(status_val state)" idle
+ok eq "$(status_val current)" 2.0.0
+ok eq "$(status_val latest)" 2.0.1
+ok eq "$(status_val available)" 1
+ok contains "$(cat "$AUPD/changelog.md" 2>/dev/null)" "## 2.0.1"
+
+# a3) update — mavjud yangilanishni qo'llaydi
+echo update > "$AUPD/request"
+out=$(arun); rc=$?
+ok eq "$rc" 0
+ok not test -e "$AUPD/request"
+# shellcheck disable=SC1010 # "done" — status qiymati, bash kalit so'zi emas
+ok eq "$(status_val state)" done
+ok eq "$(status_val current)" 2.0.1
+ok eq "$(cat "$AT/src/VERSION")" 2.0.1
+ok eq "$(cat "$INSTALL_LOG")" "--web-port 8080"
+backup_name=$(status_val backup)
+ok test -n "$backup_name"
+ok test -f "$ADEST/backups/$backup_name"
+ok contains "$(cat "$AUPD/update.log")" "yangilash boshlandi"
+ok no_ansi "$AUPD/update.log"
+ok contains "$(cat "$AUPD/history")" $'\t2.0.0\t2.0.1\tok'
+echo 2.0.1 > "$ADEST/VERSION" # haqiqiy install.sh DEST/VERSION'ni yozardi — soxtasi yozmaydi
+
+# a4) check — yangilanish yo'q
+echo check > "$AUPD/request"
+out=$(arun); rc=$?
+ok eq "$rc" 0
+ok eq "$(status_val available)" 0
+ok eq "$(status_val current)" 2.0.1
+ok eq "$(status_val latest)" 2.0.1
+
+# a5) update — yangilanish yo'q bo'lsa install.sh chaqirilmaydi
+: > "$INSTALL_LOG"
+echo update > "$AUPD/request"
+out=$(arun); rc=$?
+ok eq "$rc" 0
+ok not test -e "$AUPD/request"
+ok eq "$(status_val state)" idle
+ok eq "$(wc -c < "$INSTALL_LOG" | tr -d ' ')" 0
+
+# a6) git_dirty — manba qo'lda o'zgartirilgan, zaxira olingan, install.sh chaqirilmaydi
+apublish 2.0.2 "uchinchi versiya"
+echo local > "$AT/src/VERSION"
+: > "$INSTALL_LOG"
+echo update > "$AUPD/request"
+out=$(arun); rc=$?
+ok not eq "$rc" 0
+ok not test -e "$AUPD/request"
+ok eq "$(status_val state)" failed
+ok eq "$(status_val error)" git_dirty
+backup_name=$(status_val backup)
+ok test -n "$backup_name"
+ok test -f "$ADEST/backups/$backup_name"
+ok eq "$(wc -c < "$INSTALL_LOG" | tr -d ' ')" 0
+git -C "$AT/src" checkout -q -- VERSION
+
+# a7) install_failed — kod birlashadi, install.sh yiqiladi, orqaga qaytarish yo'riqnomasi logga yoziladi
+apublish 2.0.3 "to'rtinchi versiya"
+: > "$INSTALL_LOG"
+echo update > "$AUPD/request"
+out=$(INSTALL_FAIL=1 arun); rc=$?
+ok not eq "$rc" 0
+ok not test -e "$AUPD/request"
+ok eq "$(status_val state)" failed
+ok eq "$(status_val error)" install_failed
+ok eq "$(cat "$AT/src/VERSION")" 2.0.3
+ok contains "$(cat "$AUPD/update.log")" "checkout"
+ok no_ansi "$AUPD/update.log"
+
+# a8) bad_request — noma'lum so'rov matni
+echo chiqindi > "$AUPD/request"
+out=$(arun); rc=$?
+ok eq "$rc" 0
+ok not test -e "$AUPD/request"
+ok eq "$(status_val state)" failed
+ok eq "$(status_val error)" bad_request
+
+# a9) interrupted — avvalgi yugurish o'lik holatda qolgan (lock yo'q, so'rov yo'q)
+cat > "$AUPD/status" <<'EOF'
+state=updating
+phase=install
+current=2.0.1
+latest=2.0.3
+available=1
+checked_at=
+started_at=
+finished_at=
+error=
+backup=
+EOF
+rm -f "$AUPD/request"
+out=$(arun); rc=$?
+ok eq "$rc" 0
+ok eq "$(status_val state)" failed
+ok eq "$(status_val error)" interrupted
+ok contains "$(cat "$AUPD/history")" $'\t2.0.1\t2.0.3\tfailed:interrupted'
+
+# a10) busy-lock — boshqa yangilanish ishlab turganda so'rov bajarilmaydi, o'chirilmaydi
+flock -n "$T/lock.lock" sleep 5 &
+BGPID=$!
+for _ in $(seq 1 50); do flock -n "$T/lock.lock" -c true 2>/dev/null || break; sleep 0.05; done
+echo update > "$AUPD/request"
+out=$(arun); rc=$?
+ok not eq "$rc" 0
+ok test -e "$AUPD/request"
+kill "$BGPID" 2>/dev/null; wait "$BGPID" 2>/dev/null
+rm -f "$AUPD/request"
 
 echo "innova-update: $PASSES o'tdi, $FAILS xato"
 [ "$FAILS" = 0 ]

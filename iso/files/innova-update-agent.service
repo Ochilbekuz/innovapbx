@@ -1,0 +1,7 @@
+[Unit]
+Description=Innova PBX — paneldan yangilash agenti (innova-update --agent)
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/innova-update --agent
+TimeoutStartSec=3600

@@ -44,5 +44,17 @@ EOF
 cp "$SRC/files/nftables.conf" /target/etc/nftables.conf
 cp "$SRC/files/issue" /target/etc/issue
 cp "$SRC/files/innova-pbx.service" /target/etc/systemd/system/innova-pbx.service
-in-target systemctl enable nftables.service docker.service ssh.service innova-pbx.service
+
+log "paneldan yangilash agenti"
+mkdir -p /target/usr/local/sbin
+cp "$SRC/files/innova-update.sh" /target/usr/local/sbin/innova-update
+chmod 0755 /target/usr/local/sbin/innova-update
+for u in innova-update-agent.path innova-update-agent.service \
+         innova-update-check.timer innova-update-check.service; do
+  cp "$SRC/files/$u" "/target/etc/systemd/system/$u"
+done
+# Eslatma: ISO o'rnatuvida $DST/SOURCE yo'q (git klon emas) — agent "no_source" qaytaradi, bu normal.
+
+in-target systemctl enable nftables.service docker.service ssh.service innova-pbx.service \
+  innova-update-agent.path innova-update-check.timer
 log "tayyor — qayta yuklangandan keyin Innova PBX birinchi ishga tushadi"

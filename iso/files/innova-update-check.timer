@@ -1,0 +1,11 @@
+[Unit]
+Description=Innova PBX — davriy yangilanish tekshiruvi
+
+[Timer]
+OnBootSec=10min
+OnUnitActiveSec=12h
+RandomizedDelaySec=30min
+Unit=innova-update-check.service
+
+[Install]
+WantedBy=timers.target

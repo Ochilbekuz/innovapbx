@@ -5,26 +5,63 @@
 #   innova-update --check         # faqat tekshirish (yangi versiya bo'lsa exit 10)
 #   innova-update --force         # yangi versiya bo'lmasa ham qayta o'rnatish (buzilganini tuzatish)
 #   innova-update --images FAYL   # oflayn: tayyor obrazlar bilan (git'ga tegmaydi)
+#   innova-update --agent         # systemd path xizmati chaqiradi — status papkadagi `request`ni bajaradi
 #
 # Sozlamalar (.env sirlari, baza, port) saqlanadi. Har yangilashdan oldin baza zaxirasi:
 # /opt/innova/backups/pre-update-<eski versiya>-<vaqt>.sql.gz (oxirgi 5 tasi).
+#
+# Paneldan yangilash (m11-update-contract.md): `--agent`/`--check` status papkaga
+# (sukut /var/lib/innova/update, env INNOVA_UPDATE_DIR) `status`/`update.log`/
+# `changelog.md`/`history` yozadi — FAQAT shu ikki rejim yozadi. Barcha rejimlar
+# bitta vaqtda bitta ish uchun `flock -n` (yo'l env INNOVA_UPDATE_LOCK bilan).
 set -euo pipefail
 
 DEST=${INNOVA_DEST:-/opt/innova}
 PG_CONTAINER=innova-m0-postgres-1
 KEEP_BACKUPS=5
+UPD=${INNOVA_UPDATE_DIR:-/var/lib/innova/update}
+LOCK=${INNOVA_UPDATE_LOCK:-/run/innova-update.lock}
 
-log() { printf '\033[1;33m==>\033[0m %s\n' "$*"; }
-die() { printf '\033[1;31mXATO:\033[0m %s\n' "$*" >&2; exit 1; }
+# status fayli kalitlari (m11-update-contract.md bo'lim 1)
+STATUS_KEYS="state phase current latest available checked_at started_at finished_at error backup"
+declare -A STATUS
+WRITE_STATUS=0   # 1 bo'lsa — die()/trap status papkaga yozadi
+AGENT_LOG_ACTIVE=0
+ERRCODE=""
+CUR_VERSION="" NEW_VERSION="" SRC="" OLD_REV="" BACKUP="" CHECK_AVAILABLE=0
+
+log() {
+  printf '\033[1;33m==>\033[0m %s\n' "$*"
+  [ "$AGENT_LOG_ACTIVE" = 1 ] && printf '==> %s\n' "$*" >> "$UPD/update.log"
+  return 0
+}
+die() {
+  printf '\033[1;31mXATO:\033[0m %s\n' "$*" >&2
+  [ "$AGENT_LOG_ACTIVE" = 1 ] && printf 'XATO: %s\n' "$*" >> "$UPD/update.log"
+  exit 1
+}
+
+# die()/kutilmagan chiqishda status papkaga `failed`+kod yozadi (faqat WRITE_STATUS=1 bo'lsa).
+on_exit() {
+  local rc=$?
+  if [ "$WRITE_STATUS" = 1 ] && [ "$rc" != 0 ]; then
+    status_set state=failed error="${ERRCODE:-install_failed}" finished_at="$(now_iso)"
+    status_flush
+    history_append "${CUR_VERSION:-}" "${NEW_VERSION:-}" "failed:${ERRCODE:-install_failed}"
+  fi
+  return 0
+}
+trap on_exit EXIT
 
 parse_args() {
-  CHECK=0 FORCE=0 IMAGES=""
+  CHECK=0 FORCE=0 IMAGES="" AGENT=0
   while [ $# -gt 0 ]; do
     case $1 in
       --check) CHECK=1; shift ;;
       --force) FORCE=1; shift ;;
+      --agent) AGENT=1; shift ;;
       --images) IMAGES=$(realpath "${2:?--images FAYL}"); shift 2 ;;
-      -h|--help) sed -n '2,10p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; exit 0 ;;
+      -h|--help) sed -n '2,13p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; exit 0 ;;
       *) die "noma'lum parametr: $1 (--help)" ;;
     esac
   done
@@ -69,27 +106,195 @@ backup_db() {
   ls -1t "$dir"/pre-update-*.sql.gz | tail -n +$((KEEP_BACKUPS + 1)) | xargs -r rm -f
 }
 
+strip_ansi() { sed -E "s/$(printf '\033')\\[[0-9;]*[A-Za-z]//g"; }
+
 run_install() {
-  local args=(--web-port "$(env_value WEB_HOST_PORT)")
+  local args=(--web-port "$(env_value WEB_HOST_PORT)") rc=0
   [ -z "$IMAGES" ] || args+=(--images "$IMAGES")
-  "$SRC/install.sh" "${args[@]}" && return 0
+  # Izoh: `set -e` ostida "CMD; rc=$?" CMD muvaffaqiyatsiz bo'lsa `rc=$?` ga
+  # yetmasdan skript to'xtaydi — shu uchun natija OR-ro'yxat orqali olinadi.
+  if [ "$AGENT_LOG_ACTIVE" = 1 ]; then
+    "$SRC/install.sh" "${args[@]}" 2>&1 | strip_ansi | tee -a "$UPD/update.log" >/dev/null \
+      || rc=${PIPESTATUS[0]}
+  else
+    "$SRC/install.sh" "${args[@]}" || rc=$?
+  fi
+  [ "$rc" = 0 ] && return 0
   printf '\033[1;31mXATO:\033[0m yangilash yakunlanmadi. Orqaga qaytarish:\n' >&2
   printf '  git -C %s checkout %s && %s/install.sh --web-port %s\n' "$SRC" "$OLD_REV" "$SRC" "${args[1]}" >&2
   printf '  baza zaxirasi: %s\n' "$BACKUP" >&2
+  if [ "$AGENT_LOG_ACTIVE" = 1 ]; then
+    {
+      printf 'XATO: yangilash yakunlanmadi. Orqaga qaytarish:\n'
+      printf '  git -C %s checkout %s && %s/install.sh --web-port %s\n' "$SRC" "$OLD_REV" "$SRC" "${args[1]}"
+      printf '  baza zaxirasi: %s\n' "$BACKUP"
+    } >> "$UPD/update.log"
+  fi
   exit 1
+}
+
+# ---------------------------------------------------------------- status papka
+upd_usable() { [ -d "$UPD" ] && [ -w "$UPD" ]; }
+now_iso() { date -u +%Y-%m-%dT%H:%M:%SZ; }
+sanitize_value() { printf '%s' "$1" | tr -cd 'A-Za-z0-9._:+-'; }
+
+status_load() {
+  local k
+  for k in $STATUS_KEYS; do STATUS[$k]=""; done
+  STATUS[state]=idle
+  STATUS[available]=0
+  [ -f "$UPD/status" ] || return 0
+  local k2 v
+  while IFS='=' read -r k2 v; do
+    case " $STATUS_KEYS " in *" $k2 "*) STATUS[$k2]=$v ;; esac
+  done < "$UPD/status"
+}
+
+status_set() {
+  local kv k v
+  for kv in "$@"; do
+    k=${kv%%=*}
+    v=${kv#*=}
+    STATUS[$k]=$(sanitize_value "$v")
+  done
+}
+
+status_flush() {
+  local tmp k
+  tmp=$(mktemp "$UPD/.status.XXXXXX")
+  for k in $STATUS_KEYS; do printf '%s=%s\n' "$k" "${STATUS[$k]}"; done > "$tmp"
+  mv -f "$tmp" "$UPD/status"
+}
+
+# oldingi yugurish o'lgan (masalan reboot — /run lock ham tozalangan, status esa
+# checking/updating holatida qolgan) → bitta aniq failed/interrupted yozuv.
+status_fix_interrupted() {
+  case "${STATUS[state]}" in
+    checking|updating)
+      local from=${STATUS[current]} to=${STATUS[latest]}
+      status_set state=failed error=interrupted finished_at="$(now_iso)" phase=
+      status_flush
+      history_append "$from" "$to" "failed:interrupted"
+      ;;
+  esac
+}
+
+history_append() { # from to result
+  upd_usable || return 0
+  printf '%s\t%s\t%s\t%s\n' "$(now_iso)" "$1" "$2" "$3" >> "$UPD/history"
+}
+
+changelog_write() {
+  local tmp
+  tmp=$(mktemp "$UPD/.changelog.XXXXXX")
+  if git_src show '@{u}:CHANGELOG.md' > "$tmp" 2>/dev/null; then
+    mv -f "$tmp" "$UPD/changelog.md"
+  else
+    rm -f "$tmp"
+  fi
+}
+
+acquire_lock() {
+  exec 9>"$LOCK" || die "lock fayl ochilmadi: $LOCK"
+  flock -n 9 || die "boshqa yangilanish ishlab turibdi (band: $LOCK)"
+}
+
+# CUR_VERSION/SRC/OLD_REV/NEW_VERSION/CHECK_AVAILABLE ni to'ldiradi; WRITE_STATUS=1
+# bo'lsa status (current/latest/available/checked_at) + changelog.md ham yozadi.
+perform_check_and_record() {
+  CUR_VERSION=$(cat "$DEST/VERSION" 2>/dev/null || echo "?")
+  [ "$WRITE_STATUS" = 1 ] && ERRCODE=no_source
+  SRC=$(source_dir)
+  OLD_REV=$(git_src rev-parse --short HEAD)
+  NEW_VERSION=$CUR_VERSION
+  [ "$WRITE_STATUS" = 1 ] && ERRCODE=fetch_failed
+  CHECK_AVAILABLE=0
+  if [ -z "${IMAGES:-}" ] && fetch_update; then CHECK_AVAILABLE=1; fi
+  if [ "$WRITE_STATUS" = 1 ]; then
+    status_set current="$CUR_VERSION" latest="$NEW_VERSION" available=$CHECK_AVAILABLE checked_at="$(now_iso)"
+    status_flush
+    changelog_write
+  fi
+}
+
+# ---------------------------------------------------------------- --agent
+agent_check() {
+  status_set state=checking phase= error=
+  status_flush
+  perform_check_and_record
+  status_set state=idle error=
+  status_flush
+}
+
+agent_update() {
+  status_set state=updating started_at="$(now_iso)" error= backup= phase=
+  status_flush
+  perform_check_and_record
+  if [ "$CHECK_AVAILABLE" = 0 ]; then
+    status_set state=idle phase= finished_at="$(now_iso)"
+    status_flush
+    return 0
+  fi
+  : > "$UPD/update.log"
+  AGENT_LOG_ACTIVE=1
+  log "yangilash boshlandi: $CUR_VERSION → $NEW_VERSION"
+  status_set phase=backup
+  status_flush
+  ERRCODE=backup_failed
+  backup_db
+  status_set phase=code backup="$(basename "$BACKUP")"
+  status_flush
+  ERRCODE=git_dirty
+  git_src merge -q --ff-only '@{u}' || die "git yangilanmadi: $SRC da qo'lda o'zgartirilgan fayllar bor (git -C $SRC status)"
+  status_set phase=install
+  status_flush
+  ERRCODE=install_failed
+  run_install
+  status_set state=done phase= error= finished_at="$(now_iso)" current="$NEW_VERSION"
+  status_flush
+  history_append "$CUR_VERSION" "$NEW_VERSION" ok
+  log "yangilandi: $(cat "$DEST/VERSION" 2>/dev/null || echo "$NEW_VERSION")"
+}
+
+agent_main() {
+  upd_usable || { log "status papkasi mavjud emas yoki yozib bo'lmaydi: $UPD"; return 0; }
+  status_load
+  status_fix_interrupted
+  [ -f "$UPD/request" ] || { log "so'rov yo'q"; return 0; }
+  local req
+  req=$(cat "$UPD/request" 2>/dev/null)
+  rm -f "$UPD/request"
+  WRITE_STATUS=1
+  case "$req" in
+    check) agent_check ;;
+    update) agent_update ;;
+    *)
+      status_set state=failed error=bad_request finished_at="$(now_iso)"
+      status_flush
+      history_append "${STATUS[current]}" "${STATUS[latest]}" "failed:bad_request"
+      ;;
+  esac
 }
 
 main() {
   parse_args "$@"
+  acquire_lock
   [ "$(id -u)" = 0 ] || [ -n "${INNOVA_DEST:-}" ] || die "root huquqi kerak"
-  CUR_VERSION=$(cat "$DEST/VERSION" 2>/dev/null || echo "?")
-  SRC=$(source_dir)
-  OLD_REV=$(git_src rev-parse --short HEAD)
-  NEW_VERSION=$CUR_VERSION
-  local available=0
-  if [ -z "$IMAGES" ] && fetch_update; then available=1; fi
+  if [ "$AGENT" = 1 ]; then
+    agent_main
+    return 0
+  fi
+
+  if [ "$CHECK" = 1 ] && upd_usable; then
+    status_load
+    status_fix_interrupted
+    WRITE_STATUS=1
+  fi
+  perform_check_and_record
+  local available=$CHECK_AVAILABLE
 
   if [ "$CHECK" = 1 ]; then
+    if [ "$WRITE_STATUS" = 1 ]; then status_set state=idle error=; status_flush; fi
     [ "$available" = 1 ] || { log "eng so'nggi versiya: $CUR_VERSION"; return 0; }
     log "yangi versiya bor: $CUR_VERSION → $NEW_VERSION (o'rnatish: innova-update)"
     return 10

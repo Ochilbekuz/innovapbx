@@ -142,6 +142,18 @@ install_docker() {
   version_ge "${have:-0}" "$MIN_COMPOSE" || die "compose ${have:-topilmadi} < $MIN_COMPOSE"
 }
 
+# Paneldan yangilash (m11-update-contract.md bo'lim 3): agent + davriy tekshiruv.
+install_update_units() {
+  local sysdir u
+  sysdir=$(dirname "$UNIT")
+  for u in innova-update-agent.path innova-update-agent.service \
+           innova-update-check.timer innova-update-check.service; do
+    install -m 0644 "$ROOT/iso/files/$u" "$sysdir/$u"
+  done
+  systemctl daemon-reload
+  systemctl enable --now innova-update-agent.path innova-update-check.timer
+}
+
 install_files() {
   log "fayllar: $DEST"
   install -d -m 0700 "$DEST"
@@ -152,6 +164,7 @@ install_files() {
   install -m 0644 "$ROOT/iso/files/innova-guard.nft" "$DEST/guard.nft"
   install -m 0755 "$ROOT/iso/files/innova-update.sh" "$SBIN/innova-update"
   [ ! -d "$ROOT/.git" ] || echo "$ROOT" > "$DEST/SOURCE" # innova-update shu klonni yangilaydi
+  install_update_units
   install -d "$DROPIN"
   # Asterisk host tarmog'ida: AMI/HTTP faqat lokal va konteynerlardan (ISO'da buni to'liq nftables qiladi)
   # INNOVA_WEB_PORT — innova-start uni faqat `.env` birinchi yaratilganda yozadi

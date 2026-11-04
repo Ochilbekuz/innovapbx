@@ -1,0 +1,7 @@
+[Unit]
+Description=Innova PBX — yangilanish tekshiruvi (innova-update --check)
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/innova-update --check
+SuccessExitStatus=10

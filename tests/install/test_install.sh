@@ -10,6 +10,7 @@ FAILS=0 PASSES=0
 ok() { if "$@"; then PASSES=$((PASSES + 1)); else echo "FAIL: $*"; FAILS=$((FAILS + 1)); fi; }
 not() { ! "$@"; }
 eq() { [ "$1" = "$2" ] || { echo "  kutilgan [$2], olindi [$1]"; return 1; }; }
+contains() { [[ $1 == *"$2"* ]]; }
 
 # version_ge: compose versiyasi formatlari
 ok version_ge 2.24 2.24
@@ -71,13 +72,20 @@ ok eval '[[ $(cat "$HERE/../../VERSION") =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]'
 
 # install_files: innova-update buyrug'i va manba papka (keyingi yangilashlar uchun)
 TMPD=$(mktemp -d)
+SYSTEMCTL_LOG=$TMPD/systemctl.log
 stub_root() { (DEST=$TMPD/opt UNIT=$TMPD/unit DROPIN=$TMPD/dropin VERSION=1.0.1 WEB_PORT=80 SBIN=$TMPD/sbin
-  systemctl() { :; }; install_files >/dev/null 2>&1); }
+  systemctl() { echo "systemctl $*" >> "$SYSTEMCTL_LOG"; }; install_files >/dev/null 2>&1); }
 mkdir -p "$TMPD/sbin"
 stub_root
 ok test -x "$TMPD/sbin/innova-update"
 ok eq "$(cat "$TMPD/opt/SOURCE")" "$(cd "$HERE/../.." && pwd)"
 ok eq "$(cat "$TMPD/opt/VERSION")" 1.0.1
+# paneldan yangilash: systemd unitlar + yoqish (m11-update-contract.md bo'lim 3)
+for u in innova-update-agent.path innova-update-agent.service \
+         innova-update-check.timer innova-update-check.service; do
+  ok test -f "$TMPD/$u"
+done
+ok contains "$(cat "$SYSTEMCTL_LOG")" "enable --now innova-update-agent.path innova-update-check.timer"
 rm -rf "$TMPD"
 
 # detect_os: os-release dagi VERSION bizning VERSION'ni bosib ketmasin (VM'da topilgan xato)
@@ -86,7 +94,6 @@ printf 'PRETTY_NAME="Debian 13"\nID=debian\nVERSION="13 (trixie)"\nVERSION_CODEN
 detected() { (VERSION=2026.11.02; OS_RELEASE=$TMPD/os detect_os 2>&1; echo "$OS_ID|$OS_CODENAME|$DOCKER_SOURCE|$VERSION"); }
 ok eq "$(detected)" "debian|trixie|distro|2026.11.02"
 printf 'ID=rocky\nVERSION="9.4"\nPRETTY_NAME="Rocky Linux 9"\n' > "$TMPD/os"
-contains() { [[ $1 == *"$2"* ]]; }
 ok contains "$(detected)" "(bu: Rocky Linux 9)"
 ok contains "$(detected)" "Debian 12/13, Ubuntu 22.04/24.04"
 rm -rf "$TMPD"
