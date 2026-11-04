@@ -42,18 +42,21 @@ describe('update — updateLogPollMs / shouldShowUpdateLog', () => {
 
 describe('update — isRestartingDuringUpdate', () => {
   it('updating + 502/503/tarmoq xatosi — qayta ishga tushish, xato emas', () => {
-    expect(isRestartingDuringUpdate('updating', 502)).toBe(true);
-    expect(isRestartingDuringUpdate('updating', 503)).toBe(true);
-    expect(isRestartingDuringUpdate('updating', null)).toBe(true);
+    expect(isRestartingDuringUpdate('updating', { status: 502 })).toBe(true);
+    expect(isRestartingDuringUpdate('updating', { status: 503 })).toBe(true);
+    expect(isRestartingDuringUpdate('updating', { status: null })).toBe(true);
+  });
+  it('updating + xato yoʻq (API javob bermoqda) — qayta ishga tushish emas', () => {
+    expect(isRestartingDuringUpdate('updating', null)).toBe(false);
   });
   it('updating + boshqa status — haqiqiy xato', () => {
-    expect(isRestartingDuringUpdate('updating', 500)).toBe(false);
-    expect(isRestartingDuringUpdate('updating', 403)).toBe(false);
+    expect(isRestartingDuringUpdate('updating', { status: 500 })).toBe(false);
+    expect(isRestartingDuringUpdate('updating', { status: 403 })).toBe(false);
   });
   it('updating emas — hech qachon restart emas', () => {
-    expect(isRestartingDuringUpdate('idle', 502)).toBe(false);
-    expect(isRestartingDuringUpdate('done', null)).toBe(false);
-    expect(isRestartingDuringUpdate(undefined, 502)).toBe(false);
+    expect(isRestartingDuringUpdate('idle', { status: 502 })).toBe(false);
+    expect(isRestartingDuringUpdate('done', { status: null })).toBe(false);
+    expect(isRestartingDuringUpdate(undefined, { status: 502 })).toBe(false);
   });
 });
 

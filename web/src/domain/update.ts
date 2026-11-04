@@ -23,11 +23,14 @@ export function shouldShowUpdateLog(state: UpdateState | undefined): boolean {
   return state === 'updating' || state === 'done' || state === 'failed';
 }
 
-/** API 502/503 yoki tarmoq xatosi (status yo'q) — oxirgi ma'lum holat `updating` bo'lsa bu xato emas,
+/** Oxirgi so'rov xatosi: `null` — xato yo'q; `{status: null}` — tarmoq xatosi (HTTP javob yo'q). */
+export type QueryFailure = { status: number | null } | null;
+
+/** API 502/503 yoki tarmoq xatosi — oxirgi ma'lum holat `updating` bo'lsa bu xato emas,
  * "tizim qayta ishga tushmoqda" (shartnoma §5). Boshqa holatlarda (idle/checking/done/failed) — haqiqiy xato. */
-export function isRestartingDuringUpdate(lastState: UpdateState | undefined, errorStatus: number | null): boolean {
-  if (lastState !== 'updating') return false;
-  return errorStatus === null || errorStatus === 502 || errorStatus === 503;
+export function isRestartingDuringUpdate(lastState: UpdateState | undefined, failure: QueryFailure): boolean {
+  if (lastState !== 'updating' || failure === null) return false;
+  return failure.status === null || failure.status === 502 || failure.status === 503;
 }
 
 // ─────────────────────── Jurnal (log?offset) — o'sib boradigan matn ───────────────────────

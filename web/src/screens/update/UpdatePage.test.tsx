@@ -65,6 +65,8 @@ describe('UpdatePage', () => {
       await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
       expect(await screen.findByText('Yangilanish jarayoni')).toBeTruthy();
       await waitFor(() => expect(screen.getByText(/Zaxira olinmoqda/)).toBeTruthy(), { timeout: 6000 });
+      // API javob berib turibdi — bu "qayta ishga tushish" EMAS (faqat 502/503/tarmoq xatosida)
+      expect(screen.queryByText(/Tizim qayta ishga tushmoqda/)).toBeNull();
     },
     15_000,
   );

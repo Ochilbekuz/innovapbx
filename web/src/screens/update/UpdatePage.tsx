@@ -8,7 +8,7 @@ import { useCheckSystemUpdate, useStartSystemUpdate, useSystemUpdate, useSystemU
 import type { StartSystemUpdatePayload, SystemUpdateOut } from '@/api/types';
 import {
   appendUpdateLog, EMPTY_LOG, isRestartingDuringUpdate, isScrolledAwayFromEnd, phaseStatus, scrollToEnd,
-  shouldShowUpdateLog, updateLogPollMs, UPDATE_PHASES, type DisplayPhase, type UpdateLogAccum,
+  shouldShowUpdateLog, updateLogPollMs, UPDATE_PHASES, type DisplayPhase, type QueryFailure, type UpdateLogAccum,
 } from '@/domain/update';
 import { cn } from '@/lib/cn';
 import { formatDateTime } from '@/lib/time';
@@ -20,8 +20,9 @@ import { MarkdownLite } from './MarkdownLite';
 
 type TFunc = (k: string, v?: Record<string, unknown>) => string;
 
-function errorStatusOf(e: unknown): number | null {
-  return isApiError(e) ? e.status : null;
+function failureOf(e: unknown): QueryFailure {
+  if (!e) return null;
+  return { status: isApiError(e) ? e.status : null };
 }
 
 function isInitialLoadOrError(isLoading: boolean, isError: boolean, hasData: boolean): boolean {
@@ -108,7 +109,7 @@ export function UpdatePage() {
   const { t } = useTranslation('update');
   const { data, isLoading, isError, error, refetch } = useSystemUpdate();
   const log = useUpdateLogSync(data?.state);
-  const restarting = isRestartingDuringUpdate(data?.state, errorStatusOf(error));
+  const restarting = isRestartingDuringUpdate(data?.state, failureOf(error));
   const [confirmOpen, setConfirmOpen] = useState(false);
   const { checkMut, startMut, handleCheck, handleConfirmUpdate } = useUpdateActions(data?.latest, refetch, t);
 
