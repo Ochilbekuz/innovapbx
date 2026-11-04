@@ -222,9 +222,16 @@ perform_check_and_record() {
 }
 
 # ---------------------------------------------------------------- --agent
+# Band holatni yozadi, so'ng so'rovni o'chiradi. Tartib muhim: aksincha bo'lsa oraliqda
+# API «request yo'q, state=idle» ko'rib yangi so'rov qabul qiladi.
+claim_request() {
+  status_flush
+  rm -f "$UPD/request"
+}
+
 agent_check() {
   status_set state=checking phase= error=
-  status_flush
+  claim_request
   perform_check_and_record
   status_set state=idle error=
   status_flush
@@ -232,7 +239,7 @@ agent_check() {
 
 agent_update() {
   status_set state=updating started_at="$(now_iso)" error= backup= phase=
-  status_flush
+  claim_request
   perform_check_and_record
   if [ "$CHECK_AVAILABLE" = 0 ]; then
     status_set state=idle phase= finished_at="$(now_iso)"
@@ -267,14 +274,13 @@ agent_main() {
   [ -f "$UPD/request" ] || { log "so'rov yo'q"; return 0; }
   local req
   req=$(cat "$UPD/request" 2>/dev/null)
-  rm -f "$UPD/request"
   WRITE_STATUS=1
   case "$req" in
     check) agent_check ;;
     update) agent_update ;;
     *)
       status_set state=failed error=bad_request finished_at="$(now_iso)"
-      status_flush
+      claim_request
       history_append "${STATUS[current]}" "${STATUS[latest]}" "failed:bad_request"
       ;;
   esac

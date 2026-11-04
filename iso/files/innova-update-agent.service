@@ -1,4 +1,7 @@
 [Unit]
+# Yiqilgan yugurish so'rovni ExecStopPost bilan o'chiradi (cheksiz sikl yo'q), shuning uchun
+# start-limit kerak emas — u urilsa path unit kuzatishni reboot'gacha to'xtatadi.
+StartLimitIntervalSec=0
 Description=Innova PBX — paneldan yangilash agenti (innova-update --agent)
 
 [Service]
@@ -7,3 +10,6 @@ Type=oneshot
 Environment=HOME=/root
 ExecStart=/usr/local/sbin/innova-update --agent
 TimeoutStartSec=3600
+# Agent so'rovni o'chirishdan oldin yiqilsa `request` qoladi va PathExists uni qayta-qayta
+# ishga tushirib start-limit'ga uradi — path unit kuzatishni butunlay to'xtatadi.
+ExecStopPost=/bin/sh -c 'test "$$SERVICE_RESULT" = success || rm -f /var/lib/innova/update/request'

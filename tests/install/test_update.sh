@@ -304,5 +304,26 @@ ok eq "$rc" 1
 ok contains "$out" "band"
 kill "$BGPID" 2>/dev/null; wait "$BGPID" 2>/dev/null
 
+# a12) so'rov status BAND yozilgandan KEYIN o'chiriladi — oraliqda API «request yo'q,
+# state=idle» ko'rib ikkinchi so'rovni qabul qilmasin (u update'dan keyin done'ni bosib ketardi)
+mkdir -p "$AT/rmspy"
+cat > "$AT/rmspy/rm" <<EOF
+#!/bin/bash
+for a in "\$@"; do
+  [ "\$a" = "$AUPD/request" ] && sed -n 's/^state=//p' "$AUPD/status" >> "$AT/rm-seen"
+done
+exec /bin/rm "\$@"
+EOF
+chmod +x "$AT/rmspy/rm"
+for word in check update; do
+  : > "$AT/rm-seen"
+  echo "$word" > "$AUPD/request"
+  PATH="$AT/rmspy:$PATH" arun >/dev/null; rc=$?
+  ok eq "$rc" 0
+  ok not test -e "$AUPD/request"
+  case $word in check) want=checking ;; update) want=updating ;; esac
+  ok eq "$(head -n1 "$AT/rm-seen")" "$want"
+done
+
 echo "innova-update: $PASSES o'tdi, $FAILS xato"
 [ "$FAILS" = 0 ]
