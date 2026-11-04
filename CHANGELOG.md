@@ -1,5 +1,14 @@
 # O'zgarishlar tarixi
 
+## 1.0.18 — 2026-11-04
+- **Tuzatish — «Sana va vaqt» sahifasi uzoq yuklanib, ochilmasdi**: server tizim buyrug'i (`timedatectl`) qotib qolsa
+  netd uni timeout'da faqat «ustidan» to'xtatardi — `nsenter` ichidagi asl buyruq tirik qolib javobni 25–30 s ushlab
+  turardi, API esa 10 s da uzilib xato berardi. Endi butun jarayon guruhi o'ldiriladi (timeout haqiqatan 3–10 s).
+  Bu tarmoq, quvvat va firewall sahifalaridagi xuddi shu xavfni ham yopadi.
+- Vaqt holatini o'qishda bitta yordamchi buyruq javob bermasa ham sahifa ochiladi (ma'lum bo'lmagan maydonlar bo'sh).
+- netd buyruq timeout'ini endi aniq xato sifatida qaytaradi (`command_timeout`, 504) — ilgari ulanish jim uzilardi.
+- «Sana va vaqt» yuklanmasa sahifa endi sababini ham ko'rsatadi (uz/ru/en).
+
 ## 1.0.17 — 2026-11-04
 - **Muhim tuzatish — ish vaqti (vaqt shartlari) ishlamas edi**: hafta kunlari dialplan'da vergul bilan yozilardi
   (`mon,tue,...`) — Asterisk `GotoIfTime` buni hech qachon mos deb hisoblamaydi, natijada qo'ng'iroq doim «ish

@@ -37,6 +37,8 @@ async def dispatch(service: NetdService, request: dict[str, Any]) -> dict[str, A
         return _error(exc.code, exc.message, exc.fields)
     except ProtocolError as exc:
         return _error("bad_request", str(exc))
+    except TimeoutError:
+        return _error("command_timeout", "Server tizim buyrug'i belgilangan vaqtda javob bermadi")
     return {"ok": True, "result": result}
 
 

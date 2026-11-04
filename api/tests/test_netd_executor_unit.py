@@ -157,3 +157,31 @@ async def test_conftest_guard_blocks_host_changing_binaries():
     import asyncio
     with pytest.raises(RuntimeError, match="taqiqlangan"):
         await asyncio.create_subprocess_exec("echo", "systemctl")
+
+
+@pytest.mark.asyncio
+async def test_run_timeout_kills_grandchildren_too(tmp_path, monkeypatch):
+    """`nsenter -p` buyruqni BOLA jarayonda bajaradi; timeout'da faqat ota o'ldirilsa bola stdout
+    quvurini ushlab turadi va `run()` u tugaguncha osilib qoladi (2026-11-04: 3 s timeout → 30 s,
+    «Sana va vaqt» sahifasi yuklanmadi). Butun jarayon guruhi o'ldirilishi SHART."""
+    import time
+
+    fake = tmp_path / "hostname"  # allowlist'da, lekin conftest taqiqlamaydi (host'ga tegmaydi)
+    fake.write_text(f"#!/bin/sh\nsleep 30 &\necho $! > {tmp_path}/child.pid\nwait\n")
+    fake.chmod(0o755)
+    monkeypatch.setenv("PATH", f"{tmp_path}:{os.environ['PATH']}")
+    started = time.monotonic()
+    with pytest.raises(TimeoutError):
+        await Executor("local", "/").run(["hostname"], timeout=0.5)
+    assert time.monotonic() - started < 5
+    child = int((tmp_path / "child.pid").read_text())
+    assert _is_dead(child)
+
+
+def _is_dead(pid: int) -> bool:
+    """O'ldirilgan, lekin hali yig'ib olinmagan (zombie) jarayon ham o'lik hisoblanadi."""
+    try:
+        with open(f"/proc/{pid}/stat") as f:
+            return f.read().rsplit(")", 1)[1].split()[0] in ("Z", "X")
+    except FileNotFoundError:
+        return True

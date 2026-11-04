@@ -30,8 +30,9 @@ TIMESYNC_REPLY = "ServerName=0.asia.pool.ntp.org\nServerAddress=1.2.3.4\nNTPMess
 
 class FakeExecutor:
     def __init__(self, files: dict[str, str] | None = None, run_ok: bool = True,
-                 outputs: dict[tuple, str] | None = None, failing: tuple = ()):
+                 outputs: dict[tuple, str] | None = None, failing: tuple = (), hanging: tuple = ()):
         self.files = dict(files or {})
+        self.hanging = set(hanging)
         self.run_ok = run_ok
         self.outputs = dict(outputs or {})
         self.failing = set(failing)
@@ -48,6 +49,8 @@ class FakeExecutor:
 
     async def run(self, argv: list[str], *, timeout: float = 10.0) -> CommandResult:
         self.commands.append(argv)
+        if tuple(argv) in self.hanging:
+            raise TimeoutError  # haqiqiy Executor.run timeout'da shunday qiladi
         if not self.run_ok or tuple(argv) in self.failing:
             return CommandResult(1, "", "xato")
         default = "Timezone=Europe/London\nNTP=yes\nNTPSynchronized=yes\n" if argv == ["timedatectl", "show"] else ""
@@ -161,6 +164,24 @@ async def test_state_reports_parsed_timedatectl_and_ntp_servers():
     assert state["ntp_enabled"] is True  # soxta `timedatectl show` "NTP=yes" qaytaradi
     assert state["synced"] is True
     assert state["readonly_reason"] is None
+
+
+@pytest.mark.asyncio
+async def test_state_survives_hanging_timedatectl_show():
+    """Host'da `timedatectl` qotsa ham sahifa ochilsin (2026-11-04: «uzoq yuklanib, yuklab bo'lmadi»)."""
+    executor = FakeExecutor(files={TIMESYNCD_CONF_PATH: "[Time]\nNTP=1.1.1.1\n"}, hanging=(("timedatectl", "show"),))
+    state = await TimeService(executor, readonly=False, now_fn=_clock()).state()
+    assert state["timezone"] == "UTC"
+    assert state["ntp_servers"] == ["1.1.1.1"]
+    assert state["synced"] is False
+
+
+@pytest.mark.asyncio
+async def test_state_survives_hanging_show_timesync():
+    executor = FakeExecutor(files={TIMESYNCD_UNIT: ""}, hanging=(tuple(SHOW_TIMESYNC),))
+    state = await TimeService(executor, readonly=False, now_fn=_clock()).state()
+    assert state["timezone"] == "Europe/London"
+    assert state["sync_server"] is None
 
 
 @pytest.mark.asyncio
@@ -307,3 +328,11 @@ async def test_sync_now_failed_restart_raises_command_failed():
     with pytest.raises(NetdError) as exc:
         await _sync_service(executor).sync_now()
     assert exc.value.code == "command_failed"
+
+
+def test_state_reads_fit_inside_api_client_timeout():
+    """`state()` ikki o'qish buyrug'ini ketma-ket kutadi; jami API→netd mijoz chegarasidan oshsa
+    mijoz uziladi va sahifa «yuklab bo'lmadi» bo'ladi."""
+    from app.netd.systemtime import READ_TIMEOUT_S
+    from app.services.netd_client import NetdClient
+    assert 2 * READ_TIMEOUT_S < NetdClient("/x").timeout

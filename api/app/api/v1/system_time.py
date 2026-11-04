@@ -25,7 +25,7 @@ from app.services.netd_errors import call_netd
 router = APIRouter(tags=["system-time"])
 
 _ERROR_STATUS = {"readonly": 409, "invalid_config": 422, "bad_request": 400, "ntp_disabled": 409,
-                 "unsupported": 409, "command_failed": 502, "sync_failed": 502}
+                 "unsupported": 409, "command_failed": 502, "sync_failed": 502, "command_timeout": 504}
 
 
 async def _call(client: NetdClient, op: str, **kwargs: Any) -> dict[str, Any]:

@@ -28,12 +28,13 @@ function errorFor(errors: TimeFieldError[], field: string): string | undefined {
   return errors.find((e) => e.field === field)?.message;
 }
 
-function TimeLoadingState({ title, isError, onRetry, t }: { title: string; isError: boolean; onRetry: () => void; t: (k: string) => string }) {
+function TimeLoadingState({ title, error, onRetry, t }: { title: string; error: unknown; onRetry: () => void; t: (k: string) => string }) {
   return (
     <AppShellPage title={title}>
-      {isError ? (
+      {error ? (
         <div className="flex flex-col items-center gap-2 rounded-md border border-dashed border-line px-3 py-6 text-center text-sm text-muted">
           <p>{t('loadFailed')}</p>
+          <p className="text-xs">{apiErrorMessage(error)}</p>
           <Button size="sm" variant="secondary" onClick={onRetry}>{t('retry')}</Button>
         </div>
       ) : (
@@ -159,13 +160,13 @@ function Banners({ readonlyReason, hasErrors, t }: { readonlyReason: string | nu
 /** S48 (shartnomada S-raqam yo'q) — GET/PUT `/system/time`, POST `/system/time/sync` (../../replica/m12-contract.md §B1). */
 export function TimeSettingsPage() {
   const { t } = useTranslation('time');
-  const { data: state, dataUpdatedAt, isLoading, isError, refetch } = useSystemTime();
+  const { data: state, dataUpdatedAt, isLoading, error, refetch } = useSystemTime();
   const [draft, patchDraft] = useTimeDraft(state);
   const [errors, setErrors] = useState<TimeFieldError[]>([]);
   const actions = useTimeActions(setErrors, t);
 
   if (isLoading || !state || !draft) {
-    return <TimeLoadingState title={t('title')} isError={isError} onRetry={() => void refetch()} t={t} />;
+    return <TimeLoadingState title={t('title')} error={error} onRetry={() => void refetch()} t={t} />;
   }
 
   const locked = state.readonly_reason !== null;

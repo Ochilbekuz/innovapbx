@@ -123,6 +123,19 @@ async def test_time_state_dispatch():
     assert response == {"ok": True, "result": {"timezone": "UTC"}}
 
 
+class _HangingService:
+    async def time_apply(self, config):
+        raise TimeoutError
+
+
+@pytest.mark.asyncio
+async def test_command_timeout_becomes_structured_error():
+    """Ilgari TimeoutError dispetcherdan chiqib ketardi → netd ulanishni javobsiz yopardi → API «aloqa yo'q» 503."""
+    response = await dispatch(_HangingService(), {"op": "time_apply", "config": {"timezone": "UTC"}})
+    assert response["ok"] is False
+    assert response["error"]["code"] == "command_timeout"
+
+
 @pytest.mark.asyncio
 async def test_time_sync_dispatch():
     response = await dispatch(_FakeService(), {"op": "time_sync"})

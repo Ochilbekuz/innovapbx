@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import asyncio
 import ipaddress
+import logging
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any, Awaitable, Callable
@@ -42,6 +43,9 @@ _SOUTH_AMERICA = frozenset({
 _POOL_SIZE = 4
 SYNC_WAIT_SECONDS = 10.0
 _SYNC_POLL_SECONDS = 0.5
+READ_TIMEOUT_S = 3.0
+
+logger = logging.getLogger("netd")
 _SYNC_UNITS = {"timesyncd": "systemd-timesyncd", "chrony": "chrony"}
 
 
@@ -166,13 +170,22 @@ class TimeService:
             return "Bu serverda sana/vaqtni tahrirlash o'chirilgan (NETD_READONLY)"
         return None
 
+    async def _read(self, argv: list[str]) -> str | None:
+        """Faqat o'qiydigan `timedatectl` — qotsa yoki xato bersa `None`: holat sahifasi
+        bitta yordamchi ma'lumot uchun yiqilmasin. Ikki chaqiruv (2×READ_TIMEOUT_S) API
+        mijozining 10 s chegarasidan qisqa bo'lishi SHART."""
+        try:
+            result = await self.executor.run(argv, timeout=READ_TIMEOUT_S)
+        except TimeoutError:
+            logger.warning("%s %s s ichida javob bermadi", " ".join(argv), READ_TIMEOUT_S)
+            return None
+        return result.stdout if result.ok else None
+
     async def _props(self) -> dict[str, str]:
-        result = await self.executor.run(["timedatectl", "show"], timeout=5.0)
-        return parse_timedatectl_show(result.stdout) if result.ok else {}
+        return parse_timedatectl_show(await self._read(["timedatectl", "show"]) or "")
 
     async def _timesync_server(self) -> str | None:
-        result = await self.executor.run(["timedatectl", "show-timesync"], timeout=5.0)
-        return ntp_reply_server(result.stdout) if result.ok else None
+        return ntp_reply_server(await self._read(["timedatectl", "show-timesync"]) or "")
 
     async def state(self) -> dict[str, Any]:
         props = await self._props()

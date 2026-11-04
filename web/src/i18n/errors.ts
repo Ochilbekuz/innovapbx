@@ -3,6 +3,8 @@
 
 export const uz = {
   unexpected: 'Kutilmagan xato yuz berdi. Qayta urinib koʻring.',
+  helper_unavailable: 'Tizim yordamchisi (netd) javob bermadi. Bir daqiqadan soʻng qayta urinib koʻring.',
+  command_timeout: 'Server tizim buyrugʻi belgilangan vaqtda javob bermadi. Qayta urinib koʻring.',
   bad_credentials: 'Login yoki parol notoʻgʻri.',
   invalid_token: 'Sessiya yaroqsiz — qayta kiring.',
   unauthorized: 'Avval tizimga kiring.',
@@ -115,6 +117,8 @@ export const uz = {
 
 export const ru = {
   unexpected: 'Произошла непредвиденная ошибка. Попробуйте снова.',
+  helper_unavailable: 'Системный помощник (netd) не ответил. Повторите попытку через минуту.',
+  command_timeout: 'Системная команда сервера не ответила вовремя. Попробуйте снова.',
   bad_credentials: 'Неверный логин или пароль.',
   invalid_token: 'Сессия недействительна — войдите снова.',
   unauthorized: 'Сначала войдите в систему.',
@@ -227,6 +231,8 @@ export const ru = {
 
 export const en = {
   unexpected: 'An unexpected error occurred. Please try again.',
+  helper_unavailable: 'The system helper (netd) did not respond. Try again in a minute.',
+  command_timeout: 'A server system command did not respond in time. Please try again.',
   bad_credentials: 'Incorrect login or password.',
   invalid_token: 'Your session is invalid — please sign in again.',
   unauthorized: 'Please sign in first.',

@@ -15,6 +15,7 @@ DEFAULT_ERROR_STATUS = {
     # §B1: "yozish 409 `readonly`") — 503 EMAS, chunki bu vaqtinchalik emas,
     # ataylab o'chirilgan konfiguratsiya holati (dev server himoyasi).
     "readonly": 409, "pending_exists": 409, "invalid_config": 422, "not_found": 404, "bad_request": 400,
+    "command_timeout": 504,
 }
 
 

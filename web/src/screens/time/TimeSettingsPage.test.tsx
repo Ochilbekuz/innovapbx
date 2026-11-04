@@ -7,6 +7,7 @@ import { createFakeClient } from '@/api/fake';
 import { useSession } from '@/api/session';
 import { loginAs, renderPage } from '@/test-pages';
 import { ToastProvider } from '@/ui/Toast';
+import { ApiError } from '@/api/errors';
 
 const client = createFakeClient();
 vi.mock('@/api', async (importOriginal) => {
@@ -24,12 +25,22 @@ async function openPage() {
 }
 
 describe('TimeSettingsPage', () => {
-  afterEach(() => useSession.getState().clear());
+  afterEach(() => { vi.restoreAllMocks(); useSession.getState().clear(); });
 
   it('server zonasidagi vaqtni, UTC siljishini va vaqt manbaini koʻrsatadi', async () => {
     await openPage();
     expect(screen.getByText(/Asia\/Tashkent \(UTC\+05:00\)/)).toBeTruthy();
     expect(screen.getByText(/Vaqt manbai/).textContent).toContain('0.uz.pool.ntp.org');
+  });
+
+  it('server holatni bera olmasa — sababini va «Qayta urinish»ni koʻrsatadi', async () => {
+    await loginAs(client, 'admin');
+    vi.spyOn(client, 'systemTime').mockRejectedValue(
+      new ApiError(504, { code: 'command_timeout', message: 'x' }),
+    );
+    renderPage(<ToastProvider><TimeSettingsPage /></ToastProvider>);
+    expect(await screen.findByText(/javob bermadi/, {}, { timeout: 5000 })).toBeTruthy();
+    expect(screen.getByRole('button', { name: /Qayta/ })).toBeTruthy();
   });
 
   it('zonani qidirib tanlab saqlasa — server va PBX zonasi yangilanadi', async () => {

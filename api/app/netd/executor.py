@@ -8,6 +8,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import os
+import signal
 import re
 import tempfile
 from dataclasses import dataclass
@@ -101,13 +102,16 @@ class Executor:
         if guard is not None and not guard(argv[1:]):
             raise CommandNotAllowedError(f"Ruxsat etilmagan argumentlar: {argv!r}")
         full_argv = self._wrap(argv)
+        # O'z jarayon guruhi: `nsenter -p` buyruqni bola jarayonda bajaradi — timeout'da faqat
+        # nsenter o'ldirilsa bola stdout quvurini ushlab turadi va `wait()` u tugaguncha osiladi.
         proc = await asyncio.create_subprocess_exec(
-            *full_argv, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
+            *full_argv, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE, start_new_session=True,
         )
         try:
             stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=timeout)
         except TimeoutError:
-            proc.kill()
+            with contextlib.suppress(ProcessLookupError):
+                os.killpg(proc.pid, signal.SIGKILL)
             await proc.wait()
             raise
         return CommandResult(proc.returncode or 0, stdout.decode(errors="replace"), stderr.decode(errors="replace"))
