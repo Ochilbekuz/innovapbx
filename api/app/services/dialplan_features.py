@@ -652,7 +652,16 @@ def page_group_lines(number: str, member_numbers: tuple[str, ...], *,
     yo'q). ESLATMA (cheklov): `Page()`da `Dial()`ning `b()` oldindan-terish
     ilgagi YO'Q — `__INNOVA_AUTOANSWER` meros orqali uzatiladi, lekin
     maqsad endpoint buni albatta avtomatik javobga aylantirishi KAFOLATLANMAYDI
-    (yakuniy hisobotda cheklov sifatida qayd etilgan)."""
+    (yakuniy hisobotda cheklov sifatida qayd etilgan).
+
+    `innova-dial-contacts` (PJSIP_DIAL_CONTACTS) BU YERDA ISHLATILMAYDI: Asterisk
+    `Page()` har manzilga `Dial()`dan FARQLI — chaqirishdan oldin `ast_device_state()`
+    bilan tekshiradi; `tech/ep/contact-uri` kompozit shaklini "Invalid" deb hisoblaydi
+    va UMUMAN chaqirmaydi (jonli isbot, 2026-11-04: "Destination ... has device state
+    'Invalid'" — hech kimga INVITE bormadi). Shu sabab paging bare `PJSIP/<ep>` bilan
+    qoladi — a'zoning faqat BIRINCHI kontakti jiringlaydi (Queue/Originate kabi
+    cheklov; ext-call/ring-group/intercom `Dial()` ishlatgani uchun bu muammoga
+    uchramaydi)."""
     opts = "i"
     if duplex:
         opts += "d"
@@ -662,12 +671,11 @@ def page_group_lines(number: str, member_numbers: tuple[str, ...], *,
         opts += "q"
     number = _dp_num(number, field="page_group.number")
     members = [_dp_num(m, field="page_group.member_number") for m in member_numbers]
+    targets = "&".join(f"PJSIP/{m}" for m in members)
     return [
         f"exten => {number},1,NoOp(Innova: paging {number})",
         " same => n,Answer()",
         " same => n,Set(__INNOVA_AUTOANSWER=1)",
-        contacts.reset_line(),
-        *(contacts.add_endpoint_line(m) for m in members),
-        f" same => n,Page({contacts.TARGETS},{opts})",
+        f" same => n,Page({targets},{opts})",
         " same => n,Hangup()",
     ]

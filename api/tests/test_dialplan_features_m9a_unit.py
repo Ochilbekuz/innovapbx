@@ -36,13 +36,13 @@ def test_page_group_lines_default_options_i_and_d_s_q():
     text = "\n".join(lines)
     assert "exten => 601,1,NoOp(Innova: paging 601)" in text
     assert " same => n,Set(__INNOVA_AUTOANSWER=1)" in text
-    assert " same => n,Page(${INNOVA_DIAL:1},idsq)" in text
+    assert " same => n,Page(PJSIP/201&PJSIP/202,idsq)" in text
     assert " same => n,Hangup()" in text
 
 
 def test_page_group_lines_minimal_options_no_duplex_no_skip_with_beep():
     lines = page_group_lines("602", ("201",), duplex=False, skip_busy=False, beep=True)
-    assert " same => n,Page(${INNOVA_DIAL:1},i)" in lines
+    assert " same => n,Page(PJSIP/201,i)" in lines
 
 
 def test_intercom_sets_autoanswer_and_dials_rest_of_extension():
