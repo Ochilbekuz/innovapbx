@@ -1,5 +1,29 @@
 # O'zgarishlar tarixi
 
+## 1.0.14 — 2026-11-04
+- **Kun/Tun rejimi** — yangi sahifa **Marshrutlash → Kun/Tun** (`/day-night`): kunduzgi va tungi manzil, telefondan
+  `*28<kod>` bilan almashtirish (ixtiyoriy PIN), BLF chiroqcha (`Custom:DAYNIGHT<kod>`), paneldan bir bosishda almashtirish.
+  Holat qo'ng'iroq paytida o'qiladi — almashtirish uchun «Qo'llash» shart emas. Kiruvchi marshrutda
+  manzil sifatida tanlanadi. Dublikat kod/nom endi aniq xabar bilan rad etiladi.
+- **DISA** — yangi sahifa **Ilovalar → DISA** (`/disa`): tashqi qo'ng'iroqchi PIN kiritib ofis trunklari orqali
+  chiqadi; 3 marta xato PIN — aloqa uziladi; faqat chiquvchi marshrutlarga, ichki xizmat kodlariga yo'l yo'q.
+  PIN'lar faqat HMAC ko'rinishida saqlanadi va hech qachon qaytarilmaydi.
+- **Sozlamalar → Sana va vaqt** — vaqt zonasi va NTP serverlari.
+- **Tizim holati → Qayta yuklash / O'chirish** — hostname'ni yozib tasdiqlash, faol qo'ng'iroqlar soni ko'rsatiladi.
+- **Sozlamalar → Firewall** — SSH/veb/SIP/RTP uchun ruxsat etilgan tarmoqlar. O'zingizni qulflab qo'yishdan himoya:
+  qoidalar sinab qo'llanadi va 120 soniya ichida tasdiqlanmasa avtomatik eski holatga qaytadi.
+- Menyudagi **Yangilanish** bandida yangi versiya chiqqanda nuqta ko'rinadi.
+- Qayta qo'ng'iroq (callback) CDR'ida accountcode to'g'ri yoziladi.
+- Xavfsizlik:
+  - paneldan yangilash agentida symlink orqali host fayllariga yozish yopildi. API konteyneri endi faqat so'rov
+    papkasiga yoza oladi, holat va jurnal faqat o'qish uchun ulanadi;
+  - login'da IP bo'yicha cheklov qo'yildi va mavjud/mavjud bo'lmagan foydalanuvchiga bir xil javob beriladi;
+  - AMI va host firewall faqat Innova ichki tarmog'iga ochiladi;
+  - `X-Forwarded-For` faqat veb konteynerdan qabul qilinadi;
+  - SFTP zaxira manziliga ulanishda kalit oldindan tekshiriladi;
+  - jonli voqealar WebSocket'i baza ulanishini band qilib turmaydi;
+  - xizmat kodlari dialplan yaratilayotganda qayta tekshiriladi.
+
 ## 1.0.13 — 2026-11-04
 - **Paneldan yangilash** — yangi sahifa **Sozlamalar → Yangilanish** (`/settings/update`, faqat administrator):
   joriy va yangi versiya, o'zgarishlar ro'yxati, «Tekshirish» va «Yangilash» tugmalari. Yangilash tasdiq oynasida
