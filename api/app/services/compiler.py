@@ -368,6 +368,8 @@ class DisaSnapshot:
 @dataclass(frozen=True)
 class DialplanSnapshot:
     tenant_code: str
+    # Tenant (= server, /settings/time) vaqt zonasi — ish vaqti shu zonada tekshiriladi.
+    timezone: str = ""
     extensions: list[ExtensionSnapshot] = field(default_factory=list)
     targets: dict[str, TargetSnapshot] = field(default_factory=dict)
     inbound_routes: list[InboundRouteSnapshot] = field(default_factory=list)
@@ -494,7 +496,21 @@ def _extension_dest_lines(code: str, ext: ExtensionSnapshot) -> list[str]:
             f" same => n,Goto({code}-ext,{number},1)"]
 
 
-def _time_condition_dest_lines(code: str, tc: TimeConditionSnapshot, holidays: tuple) -> list[str]:
+_TIMEZONE_RE = re.compile(r"^[A-Za-z0-9_+\-/]{1,64}\Z")
+
+
+def _gotoiftime_tz(tz: str) -> str:
+    """`GotoIfTime` 5-maydoni — PBX vaqt zonasi. Bo'sh bo'lsa Asterisk o'z (konteyner =
+    UTC) vaqtida tekshiradi, shuning uchun snapshot doim tenant zonasini beradi."""
+    if not tz:
+        return ""
+    if not _TIMEZONE_RE.match(tz):
+        raise CompileError(f"timezone: Asterisk dialplan uchun yaroqsiz qiymat: {tz!r}",
+                            code="bad_dialplan_value", details={"field": "timezone"})
+    return f",{tz}"
+
+
+def _time_condition_dest_lines(code: str, tc: TimeConditionSnapshot, holidays: tuple, tz: str = "") -> list[str]:
     lines = [f"exten => s,1,NoOp(Innova: ish vaqti {_dp_text(tc.name)})"]
     if tc.override == "force_open":
         lines.append(f" same => n,Goto({code}-dest-{tc.open_target_id},s,1)")
@@ -502,12 +518,14 @@ def _time_condition_dest_lines(code: str, tc: TimeConditionSnapshot, holidays: t
     if tc.override == "force_closed":
         lines.append(f" same => n,Goto({code}-dest-{tc.closed_target_id},s,1)")
         return lines
+    tz_field = _gotoiftime_tz(tz)
     if tc.honor_holidays:
         for month, day in holidays:
-            lines.append(f" same => n,GotoIfTime(*,*,{day},{month}?closed)")
+            lines.append(f" same => n,GotoIfTime(*,*,{day},{month}{tz_field}?closed)")
     for rng in tc.ranges:
-        days = ",".join(_WEEKDAY_NAMES[d] for d in sorted(rng.weekdays))
-        lines.append(f" same => n,GotoIfTime({rng.start}-{rng.end},{days},*,*?open)")
+        # `&` — kunlar ro'yxati; vergul GotoIfTime maydonlarini ajratadi.
+        days = "&".join(_WEEKDAY_NAMES[d] for d in sorted(rng.weekdays))
+        lines.append(f" same => n,GotoIfTime({rng.start}-{rng.end},{days},*,*{tz_field}?open)")
     lines.append(" same => n,Goto(closed)")
     lines.append(f" same => n(open),Goto({code}-dest-{tc.open_target_id},s,1)")
     lines.append(f" same => n(closed),Goto({code}-dest-{tc.closed_target_id},s,1)")
@@ -1080,7 +1098,7 @@ def _disa_dest_lines(code: str, disa: DisaSnapshot, snapshot: DialplanSnapshot) 
 
 # Satellit manzil turlari: tur -> (snapshot ro'yxati, target_id -> qatorlar quruvchi).
 _SATELLITE_BUILDERS = {
-    "time_condition": lambda code, item, snap: _time_condition_dest_lines(code, item, snap.holidays_mmdd),
+    "time_condition": lambda code, item, snap: _time_condition_dest_lines(code, item, snap.holidays_mmdd, snap.timezone),
     "ivr": lambda code, item, snap: _ivr_dest_lines(code, item, snap.audio_paths),
     "ring_group": lambda code, item, snap: _ring_group_dest_lines(code, item),
     "queue": lambda code, item, snap: _queue_dest_lines(code, item),

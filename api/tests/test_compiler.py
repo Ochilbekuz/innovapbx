@@ -171,7 +171,9 @@ def test_time_condition_auto_mode_checks_schedule_then_branches():
     )
     text = compile_dialplan(snap)
     assert "[t1-dest-tc-1]" in text
-    assert "GotoIfTime(09:00-18:00,mon,tue,wed,thu,fri,*,*?open)" in text
+    # Hafta kunlari `&` bilan: vergul GotoIfTime maydon ajratuvchisi — `mon,tue,...` da Asterisk
+    # faqat `mon` ni kun deb oladi (jonli isbot 2026-11-04: chorshanba kun bo'yi «yopiq» edi).
+    assert "GotoIfTime(09:00-18:00,mon&tue&wed&thu&fri,*,*?open)" in text
     ctx = text.split("[t1-dest-tc-1]")[1].split("[t1-dest-")[0]
     assert "Goto(t1-dest-ext-101,s,1)" in ctx
     assert "Goto(t1-dest-hangup-1,s,1)" in ctx
@@ -208,6 +210,26 @@ def test_time_condition_honors_holidays_with_gotoiftime_date_check():
     text = compile_dialplan(snap)
     assert "GotoIfTime(*,*,21,3?closed)" in text
     assert "GotoIfTime(*,*,1,1?closed)" in text
+
+
+def test_time_condition_uses_pbx_timezone_not_asterisk_utc():
+    snap = _snapshot(
+        extensions=[_ext()], targets=_tc_targets(), inbound_routes=[_route(target_id="tc-1")],
+        time_conditions=[_tc(honor_holidays=True)], holidays_mmdd=((3, 21),), timezone="Asia/Tashkent",
+    )
+    text = compile_dialplan(snap)
+    assert "GotoIfTime(*,*,21,3,Asia/Tashkent?closed)" in text
+    assert "GotoIfTime(09:00-18:00,mon&tue&wed&thu&fri,*,*,Asia/Tashkent?open)" in text
+
+
+def test_time_condition_rejects_timezone_unsafe_for_dialplan():
+    snap = _snapshot(
+        extensions=[_ext()], targets=_tc_targets(), inbound_routes=[_route(target_id="tc-1")],
+        time_conditions=[_tc()], timezone="Asia/Tashkent?open)\nexten => x",
+    )
+    with pytest.raises(CompileError) as exc:
+        compile_dialplan(snap)
+    assert exc.value.code == "bad_dialplan_value"
 
 
 def test_time_condition_toggle_code_stub_added_to_from_internal():

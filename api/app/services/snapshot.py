@@ -143,6 +143,7 @@ async def build_snapshot(session: AsyncSession, tenant_id: str) -> DialplanSnaps
         select(CallbackWidget.target_id).where(CallbackWidget.tenant_id == tenant_id))).scalars().all())))
 
     return DialplanSnapshot(
+        timezone=tenant.timezone or "",
         tenant_code=tenant.code,
         extensions=[
             ExtensionSnapshot(
