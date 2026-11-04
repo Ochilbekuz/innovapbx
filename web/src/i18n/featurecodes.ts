@@ -1,5 +1,10 @@
 // "featurecodes" namespace — FeatureCodesPage (S24, xususiyat kodlari). Qarang ../../replica/m2a-contract.md §2.
 
+import type { FeatureName } from '@/api/types';
+
+/** Har API xususiyatining nomi bo'lishi shart — yetishmasa `tsc` yiqiladi (sahifada xom kalit chiqmasin). */
+type FeatureLabels = Record<FeatureName, string>;
+
 export const uz = {
   title: 'Xususiyat kodlari',
   readOnlyNotice: 'Sizda xususiyat kodlarini boshqarish ruxsati yoʻq — faqat koʻrish mumkin.',
@@ -19,7 +24,12 @@ export const uz = {
     echo_test: 'Eho testi',
     speaking_clock: 'Gapiradigan soat',
     followme_toggle: 'Follow Me yoqish/oʻchirish',
-  },
+    queue_login: 'Navbatga kirish/chiqish',
+    queue_pause: 'Navbatda pauza',
+    intercom: 'Interkom (avtojavob)',
+    cw_on: 'Qoʻngʻiroq kutishni yoqish',
+    cw_off: 'Qoʻngʻiroq kutishni oʻchirish',
+  } satisfies FeatureLabels,
   editAriaLabel: '{{feature}} kodini tahrirlash',
   resetAriaLabel: '{{feature}} kodini standart holatga qaytarish',
   saveAriaLabel: 'Saqlash',
@@ -48,7 +58,12 @@ export const ru = {
     echo_test: 'Эхо-тест',
     speaking_clock: 'Говорящие часы',
     followme_toggle: 'Включение/выключение Follow Me',
-  },
+    queue_login: 'Вход/выход из очереди',
+    queue_pause: 'Пауза в очереди',
+    intercom: 'Интерком (автоответ)',
+    cw_on: 'Включить ожидание вызова',
+    cw_off: 'Выключить ожидание вызова',
+  } satisfies FeatureLabels,
   editAriaLabel: 'Редактировать код {{feature}}',
   resetAriaLabel: 'Сбросить код {{feature}} до стандартного',
   saveAriaLabel: 'Сохранить',
@@ -77,7 +92,12 @@ export const en = {
     echo_test: 'Echo test',
     speaking_clock: 'Speaking clock',
     followme_toggle: 'Toggle Follow Me',
-  },
+    queue_login: 'Queue log in/out',
+    queue_pause: 'Queue pause',
+    intercom: 'Intercom (auto-answer)',
+    cw_on: 'Call waiting on',
+    cw_off: 'Call waiting off',
+  } satisfies FeatureLabels,
   editAriaLabel: 'Edit {{feature}} code',
   resetAriaLabel: 'Reset {{feature}} code to default',
   saveAriaLabel: 'Save',

@@ -1,5 +1,10 @@
 // "live" namespace — LivePage (S29: jonli monitoring).
 
+import type { LiveExtensionState } from '@/api/types';
+
+/** Har jonli holat (API `ExtensionLiveState`) uchun yorliq — yetishmasa `tsc` yiqiladi. */
+type ExtStateLabels = Record<LiveExtensionState, string>;
+
 export const uz = {
   title: 'Jonli monitoring',
   asteriskDown: { title: 'Asterisk bilan aloqa yoʻq', body: 'Jonli maʼlumotlar vaqtincha yangilanmayapti.' },
@@ -14,7 +19,7 @@ export const uz = {
   },
   extensions: {
     title: 'Ichki raqamlar holati', empty: 'Ichki raqamlar topilmadi.',
-    status: { idle: 'Boʻsh', ringing: 'Chaqirilmoqda', busy: 'Band', offline: 'Oflayn', dnd: 'Band qilmaslik' },
+    status: { idle: 'Boʻsh', ringing: 'Chaqirilmoqda', busy: 'Band', unavailable: 'Oflayn', dnd: 'Band qilmaslik' } satisfies ExtStateLabels,
   },
   spy: {
     listen: 'Tinglash', whisper: 'Shivirlash', barge: 'Qoʻshilish',
@@ -37,7 +42,7 @@ export const ru = {
   },
   extensions: {
     title: 'Статус внутренних номеров', empty: 'Внутренние номера не найдены.',
-    status: { idle: 'Свободен', ringing: 'Звонит', busy: 'Занят', offline: 'Офлайн', dnd: 'Не беспокоить' },
+    status: { idle: 'Свободен', ringing: 'Звонит', busy: 'Занят', unavailable: 'Офлайн', dnd: 'Не беспокоить' } satisfies ExtStateLabels,
   },
   spy: {
     listen: 'Прослушать', whisper: 'Подсказать', barge: 'Подключиться',
@@ -60,7 +65,7 @@ export const en = {
   },
   extensions: {
     title: 'Extension status', empty: 'No extensions found.',
-    status: { idle: 'Idle', ringing: 'Ringing', busy: 'Busy', offline: 'Offline', dnd: 'Do not disturb' },
+    status: { idle: 'Idle', ringing: 'Ringing', busy: 'Busy', unavailable: 'Offline', dnd: 'Do not disturb' } satisfies ExtStateLabels,
   },
   spy: {
     listen: 'Listen', whisper: 'Whisper', barge: 'Barge in',

@@ -825,7 +825,9 @@ export type FeatureName =
   | 'voicemail' | 'voicemail_other' | 'dnd_toggle' | 'cf_always_on' | 'cf_always_off' | 'cf_busy_on' | 'cf_busy_off'
   | 'pickup_group' | 'pickup_direct' | 'park' | 'echo_test' | 'speaking_clock'
   // M5b — qarang ../../replica/m5b-contract.md §1
-  | 'followme_toggle';
+  | 'followme_toggle'
+  // API `FEATURE_ORDER` (api/app/services/dialplan_features.py) — navbat, intercom, qo'ng'iroq kutish
+  | 'queue_login' | 'queue_pause' | 'intercom' | 'cw_on' | 'cw_off';
 export type FeatureCode = { feature: FeatureName; code: string; default_code: string; enabled: boolean };
 export type UpdateFeatureCodePayload = { code?: string; enabled?: boolean };
 

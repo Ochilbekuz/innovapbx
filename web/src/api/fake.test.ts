@@ -403,7 +403,8 @@ describe('fake client — M2a xususiyat kodlari (S24)', () => {
     const { items } = await client.listFeatureCodes();
     expect(items.map((i) => i.feature)).toEqual([
       'voicemail', 'voicemail_other', 'dnd_toggle', 'cf_always_on', 'cf_always_off', 'cf_busy_on', 'cf_busy_off',
-      'pickup_group', 'pickup_direct', 'park', 'echo_test', 'speaking_clock', 'followme_toggle',
+      'pickup_group', 'pickup_direct', 'park', 'echo_test', 'speaking_clock',
+      'queue_login', 'queue_pause', 'followme_toggle', 'intercom', 'cw_on', 'cw_off',
     ]);
     expect(items.find((i) => i.feature === 'dnd_toggle')?.code).toBe('*76');
   });

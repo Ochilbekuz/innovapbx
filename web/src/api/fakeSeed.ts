@@ -409,7 +409,9 @@ export function seedFeatureCodes(): FeatureCode[] {
     ['voicemail', '*97'], ['voicemail_other', '*98'], ['dnd_toggle', '*76'],
     ['cf_always_on', '*72'], ['cf_always_off', '*73'], ['cf_busy_on', '*90'], ['cf_busy_off', '*91'],
     ['pickup_group', '*8'], ['pickup_direct', '**'], ['park', '*70'], ['echo_test', '*43'], ['speaking_clock', '*60'],
-    ['followme_toggle', '*21'],
+    // Tartib — API `FEATURE_ORDER` (api/app/services/dialplan_features.py).
+    ['queue_login', '*45'], ['queue_pause', '*46'], ['followme_toggle', '*21'], ['intercom', '*80'],
+    ['cw_on', '*56'], ['cw_off', '*57'],
   ];
   return defaults.map(([feature, code]) => ({ feature, code, default_code: code, enabled: true }));
 }
