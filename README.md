@@ -2,6 +2,12 @@
 
 Asterisk 22 ustida o'z veb-paneli bo'lgan IP-ATS: FastAPI + PostgreSQL 16 + React (Vite/TS), Docker Compose steki.
 
+## Qo'llanma
+
+To'liq foydalanuvchi qo'llanmasi — [`docs/qollanma/`](docs/qollanma/kirish.md): har ekran nima uchun, qaysi maydon nimani
+anglatadi va qadamma-qadam qanday sozlanadi. Panelning o'zida ham bor: menyuda **Qo'llanma** (`/docs`) va har sahifa
+sarlavhasidagi **?** belgisi shu sahifaning bo'limini ochadi. Yangi bo'lim yozish qoidalari — `docs/qollanma/_FORMAT.md`.
+
 ## O'rnatish
 
 Ikki usul. Natija bir xil: `/opt/innova`, `innova-pbx` servisi, sirlar avtomatik yaratiladi.

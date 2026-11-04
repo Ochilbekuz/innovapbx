@@ -1,5 +1,15 @@
 # O'zgarishlar tarixi
 
+## 1.0.16 — 2026-11-04
+- **Qo'llanma** — panelda to'liq foydalanuvchi qo'llanmasi: menyuda **Qo'llanma** (`/docs`), har ekran uchun alohida
+  bo'lim (vazifasi, maydonlar, qadamma-qadam sozlash, maslahatlar, muammolar va yechimlar), boshlash bo'limlari
+  (o'rnatish, birinchi sozlash, tezkor boshlash, rollar) va ilovalar (xizmat kodlari, umumiy muammolar, lug'at).
+  Qo'llanma bo'yicha qidiruv, «Shu sahifada» mundarijasi, oldingi/keyingi bo'lim.
+- Har sahifa sarlavhasida **?** belgisi — shu ekranning qo'llanma bo'limini ochadi.
+- Qo'llanma matni o'zbekcha; ru/en interfeysda bu haqda eslatma chiqadi. Manba — `docs/qollanma/*.md` (GitHub'da ham o'qiladi).
+- Tuzatish: **Xususiyat kodlari** sahifasida `*45`, `*46`, `*80`, `*56`, `*57` nomi o'rniga xom kalit chiqardi;
+  **Jonli** sahifada ro'yxatdan o'tmagan raqam holati endi «Oflayn» deb ko'rinadi.
+
 ## 1.0.15 — 2026-11-04
 - **Bir raqamda bir nechta qurilma** — endi BARCHASI jiringlaydi (stol telefoni + softfon + mobil). Avval
   qo'ng'iroq faqat birinchi ro'yxatdan o'tgan qurilmaga borardi. Tuzatish to'g'ridan-to'g'ri qo'ng'iroq,
