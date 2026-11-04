@@ -60,6 +60,7 @@ from app.api.v1 import (
     sip_bans,
     softphone,
     system,
+    system_update,
     targets,
     time_conditions,
     time_groups,
@@ -133,3 +134,4 @@ router.include_router(callback_widgets.router)  # M10 A1 — qayta chaqirish vid
 router.include_router(callback_requests.router)
 router.include_router(missed_call_rules.router)  # M10 A2 — o'tkazib yuborilgan qo'ng'iroq
 router.include_router(tts_settings.router)  # M10 A3 — Yandex SpeechKit TTS
+router.include_router(system_update.router)  # M11 — paneldan yangilash

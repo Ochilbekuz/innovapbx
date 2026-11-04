@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from functools import lru_cache
 
-from pydantic import Field
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -203,6 +203,18 @@ class Settings(BaseSettings):
     events_ws_broadcast_enabled: bool = True
     events_ws_broadcast_interval_s: float = 1.0
     events_ws_ping_interval_s: float = 25.0
+
+    # --- m11-update-contract.md: paneldan yangilash — host agenti (`innova-update
+    # --agent`) shu papkaga yozadi, API faqat o'qiydi/so'rov qoldiradi. `innova_version`
+    # — joriy o'rnatilgan versiya (install.sh/docker-compose INNOVA_VERSION beradi;
+    # bo'sh bo'lsa noma'lum, operator/dev muhitida kutilgan holat).
+    update_dir: str = "/var/lib/innova/update"
+    innova_version: str | None = Field(default=None)
+
+    @field_validator("innova_version", mode="before")
+    @classmethod
+    def _empty_version_is_none(cls, value: object) -> object:
+        return None if value == "" else value
 
     def require_internal_api_token(self) -> str:
         return self._require(self.internal_api_token, "INTERNAL_API_TOKEN")
