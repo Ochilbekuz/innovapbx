@@ -674,6 +674,12 @@ export type TimeStateOut = {
   synced: boolean;
   backend: string;
   readonly_reason: string | null;
+  /** Admin ro'yxati bo'sh bo'lsa ishlatiladigan mintaqaviy pool (`FallbackNTP=`). */
+  default_ntp_servers: string[];
+  /** Oxirgi NTP javobini bergan server (faqat timesyncd); `null` — javob yo'q. */
+  sync_server: string | null;
+  /** PUT faqat: vaqt zonasi o'zgarsa PBX dialplani qayta yig'iladi. */
+  apply?: ApplyResult | null;
 };
 
 export type TimeConfigIn = { timezone: string; ntp_servers: string[]; ntp_enabled: boolean };

@@ -52,7 +52,7 @@ import { parsePattern } from '../domain/pattern';
 import { simulateOutbound, type SimRoute } from '../domain/outbound';
 import { unifiedDiff } from '../domain/diff';
 import { buildNetworkDiff, buildNetworkWarnings, validateNetworkConfig } from '../domain/network';
-import { validateTimeConfig } from '../domain/systemTime';
+import { defaultNtpServers, validateTimeConfig } from '../domain/systemTime';
 import { buildFirewallDiff, checkFirewallSelfLockout, validateFirewallConfig } from '../domain/firewall';
 import { computeScorePct, type QaCriterionLike } from '../domain/qaScore';
 import { generateRecoveryCodes, generateTotpSecret, otpauthUri, verifyTotp } from '../domain/totp';
@@ -1684,6 +1684,8 @@ export function createFakeClient(
     return {
       now_utc: new Date().toISOString(), timezone: timeTimezone, ntp_enabled: timeNtpEnabled,
       ntp_servers: timeNtpServers, synced: timeNtpEnabled, backend: 'timesyncd', readonly_reason: null,
+      default_ntp_servers: defaultNtpServers(timeTimezone),
+      sync_server: timeNtpEnabled ? (timeNtpServers[0] ?? defaultNtpServers(timeTimezone)[0] ?? null) : null,
     };
   }
 
@@ -2942,10 +2944,19 @@ export function createFakeClient(
       await delay(250);
       const errors = validateTimeConfig(payload);
       if (errors.length > 0) err(422, 'validation_failed', 'Tekshiruvdan oʻtmadi.', { details: { fields: errors } });
+      const tzChanged = timeTimezone !== payload.timezone;
       timeTimezone = payload.timezone;
       timeNtpServers = payload.ntp_servers;
       timeNtpEnabled = payload.ntp_enabled;
       auditAdd('update', 'system_time', null, 'Sana va vaqt sozlamalari', {});
+      return { ...buildTimeState(), apply: tzChanged ? apply(`Vaqt zonasi: ${payload.timezone}`) : null };
+    },
+
+    async syncTime(): Promise<TimeStateOut> {
+      requireManage('*');
+      await delay(400);
+      if (!timeNtpEnabled) err(409, 'ntp_disabled', 'NTP oʻchirilgan — avval yoqing.');
+      auditAdd('update', 'system_time', null, 'Vaqt NTP bilan sinxronlandi', {});
       return buildTimeState();
     },
 

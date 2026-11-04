@@ -1442,6 +1442,13 @@ export function useApplyTime() {
     onSuccess: () => invalidate([qk.systemTime]),
   });
 }
+export function useSyncTime() {
+  const invalidate = useInvalidate();
+  return useMutation({
+    mutationFn: () => apiClient.syncTime(),
+    onSuccess: () => invalidate([qk.systemTime]),
+  });
+}
 
 // ─────────────────────── M12 B2 — Qayta yuklash/o'chirish (../../replica/m12-contract.md §B2) ───────────────────────
 

@@ -460,6 +460,7 @@ export const realClient: ApiClient = {
   // M12 B1 — qarang ../../replica/m12-contract.md §B1
   systemTime: () => request<TimeStateOut>('/system/time'),
   applyTime: (payload: TimeConfigIn) => request<TimeStateOut>('/system/time', { method: 'PUT', body: payload }),
+  syncTime: () => request<TimeStateOut>('/system/time/sync', { method: 'POST' }),
 
   // M12 B2 — qarang §B2
   systemPower: () => request<PowerStatusOut>('/system/power'),

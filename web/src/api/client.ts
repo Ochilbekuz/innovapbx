@@ -422,6 +422,8 @@ export interface ApiClient {
   // M12 B1 — qarang ../../replica/m12-contract.md §B1, «Sozlamalar → Sana va vaqt»
   systemTime(): Promise<TimeStateOut>;
   applyTime(payload: TimeConfigIn): Promise<TimeStateOut>;
+  /** POST /system/time/sync — NTP xizmatini qayta ishga tushirib javobini kutadi. */
+  syncTime(): Promise<TimeStateOut>;
 
   // M12 B2 — qarang §B2, «Tizim holati» qayta yuklash/o'chirish
   systemPower(): Promise<PowerStatusOut>;

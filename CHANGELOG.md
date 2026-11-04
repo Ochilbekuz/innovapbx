@@ -1,5 +1,19 @@
 # O'zgarishlar tarixi
 
+## 1.0.17 — 2026-11-04
+- **Muhim tuzatish — ish vaqti (vaqt shartlari) ishlamas edi**: hafta kunlari dialplan'da vergul bilan yozilardi
+  (`mon,tue,...`) — Asterisk `GotoIfTime` buni hech qachon mos deb hisoblamaydi, natijada qo'ng'iroq doim «ish
+  vaqtidan tashqari» yo'liga tushardi. Endi `mon&tue&...`. Bundan tashqari Asterisk konteyneri UTC'da ishlaydi —
+  vaqt shartlari endi PBX vaqt zonasida (`GotoIfTime` 5-maydoni) tekshiriladi, 5 soatlik siljish yo'q.
+- **Sana va vaqt** — qidiriladigan vaqt zonasi tanlagich (shahar yoki `+05` bo'yicha, har zona yonida UTC siljishi,
+  O'zbekiston/qo'shnilar boshida); yuradigan server soati (server zonasida + UTC); «Vaqt manbai» (javob bergan NTP
+  server); **Hozir sinxronlash** tugmasi (NTP javobini ~10 s kutadi, kelmasa aniq xato).
+- NTP serverlar ro'yxati bo'sh bo'lsa — tanlangan zona mintaqasining `pool.ntp.org` serverlari (masalan
+  `0–3.asia.pool.ntp.org`) ishlatiladi; o'z serverlaringiz bo'lsa ular zaxira bo'lib qoladi.
+- Server vaqt zonasi o'zgarsa PBX zonasi ham shunga o'tadi (ish vaqti, kampaniya oynalari) — dialplan qayta quriladi.
+- **Bildirishnomalar** endi o'zi yopiladi (muvaffaqiyat 4 s, ma'lumot 5 s, xato 8 s, «qo'llanmadi» 12 s) va bir xil
+  xabar qayta-qayta to'planmaydi (bittasi qoladi; ekranda ko'pi bilan 4 ta).
+
 ## 1.0.16 — 2026-11-04
 - **Qo'llanma** — panelda to'liq foydalanuvchi qo'llanmasi: menyuda **Qo'llanma** (`/docs`), har ekran uchun alohida
   bo'lim (vazifasi, maydonlar, qadamma-qadam sozlash, maslahatlar, muammolar va yechimlar), boshlash bo'limlari
