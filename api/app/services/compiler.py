@@ -550,62 +550,20 @@ def _ring_group_dest_lines(code: str, rg: RingGroupSnapshot) -> list[str]:
         return lines
     lines.append(f" same => n,Set(__TRANSFER_CONTEXT={code}-from-internal)")
     pairs = [(m.extension_number, m.is_external) for m in members]
-    if rg.strategy == "memoryhunt":
-        lines += _rg_memoryhunt_lines(code, rg, pairs)
-    else:
-        for idx, dial_set in enumerate(_rg_dial_sets(rg.strategy, pairs), start=1):
-            lines += feat.ring_group_set_lines(code, idx, dial_set, rg.ring_seconds)
+    for idx, dial_set in enumerate(_rg_dial_sets(rg.strategy, pairs), start=1):
+        lines += feat.ring_group_set_lines(code, idx, dial_set, rg.ring_seconds)
     lines.append(f" same => n,Goto({code}-dest-{rg.no_answer_target_id},s,1)")
     return lines
 
 
 def _rg_dial_sets(strategy: str, endpoints: list) -> list[list]:
-    """Har `Dial()` bir vaqtda jiringlaydigan to'plam: ringall — hammasi birdan;
-    hunt — bittadan, DOIM birinchi a'zodan (AstDB holatiga UMUMAN murojaat
-    qilmaydi — m12-contract.md A3: `memoryhunt`dan aynan shu farqi). Haqiqiy
-    `memoryhunt` (aylanma xotira) — `_rg_memoryhunt_lines()` orqali, bu yerga
-    kirmaydi (chaqiruvchida ajratilgan)."""
+    """Har `Dial()` bir vaqtda jiringlaydigan to'plam: ringall — hammasi birdan; hunt — bittadan;
+    memoryhunt — yig'ilib boradi (1, 1+2, 1+2+3 …), holat saqlash shart emas."""
     if strategy == "ringall":
         return [endpoints]
+    if strategy == "memoryhunt":
+        return [endpoints[:i] for i in range(1, len(endpoints) + 1)]
     return [[endpoint] for endpoint in endpoints]
-
-
-def _rg_memoryhunt_lines(code: str, rg: RingGroupSnapshot, members: list[tuple[str, bool]]) -> list[str]:
-    """Haqiqiy `memoryhunt` (m12-contract.md A3): oxirgi javob bergan a'zo
-    AstDB `RG/<id>/last`da saqlanadi — bu BIR XIL YAGONA ruxsat etilgan joy
-    (PG EMAS, chunki bu qat'iy qo'ng'iroq-marshrutlashga xos, kallga xos
-    HOLAT, boshqa joyda tutib bo'lmaydi). Keyingi qo'ng'iroq undan KEYINGI
-    a'zodan (aylanma, `% N`) boshlanadi; javob kelmaguncha barcha a'zolar
-    bir marta sinaladi (`INNOVA_RG_TRIES`), so'ng chaqiruvchiga qaytariladi
-    (javobsiz manzilga — `_ring_group_dest_lines`da, shu funksiyadan keyin).
-
-    `hunt`dan farqi: `hunt` DOIM birinchidan boshlaydi, AstDB'ga umuman
-    murojaat qilmaydi (pastdagi `_rg_dial_sets` orqali) — kompilyator testi
-    (`test_compiler.py`) ikkalasini ANIQ ajratadi."""
-    n = len(members)
-    key = f"RG/{rg.id}/last"
-    lines = [
-        f" same => n,Set(INNOVA_RG_LAST=${{DB({key})}})",
-        ' same => n,GotoIf($["${INNOVA_RG_LAST}"=""]?rg_pos0)',
-        f" same => n,Set(INNOVA_RG_POS=$[ (${{INNOVA_RG_LAST}} % {n}) + 1 ])",
-        " same => n,Goto(rg_dial)",
-        " same => n(rg_pos0),Set(INNOVA_RG_POS=1)",
-        " same => n(rg_dial),Set(INNOVA_RG_TRIES=0)",
-        " same => n,Goto(rg_m${INNOVA_RG_POS})",
-    ]
-    for pos, member in enumerate(members, start=1):
-        lines.append(f" same => n(rg_m{pos}),Set(INNOVA_RG_TRIES=$[${{INNOVA_RG_TRIES}} + 1])")
-        lines += feat.ring_group_set_lines(code, pos, [member], rg.ring_seconds)
-        lines.append(f' same => n,GotoIf($["${{DIALSTATUS}}"="ANSWER"]?rg_m{pos}_done)')
-        lines.append(f" same => n,GotoIf($[${{INNOVA_RG_TRIES}} >= {n}]?rg_exhausted)")
-        lines.append(f" same => n,Set(INNOVA_RG_POS=$[ (${{INNOVA_RG_POS}} % {n}) + 1 ])")
-        lines.append(" same => n,Goto(rg_m${INNOVA_RG_POS})")
-        # Javob berildi: shu a'zoning o'rni "oxirgi javob bergan" sifatida
-        # yoziladi (keyingi qo'ng'iroq undan KEYINGI a'zodan boshlanadi).
-        lines.append(f" same => n(rg_m{pos}_done),Set(DB({key})={pos})")
-        lines.append(" same => n,Hangup()")
-    lines.append(" same => n(rg_exhausted),NoOp(Innova: memoryhunt — barcha a'zo javobsiz)")
-    return lines
 
 
 def _or_expr(var: str, values: tuple[str, ...]) -> str:

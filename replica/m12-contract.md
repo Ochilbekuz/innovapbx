@@ -24,8 +24,9 @@ Sana: 2026-11-04. Asos: 1.0.13 (`e34dbbc`). Uslub: m9/m10 shartnomalari. Clean-r
 - API `/api/v1/disa` CRUD (`routing:edit`), audit; Web sahifa «DISA» (Ilovalar guruhi).
 
 ### A3. Ring group `memoryhunt`
-- Oxirgi javob bergan a'zo astdb `RG/<id>/last` da saqlanadi, keyingi qo'ng'iroq undan keyingi a'zodan boshlanadi (aylanma).
-  `hunt` — doim birinchidan. Kompilyator testi ikkalasini ajratadi.
+- BEKOR QILINDI (2026-11-04): aylanma xotira (`RG/<id>/last`) — bu `rrmemory`, FreePBX `memoryhunt` EMAS.
+  `memoryhunt` m1c-contract.md:8 bo'yicha qoladi — yig'ilib boradi: `Dial(1)`, `Dial(1&2)`, `Dial(1&2&3)`
+  (FreePBX importi `memoryhunt*`→`memoryhunt`, UI matni «1, 1+2, 1+2+3»; m1c-proof 5-band buni tekshiradi).
 
 ### A4. Callback CDR accountcode
 - m10a callback qo'ng'iroqlari CDR'da `accountcode` bo'sh → `/cdr` da ko'rinmaydi. Originate kanaliga `Account=<tenant code>`
