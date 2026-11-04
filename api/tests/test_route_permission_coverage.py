@@ -20,6 +20,7 @@ _OPEN_PREFIXES = ("/me", "/auth", "/setup")
 _SYSTEM_ONLY_PREFIXES = (
     "/users", "/roles", "/settings", "/security", "/backups", "/migration",
     "/audit", "/system", "/feature-codes", "/integrations", "/config", "/network",
+    "/firewall",  # M12 B3 — firewall GUI, fail-closed admin-only (app/api/v1/firewall.py)
 )
 
 # `/settings/provisioning` — ataylab `/settings`dan AJRATILGAN (eng uzun

@@ -7,7 +7,7 @@ import stat
 
 import pytest
 
-from app.netd.executor import CommandNotAllowedError, Executor, host_path
+from app.netd.executor import FIREWALL_CONF_PATH, CommandNotAllowedError, Executor, host_path
 
 
 def test_host_path_joins_under_root():
@@ -89,3 +89,65 @@ def test_is_symlink_detection(tmp_path):
     link.symlink_to(target)
     assert executor.is_symlink("/etc/resolv.conf") is True
     assert executor.is_symlink("/etc/real.conf") is False
+
+
+# --------------------------------------------------------------------- M12 B1/B2/B3: yangi binarlar + argv guard
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("argv", [
+    ["timedatectl", "show"],
+    ["timedatectl", "set-ntp", "true"],
+    ["timedatectl", "set-ntp", "false"],
+    ["timedatectl", "set-timezone", "Asia/Tashkent"],
+    ["systemctl", "reboot"],
+    ["systemctl", "poweroff"],
+    ["nft", "-c", "-f", FIREWALL_CONF_PATH],
+    ["nft", "-f", FIREWALL_CONF_PATH],
+])
+async def test_run_accepts_allowlisted_argv_for_new_binaries(argv, monkeypatch):
+    # XAVF: bu buyruqlar HAQIQIY bajarilsa host qayta yuklanadi/o'chadi (2026-11-04 dev/bot
+    # serveri shu test tufayli 3 marta reboot bo'lgan) — subprocess DOIM soxta.
+    calls: list[tuple[str, ...]] = []
+
+    class _FakeProc:
+        returncode = 0
+
+        async def communicate(self):
+            return b"", b""
+
+    async def _fake_exec(*args, **_kwargs):
+        calls.append(args)
+        return _FakeProc()
+
+    monkeypatch.setattr("app.netd.executor.asyncio.create_subprocess_exec", _fake_exec)
+    executor = Executor("local", "/")
+    result = await executor.run(argv)
+    assert result.returncode == 0
+    assert calls == [tuple(argv)]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("argv", [
+    ["timedatectl", "set-timezone", "../../etc/passwd"],
+    ["timedatectl", "set-timezone", "a; rm -rf /"],
+    ["timedatectl", "revert"],
+    ["systemctl", "stop", "sshd"],
+    ["systemctl", "reboot", "--now"],
+    ["nft", "-f", "/etc/nftables.conf"],
+    ["nft", "flush", "ruleset"],
+    ["nft", "list", "table", "ip", "filter"],
+    ["nft", "list", "table", "inet", "innova_fw"],
+    ["nft", "-c", "-f", "/etc/innova/firewall.nft", "extra"],
+])
+async def test_run_rejects_argv_outside_per_binary_guard(argv):
+    executor = Executor("local", "/")
+    with pytest.raises(CommandNotAllowedError):
+        await executor.run(argv)
+
+
+@pytest.mark.asyncio
+async def test_conftest_guard_blocks_host_changing_binaries():
+    # Xavfsiz argv (`echo`) — qo'riqchi faqat so'z bo'yicha tutadi, hech narsa bajarilmaydi.
+    import asyncio
+    with pytest.raises(RuntimeError, match="taqiqlangan"):
+        await asyncio.create_subprocess_exec("echo", "systemctl")

@@ -2,9 +2,9 @@ import { createElement, type ReactNode } from 'react';
 import { hasPermission } from '@/auth/permissions';
 import {
   Activity, ArrowRightLeft, AudioLines, BadgeCheck, BellRing, BookUser, CalendarClock, ChartNoAxesColumn, CircleUserRound,
-  ClipboardCheck, DatabaseBackup, EthernetPort, Grid3x3, Hash, History, IdCard, KeyRound, LayoutDashboard, ListOrdered,
-  Megaphone, Mic2, Network, ParkingSquare, PhoneIncoming, PhoneMissed, PhoneOutgoing, Plug, RadioTower, RefreshCw, ScrollText,
-  ServerCog, Shuffle, ShieldCheck, ShieldOff, Smartphone, UserCog, Users, Voicemail, Waypoints,
+  ClipboardCheck, Clock, DatabaseBackup, EthernetPort, Flame, Grid3x3, Hash, History, IdCard, KeyRound, LayoutDashboard, ListOrdered,
+  Lock, Megaphone, Mic2, Network, ParkingSquare, PhoneIncoming, PhoneMissed, PhoneOutgoing, Plug, RadioTower, RefreshCw, ScrollText,
+  ServerCog, Shuffle, ShieldCheck, ShieldOff, Smartphone, SunMoon, UserCog, Users, Voicemail, Waypoints,
 } from 'lucide-react';
 
 /**
@@ -50,6 +50,8 @@ export const SCREENS: ScreenDef[] = [
   { id: 'misc', reconId: 'S28', path: '/misc', icon: icon(Shuffle), group: 'routing', full: true },
   // M9: shartnomada (m9-freepbx-gaps-contract.md) S-raqam berilmagan — recon ro'yxatiga yangi qo'shilgan ekran (M8 bilan bir xil izoh).
   { id: 'announcements', reconId: 'S39', path: '/announcements', icon: icon(Megaphone), group: 'routing', full: true },
+  // M12 A1: shartnomada (m12-contract.md §A1) S-raqam berilmagan — yangi qo'shilgan ekran (M8/M9 bilan bir xil izoh).
+  { id: 'day_night', reconId: 'S46', path: '/day-night', icon: icon(SunMoon), group: 'routing', full: true },
 
   { id: 'audio', reconId: 'S11', path: '/audio', icon: icon(AudioLines), group: 'apps', full: true },
   { id: 'voicemail', reconId: 'S23', path: '/voicemail', icon: icon(Voicemail), group: 'apps' },
@@ -62,6 +64,8 @@ export const SCREENS: ScreenDef[] = [
   { id: 'phonebook', reconId: 'S41', path: '/phonebook', icon: icon(BookUser), group: 'apps', full: true },
   // M10 C A2: shartnomada S-raqam berilmagan — yangi qo'shilgan ekran (M8/M9 bilan bir xil izoh).
   { id: 'missedcalls', reconId: 'S44', path: '/missed-calls', icon: icon(PhoneMissed), group: 'apps', full: true },
+  // M12 A2: shartnomada (m12-contract.md §A2) S-raqam berilmagan — yangi qo'shilgan ekran (M8/M9 bilan bir xil izoh).
+  { id: 'disa', reconId: 'S47', path: '/disa', icon: icon(Lock), group: 'apps', full: true },
 
   { id: 'cdr', reconId: 'S12', path: '/cdr', icon: icon(History), group: 'reports', full: true },
   { id: 'analytics', reconId: 'S13', path: '/analytics', icon: icon(ChartNoAxesColumn), group: 'reports', full: true },
@@ -84,6 +88,10 @@ export const SCREENS: ScreenDef[] = [
   { id: 'users', reconId: 'S31', path: '/settings/users', icon: icon(UserCog), group: 'system', full: true },
   // M11 — qarang ../../replica/m11-update-contract.md. S-raqam yo'q (M8 `network`dagi kabi yangi qo'shilgan).
   { id: 'update', reconId: 'S45', path: '/settings/update', icon: icon(RefreshCw), group: 'system', full: true },
+  // M12 B1 — qarang ../../replica/m12-contract.md §B1. S-raqam yo'q (M8 `network`dagi kabi yangi qo'shilgan).
+  { id: 'time', reconId: 'S48', path: '/settings/time', icon: icon(Clock), group: 'system' },
+  // M12 B3 — qarang ../../replica/m12-contract.md §B3. S-raqam yo'q (M8 `network`dagi kabi yangi qo'shilgan).
+  { id: 'firewall', reconId: 'S49', path: '/settings/firewall', icon: icon(Flame), group: 'system', full: true },
 ];
 
 /** Sidebarda ko'rsatilmaydigan, lekin marshruti bo'lishi kerak bo'lgan ekranlar (recon'dagi qolgan ID'lar). */
@@ -109,8 +117,9 @@ export const SCREEN_HUDUD: Partial<Record<string, Hudud>> = {
   extensions: 'extensions', devices: 'extensions', voicemail: 'extensions',
   trunks: 'connect', inbound: 'connect', outbound: 'connect', pinsets: 'connect', cidsources: 'connect',
   timegroups: 'routing', ivr: 'routing', queues: 'routing', ringgroups: 'routing', misc: 'routing', announcements: 'routing',
+  day_night: 'routing',
   audio: 'apps', conference: 'apps', parking: 'apps', blacklist: 'apps', campaigns: 'apps', paging: 'apps', phonebook: 'apps',
-  missedcalls: 'apps',
+  missedcalls: 'apps', disa: 'apps',
   cdr: 'reports', analytics: 'reports', quality: 'reports',
 };
 

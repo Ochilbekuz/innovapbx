@@ -270,3 +270,71 @@ async def test_startup_recover_rolls_back_pending_found_on_disk():
     await restarted.startup_recover()
     assert restarted.pending is None
     assert executor.files[INTERFACES_PATH] == DHCP_TEXT
+
+
+# ---------------------------------------------------------------- M12 B1/B2/B3 fasad
+# `self.time`/`self.power`/`self.firewall` o'z testlarida chuqur tekshirilgan
+# (`test_netd_systemtime_unit.py`, `test_netd_power_unit.py`,
+# `test_netd_firewall_unit.py`) — bu yerda faqat `NetdService` fasad
+# metodlari TO'G'RI kichik servisga yo'naltirilganini tasdiqlaymiz.
+
+@pytest.mark.asyncio
+async def test_time_state_delegates_to_time_service():
+    service = NetdService(_ifupdown_executor(), _settings(), now_fn=_clock())
+    state = await service.time_state()
+    assert "timezone" in state
+
+
+@pytest.mark.asyncio
+async def test_time_apply_delegates_to_time_service():
+    executor = _ifupdown_executor()
+    service = NetdService(executor, _settings(), now_fn=_clock())
+    config = SimpleNamespace(timezone="Asia/Tashkent", ntp_servers=[], ntp_enabled=True)
+    await service.time_apply(config)
+    assert ["timedatectl", "set-timezone", "Asia/Tashkent"] in executor.commands
+
+
+@pytest.mark.asyncio
+async def test_power_state_delegates_to_power_service():
+    service = NetdService(_ifupdown_executor(), _settings(), now_fn=_clock())
+    state = await service.power_state()
+    assert state == {"readonly_reason": None}
+
+
+@pytest.mark.asyncio
+async def test_power_execute_readonly_delegates_to_power_service():
+    service = NetdService(_ifupdown_executor(), _settings(readonly=True), now_fn=_clock())
+    with pytest.raises(NetdError) as exc:
+        await service.power_execute("reboot")
+    assert exc.value.code == "readonly"
+
+
+@pytest.mark.asyncio
+async def test_firewall_state_delegates_to_firewall_service_with_its_own_pending_path():
+    service = NetdService(_ifupdown_executor(), _settings(), now_fn=_clock())
+    state = await service.firewall_state()
+    assert state["pending"] is None
+    assert len(state["services"]) == 4
+
+
+@pytest.mark.asyncio
+async def test_firewall_pending_is_fully_independent_from_network_pending():
+    """Tarmoq `pending.json`'ini ochiq qoldirib, firewall'ni qo'llash/tasdiqlash
+    bir-biriga HECH QANDAY TA'SIR qilmasligi kerak (mustaqil holat fayllari)."""
+    executor = _ifupdown_executor()
+    service = NetdService(executor, _settings(), now_fn=_clock())
+    network_applied = await service.apply(_static_config())
+    assert network_applied["pending"] is not None
+
+    firewall_config = SimpleNamespace(
+        services=[SimpleNamespace(name=n, mode="all", allow=[]) for n in ("ssh", "web", "sip", "rtp")],
+        blocked_cidrs=[], timeout_s=120,
+    )
+    firewall_applied = await service.firewall_apply(firewall_config)
+    assert firewall_applied["pending"] is not None
+    assert firewall_applied["pending"]["id"] != network_applied["pending"]["id"]
+
+    confirmed = await service.confirm(network_applied["pending"]["id"])
+    assert confirmed["pending"] is None
+    firewall_state = await service.firewall_state()
+    assert firewall_state["pending"] is not None  # tarmoq tasdiqlangani firewall'ga ta'sir qilmadi

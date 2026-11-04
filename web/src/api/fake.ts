@@ -47,6 +47,8 @@ import { parsePattern } from '../domain/pattern';
 import { simulateOutbound, type SimRoute } from '../domain/outbound';
 import { unifiedDiff } from '../domain/diff';
 import { buildNetworkDiff, buildNetworkWarnings, validateNetworkConfig } from '../domain/network';
+import { validateTimeConfig } from '../domain/systemTime';
+import { buildFirewallDiff, checkFirewallSelfLockout, validateFirewallConfig } from '../domain/firewall';
 import { computeScorePct, type QaCriterionLike } from '../domain/qaScore';
 import { generateRecoveryCodes, generateTotpSecret, otpauthUri, verifyTotp } from '../domain/totp';
 import { jobStep, validatedLocalTarget, validatedS3Target, validatedSftpTarget } from './fakeBackup';
@@ -137,6 +139,9 @@ import type {
   // M11 — qarang ../../replica/m11-update-contract.md
   StartSystemUpdatePayload, SystemUpdateLog, SystemUpdateOut, UpdateChangelogEntry, UpdateErrorCode, UpdatePendingAction,
   UpdatePhase, UpdateState,
+  // M12 B1/B2/B3 — qarang ../../replica/m12-contract.md
+  TimeConfigIn, TimeStateOut, PowerActionIn, PowerActionOut, PowerStatusOut,
+  FirewallConfigIn, FirewallLastResult, FirewallPending, FirewallServiceOut, FirewallStateOut, FirewallValidateOut,
 } from './types';
 import { API_KEY_SCOPES, DEVICE_VENDORS, EXTENSIONS_CSV_COLUMNS, WEBHOOK_EVENTS, WEBRTC_CODECS } from './types';
 
@@ -461,6 +466,23 @@ export function createFakeClient(
   let netPending: NetworkPending | null = null;
   let netPendingSnapshot: { hostname: string; dns: typeof netDns; interfaces: NetworkInterface[]; routes: NetworkStaticRoute[] } | null = null;
   let netLastResult: NetworkLastResult | null = null;
+
+  // ─────────────────────── Sana/vaqt (M12 B1) — ../../replica/m12-contract.md §B1 — pending/confirm yo'q, to'g'ridan-to'g'ri qo'llanadi ───────────────────────
+  let timeTimezone = 'Asia/Tashkent';
+  let timeNtpServers: string[] = ['0.uz.pool.ntp.org', '1.uz.pool.ntp.org'];
+  let timeNtpEnabled = true;
+
+  // ─────────────────────── Firewall GUI (M12 B3) — ../../replica/m12-contract.md §B3 ───────────────────────
+  let fwServices: FirewallServiceOut[] = [
+    { name: 'ssh', mode: 'all', allow: [] },
+    { name: 'web', mode: 'all', allow: [] },
+    { name: 'sip', mode: 'all', allow: [] },
+    { name: 'rtp', mode: 'all', allow: [] },
+  ];
+  let fwBlockedCidrs: string[] = [];
+  let fwPending: FirewallPending | null = null;
+  let fwPendingSnapshot: { services: FirewallServiceOut[]; blockedCidrs: string[] } | null = null;
+  let fwLastResult: FirewallLastResult | null = null;
 
   // ─────────────────────── Paneldan yangilash (update) — M11 (../../replica/m11-update-contract.md) ───────────────────────
   // Vaqtga asoslangan simulyatsiya — `FakeBackupJob` bilan bir xil naqsh (setTimeout zanjiri yo'q, `Date.now()` farqidan hisoblanadi).
@@ -1628,6 +1650,39 @@ export function createFakeClient(
       return { ...ifc, config, live_ipv4, mtu: config.mtu };
     });
     netRoutesStatic = payload.routes.map((r) => ({ destination: r.destination, gateway: r.gateway, interface: r.interface, metric: r.metric }));
+  }
+
+  // ─────────────────────── Sana/vaqt (M12 B1) — ../../replica/m12-contract.md §B1 ───────────────────────
+
+  function buildTimeState(): TimeStateOut {
+    return {
+      now_utc: new Date().toISOString(), timezone: timeTimezone, ntp_enabled: timeNtpEnabled,
+      ntp_servers: timeNtpServers, synced: timeNtpEnabled, backend: 'timesyncd', readonly_reason: null,
+    };
+  }
+
+  // ─────────────────────── Firewall GUI (M12 B3) — ../../replica/m12-contract.md §B3 ───────────────────────
+
+  /** Pending muddati o'tgan bo'lsa — jim o'zi avtomatik qaytaradi (`checkNetworkPendingExpiry` bilan bir xil naqsh). */
+  function checkFirewallPendingExpiry(): void {
+    if (!fwPending || Date.now() <= Date.parse(fwPending.expires_at)) return;
+    if (fwPendingSnapshot) {
+      fwServices = fwPendingSnapshot.services;
+      fwBlockedCidrs = fwPendingSnapshot.blockedCidrs;
+    }
+    fwLastResult = { kind: 'rolled_back', at: new Date().toISOString(), message: 'Muddat tugadi — avtomatik qaytarildi.' };
+    fwPending = null;
+    fwPendingSnapshot = null;
+  }
+
+  function buildFirewallState(): FirewallStateOut {
+    checkFirewallPendingExpiry();
+    return { services: fwServices, blocked_cidrs: fwBlockedCidrs, readonly_reason: null, pending: fwPending, last_result: fwLastResult };
+  }
+
+  function applyFirewallConfigToState(payload: FirewallConfigIn): void {
+    fwServices = payload.services.map((s) => ({ name: s.name, mode: s.mode, allow: s.allow }));
+    fwBlockedCidrs = payload.blocked_cidrs;
   }
 
   // ─────────────────────── M4a — qarang ../../replica/m4a-contract.md ───────────────────────
@@ -2839,6 +2894,107 @@ export function createFakeClient(
       netPendingSnapshot = null;
       auditAdd('update', 'network', pendingId, 'Tarmoq sozlamalari qaytarildi', {});
       return buildNetworkState();
+    },
+
+    // M12 B1 — qarang ../../replica/m12-contract.md §B1 (pending/confirm yo'q, to'g'ridan-to'g'ri qo'llanadi)
+    async systemTime(): Promise<TimeStateOut> {
+      requireManage('*');
+      await delay(150);
+      return buildTimeState();
+    },
+
+    async applyTime(payload: TimeConfigIn): Promise<TimeStateOut> {
+      requireManage('*');
+      await delay(250);
+      const errors = validateTimeConfig(payload);
+      if (errors.length > 0) err(422, 'validation_failed', 'Tekshiruvdan oʻtmadi.', { details: { fields: errors } });
+      timeTimezone = payload.timezone;
+      timeNtpServers = payload.ntp_servers;
+      timeNtpEnabled = payload.ntp_enabled;
+      auditAdd('update', 'system_time', null, 'Sana va vaqt sozlamalari', {});
+      return buildTimeState();
+    },
+
+    // M12 B2 — qarang ../../replica/m12-contract.md §B2
+    async systemPower(): Promise<PowerStatusOut> {
+      requireManage('*');
+      await delay(150);
+      return { hostname: netHostname, active_calls: fakeActiveCallCount, readonly_reason: null };
+    },
+
+    async executePower(payload: PowerActionIn): Promise<PowerActionOut> {
+      requireManage('*');
+      await delay(200);
+      if (payload.confirm !== netHostname) {
+        err(422, 'hostname_mismatch', "Hostname mos kelmadi — qo'lda aniq yozing", { field: 'confirm' });
+      }
+      auditAdd('restart', 'system_power', null, `Tizim ${payload.action === 'reboot' ? 'qayta yuklanadi' : 'o\'chiriladi'}`,
+        { action: [null, payload.action] });
+      return { action: payload.action, delay_s: 10, scheduled: true, active_calls: fakeActiveCallCount };
+    },
+
+    // M12 B3 — qarang ../../replica/m12-contract.md §B3
+    async firewallState(): Promise<FirewallStateOut> {
+      requireManage('*');
+      await delay(150);
+      return buildFirewallState();
+    },
+
+    async validateFirewall(payload: FirewallConfigIn): Promise<FirewallValidateOut> {
+      requireManage('*');
+      await delay(150);
+      checkFirewallPendingExpiry();
+      const errors = validateFirewallConfig(payload);
+      checkFirewallSelfLockout(payload, typeof window !== 'undefined' ? window.location.hostname : null, errors);
+      const diff = buildFirewallDiff(payload, { services: fwServices, blocked_cidrs: fwBlockedCidrs });
+      return { ok: errors.length === 0, errors, warnings: [], diff };
+    },
+
+    async applyFirewall(payload: FirewallConfigIn): Promise<FirewallStateOut> {
+      requireManage('*');
+      await delay(250);
+      checkFirewallPendingExpiry();
+      if (fwPending) err(409, 'pending_exists', 'Boshqa oʻzgarish hali tasdiqlanishini kutmoqda.');
+      const errors = validateFirewallConfig(payload);
+      checkFirewallSelfLockout(payload, typeof window !== 'undefined' ? window.location.hostname : null, errors);
+      if (errors.length > 0) err(422, 'validation_failed', 'Tekshiruvdan oʻtmadi.', { details: { fields: errors } });
+      fwPendingSnapshot = { services: fwServices, blockedCidrs: fwBlockedCidrs };
+      const summary = buildFirewallDiff(payload, { services: fwServices, blocked_cidrs: fwBlockedCidrs });
+      applyFirewallConfigToState(payload);
+      const appliedAt = new Date();
+      const timeoutS = clamp(payload.timeout_s, 30, 600);
+      fwPending = { id: randomId('fwpending'), applied_at: appliedAt.toISOString(), expires_at: new Date(appliedAt.getTime() + timeoutS * 1000).toISOString(), summary };
+      fwLastResult = null;
+      auditAdd('update', 'firewall', fwPending.id, 'Firewall sozlamalari qoʻllandi', {});
+      return buildFirewallState();
+    },
+
+    async confirmFirewall(pendingId: string): Promise<FirewallStateOut> {
+      requireManage('*');
+      await delay(200);
+      checkFirewallPendingExpiry();
+      if (!fwPending || fwPending.id !== pendingId) err(404, 'not_found', 'Kutilayotgan oʻzgarish topilmadi (muddati oʻtgan boʻlishi mumkin).');
+      fwLastResult = { kind: 'confirmed', at: new Date().toISOString(), message: null };
+      fwPending = null;
+      fwPendingSnapshot = null;
+      auditAdd('update', 'firewall', pendingId, 'Firewall sozlamalari tasdiqlandi', {});
+      return buildFirewallState();
+    },
+
+    async rollbackFirewall(pendingId: string): Promise<FirewallStateOut> {
+      requireManage('*');
+      await delay(200);
+      checkFirewallPendingExpiry();
+      if (!fwPending || fwPending.id !== pendingId) err(404, 'not_found', 'Kutilayotgan oʻzgarish topilmadi (muddati oʻtgan boʻlishi mumkin).');
+      if (fwPendingSnapshot) {
+        fwServices = fwPendingSnapshot.services;
+        fwBlockedCidrs = fwPendingSnapshot.blockedCidrs;
+      }
+      fwLastResult = { kind: 'rolled_back', at: new Date().toISOString(), message: null };
+      fwPending = null;
+      fwPendingSnapshot = null;
+      auditAdd('update', 'firewall', pendingId, 'Firewall sozlamalari qaytarildi', {});
+      return buildFirewallState();
     },
 
     // M11 — qarang ../../replica/m11-update-contract.md

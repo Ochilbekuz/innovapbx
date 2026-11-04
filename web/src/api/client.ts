@@ -78,6 +78,9 @@ import type {
   TotpRecoveryCodesResult, LoginTotpPayload,
   // M11 — qarang ../../replica/m11-update-contract.md
   StartSystemUpdatePayload, SystemUpdateLog, SystemUpdateOut,
+  // M12 B1/B2/B3 — qarang ../../replica/m12-contract.md
+  TimeConfigIn, TimeStateOut, PowerActionIn, PowerActionOut, PowerStatusOut,
+  FirewallConfigIn, FirewallStateOut, FirewallValidateOut,
 } from './types';
 import type { ApplyResult } from './types';
 
@@ -413,6 +416,21 @@ export interface ApiClient {
   checkSystemUpdate(): Promise<SystemUpdateOut>;
   startSystemUpdate(payload: StartSystemUpdatePayload): Promise<SystemUpdateOut>;
   systemUpdateLog(offset: number): Promise<SystemUpdateLog>;
+
+  // M12 B1 — qarang ../../replica/m12-contract.md §B1, «Sozlamalar → Sana va vaqt»
+  systemTime(): Promise<TimeStateOut>;
+  applyTime(payload: TimeConfigIn): Promise<TimeStateOut>;
+
+  // M12 B2 — qarang §B2, «Tizim holati» qayta yuklash/o'chirish
+  systemPower(): Promise<PowerStatusOut>;
+  executePower(payload: PowerActionIn): Promise<PowerActionOut>;
+
+  // M12 B3 — qarang §B3, «Sozlamalar → Firewall»
+  firewallState(): Promise<FirewallStateOut>;
+  validateFirewall(payload: FirewallConfigIn): Promise<FirewallValidateOut>;
+  applyFirewall(payload: FirewallConfigIn): Promise<FirewallStateOut>;
+  confirmFirewall(pendingId: string): Promise<FirewallStateOut>;
+  rollbackFirewall(pendingId: string): Promise<FirewallStateOut>;
 
   // M9 A1 — qarang ../../replica/m9-freepbx-gaps-contract.md §A1 («E'lon»)
   listAnnouncements(): Promise<Paged<Announcement>>;

@@ -51,6 +51,10 @@ import { MissedCallsPage } from '@/screens/missedcalls/MissedCallsPage';
 import { CallbackWidgetPage } from '@/screens/callback/CallbackWidgetPage';
 import { Enroll2faPage } from '@/screens/auth/Enroll2faPage';
 import { UpdatePage } from '@/screens/update/UpdatePage';
+import { DayNightPage } from '@/screens/daynight/DayNightPage';
+import { DisaPage } from '@/screens/disa/DisaPage';
+import { TimeSettingsPage } from '@/screens/time/TimeSettingsPage';
+import { FirewallPage } from '@/screens/firewall/FirewallPage';
 
 /** M0/M1a/M2b'da to'liq qurilgan ekranlar — qolganlari `ScreenStub` orqali "tez orada". */
 const FULL_PAGES: Record<string, ComponentType> = {
@@ -94,6 +98,10 @@ const FULL_PAGES: Record<string, ComponentType> = {
   quality: QualityPage,
   missedcalls: MissedCallsPage,
   update: UpdatePage,
+  day_night: DayNightPage,
+  disa: DisaPage,
+  time: TimeSettingsPage,
+  firewall: FirewallPage,
 };
 
 /** `/` va noma'lum yo'llar uchun ruxsatga mos boshlang'ich sahifa (M7 §4 — qarang `homeFor`). */

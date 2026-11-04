@@ -22,6 +22,7 @@ from app.api.v1 import (
     devices,
     extensions,
     feature_codes,
+    firewall,
     flow,
     follow_me,
     holidays,
@@ -60,6 +61,8 @@ from app.api.v1 import (
     sip_bans,
     softphone,
     system,
+    system_power,
+    system_time,
     system_update,
     targets,
     time_conditions,
@@ -135,3 +138,6 @@ router.include_router(callback_requests.router)
 router.include_router(missed_call_rules.router)  # M10 A2 — o'tkazib yuborilgan qo'ng'iroq
 router.include_router(tts_settings.router)  # M10 A3 — Yandex SpeechKit TTS
 router.include_router(system_update.router)  # M11 — paneldan yangilash
+router.include_router(system_time.router)  # M12 B1 — sana va vaqt
+router.include_router(system_power.router)  # M12 B2 — qayta yuklash/o'chirish
+router.include_router(firewall.router)  # M12 B3 — firewall GUI

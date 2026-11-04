@@ -9,6 +9,8 @@ from typing import Any, Literal
 
 from pydantic import AliasChoices, BaseModel, Field, field_validator, model_validator
 
+from app.netd.firewall import SERVICE_NAMES, is_valid_cidr
+from app.netd.systemtime import is_valid_ntp_server, is_valid_timezone
 from app.netd.validate import is_valid_hostname
 from app.services.dialplan_safety import has_control_chars, is_dialplan_number
 
@@ -1723,6 +1725,124 @@ class NetworkFieldErrorOut(BaseModel):
 
 
 class NetworkValidateOut(BaseModel):
+    ok: bool
+    errors: list[NetworkFieldErrorOut]
+    warnings: list[str]
+    diff: list[str]
+
+
+# ============================================================ M12 B1: sana/vaqt
+class TimeConfigIn(BaseModel):
+    timezone: str = Field(min_length=1, max_length=64)
+    ntp_servers: list[str] = Field(default_factory=list, max_length=5)
+    ntp_enabled: bool = True
+
+    @field_validator("timezone")
+    @classmethod
+    def _check_timezone(cls, value: str) -> str:
+        if not is_valid_timezone(value):
+            raise ValueError("Vaqt zonasi IANA ro'yxatida topilmadi")
+        return value
+
+    @field_validator("ntp_servers")
+    @classmethod
+    def _check_ntp_servers(cls, value: list[str]) -> list[str]:
+        for server in value:
+            if not is_valid_ntp_server(server):
+                raise ValueError(f"Yaroqsiz NTP server: {server!r}")
+        return value
+
+
+class TimeStateOut(BaseModel):
+    now_utc: datetime
+    timezone: str
+    ntp_enabled: bool
+    ntp_servers: list[str]
+    synced: bool
+    backend: str
+    readonly_reason: str | None
+
+
+# ============================================================ M12 B2: qayta yuklash/o'chirish
+class PowerStatusOut(BaseModel):
+    hostname: str
+    active_calls: int | None
+    readonly_reason: str | None
+
+
+class PowerActionIn(BaseModel):
+    action: Literal["reboot", "poweroff"]
+    confirm: str = Field(min_length=1, max_length=253)
+
+
+class PowerActionOut(BaseModel):
+    action: str
+    delay_s: float
+    scheduled: bool
+    active_calls: int | None
+
+
+# ============================================================ M12 B3: firewall GUI
+class FirewallServiceIn(BaseModel):
+    name: Literal["ssh", "web", "sip", "rtp"]
+    mode: Literal["all", "allowlist"]
+    allow: list[str] = Field(default_factory=list, max_length=50)
+
+    @field_validator("allow")
+    @classmethod
+    def _check_allow(cls, value: list[str]) -> list[str]:
+        for cidr in value:
+            if not is_valid_cidr(cidr):
+                raise ValueError(f"Yaroqsiz IPv4 CIDR: {cidr!r}")
+        return value
+
+
+class FirewallConfigIn(BaseModel):
+    services: list[FirewallServiceIn] = Field(min_length=len(SERVICE_NAMES), max_length=len(SERVICE_NAMES))
+    blocked_cidrs: list[str] = Field(default_factory=list, max_length=100)
+    timeout_s: int = Field(default=120, ge=30, le=600)
+
+    @field_validator("blocked_cidrs")
+    @classmethod
+    def _check_blocked(cls, value: list[str]) -> list[str]:
+        for cidr in value:
+            if not is_valid_cidr(cidr):
+                raise ValueError(f"Yaroqsiz IPv4 CIDR: {cidr!r}")
+        return value
+
+
+class FirewallPendingActionIn(BaseModel):
+    pending_id: str = Field(min_length=1, max_length=64)
+
+
+class FirewallServiceOut(BaseModel):
+    name: str
+    mode: str
+    allow: list[str]
+
+
+class FirewallPendingOut(BaseModel):
+    id: str
+    applied_at: datetime
+    expires_at: datetime
+    summary: list[str]
+
+
+class FirewallLastResultOut(BaseModel):
+    kind: str
+    at: datetime
+    message: str | None
+
+
+class FirewallStateOut(BaseModel):
+    services: list[FirewallServiceOut]
+    blocked_cidrs: list[str]
+    readonly_reason: str | None
+    pending: FirewallPendingOut | None
+    last_result: FirewallLastResultOut | None
+
+
+class FirewallValidateOut(BaseModel):
     ok: bool
     errors: list[NetworkFieldErrorOut]
     warnings: list[str]

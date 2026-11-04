@@ -22,13 +22,16 @@ Kontekstlar:
 """
 from __future__ import annotations
 
+import logging
 from collections.abc import Callable
 from dataclasses import dataclass
 
 from app.services.dialplan_recording import recorded_dial_lines
 from app.services.dialplan_safety import is_dialplan_number, sanitize_dialplan_text
+from app.services.feature_codes import CODE_RE
 
 _dp_text = sanitize_dialplan_text
+log = logging.getLogger(__name__)
 
 
 def _dp_num(value: str | None, *, field: str) -> str:
@@ -479,10 +482,24 @@ FEATURE_ORDER = tuple(FEATURE_BUILDERS)
 
 
 def feature_code_lines(code: str, codes: dict[str, str]) -> list[str]:
+    """L3 (M12 audit): `codes` API CRUD orqali kelsa Pydantic/`validate_feature_code`
+    allaqachon tekshirgan, LEKIN restore/FreePBX import yo'li (`CODE_RE`ni
+    chetlab o'tadi) to'g'ridan-to'g'ri DB'ga yozishi mumkin — shu sabab RENDER
+    vaqtida HAR BIR kod `feature_codes.py::CODE_RE` bilan qayta tekshiriladi.
+    Mos kelmagan kod dialplan'ga YOZILMAYDI (xavfsiz chetlab o'tish — butun
+    kompilyatsiyani `CompileError` bilan to'xtatish o'rniga, chunki bu eski/
+    buzilgan bitta qator uchun butun tenant dialplan'ini buzmasligi kerak),
+    log'ga ogohlantirish yoziladi."""
     lines: list[str] = []
     for feature in FEATURE_ORDER:
-        if feature in codes:
-            lines += FEATURE_BUILDERS[feature](code, codes[feature])
+        if feature not in codes:
+            continue
+        feature_code = codes[feature]
+        if not CODE_RE.fullmatch(feature_code):
+            log.warning("feature_code_lines: noto'g'ri kod o'tkazib yuborildi feature=%s code=%r",
+                        feature, feature_code)
+            continue
+        lines += FEATURE_BUILDERS[feature](code, feature_code)
     return lines
 
 

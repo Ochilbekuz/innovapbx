@@ -1,8 +1,8 @@
 // S36 — Tizim holati: disk, tranklar, internet, SIP interfeysi + diskni tozalash. Qarang shartnoma (vazifa, 2026-11-02).
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Cable, Globe, HardDrive, Router, Trash2 } from 'lucide-react';
-import { useCleanup, usePreviewCleanup, useSystemStatus } from '@/api/queries';
+import { Cable, Globe, HardDrive, Power as PowerIcon, Router, Trash2 } from 'lucide-react';
+import { useCleanup, useExecutePower, usePreviewCleanup, useSystemPower, useSystemStatus } from '@/api/queries';
 import type { CleanupIn, CleanupResult, DiskCategory, SystemStatus } from '@/api/types';
 import { apiErrorMessage } from '@/api/errors';
 import { formatBytes } from '@/screens/backup/backupForms';
@@ -48,6 +48,7 @@ export function StatusPage() {
         <TrunksCard trunks={data.trunks} />
         <InternetCard internet={data.internet} />
         <SipCard sip={data.sip} />
+        <PowerCard />
       </div>
       <CleanupModal open={cleanupOpen} onClose={() => setCleanupOpen(false)} />
     </AppShellPage>
@@ -193,6 +194,112 @@ function SipCard({ sip }: { sip: SystemStatus['sip'] }) {
         <p className="text-sm text-muted">{t('sip.endpointsOnline', { online: sip.endpoints_online, total: sip.endpoints_total })}</p>
       </div>
     </section>
+  );
+}
+
+type PowerAction = 'reboot' | 'poweroff';
+
+/** Qayta yuklash/oʻchirish — M12 B2 (../../replica/m12-contract.md §B2). Oʻz `/system/power`ini oʻqiydi, `data`dan mustaqil. */
+function PowerCard() {
+  const { t } = useTranslation('status');
+  const toast = useToast();
+  const { data: power, isLoading } = useSystemPower();
+  const [action, setAction] = useState<PowerAction | null>(null);
+  const executeM = useExecutePower();
+
+  if (isLoading || !power) {
+    return (
+      <section aria-label={t('power.title')} className="overflow-hidden rounded-lg border border-line bg-surface shadow-card">
+        <div className="skeleton h-32" />
+      </section>
+    );
+  }
+
+  const locked = power.readonly_reason !== null;
+
+  const handleConfirm = (confirm: string) => {
+    if (!action) return;
+    executeM.mutate({ action, confirm }, {
+      onSuccess: (res) => { toast({ kind: 'success', title: t('power.scheduledToast', { delay: res.delay_s }) }); setAction(null); },
+      onError: (e) => toast({ kind: 'error', title: apiErrorMessage(e) }),
+    });
+  };
+
+  return (
+    <section aria-label={t('power.title')} className="overflow-hidden rounded-lg border border-line bg-surface shadow-card">
+      <header className="flex items-center gap-2 border-b border-line px-4 py-2.5">
+        <PowerIcon aria-hidden className="size-4 text-brand" />
+        <h3 className="font-display text-base font-semibold">{t('power.title')}</h3>
+      </header>
+      <div className="flex flex-col gap-3 px-4 py-3">
+        {locked && (
+          <div className="rounded-md border border-warning/30 bg-warning-soft px-3 py-2.5 text-sm text-on-warning-soft">
+            {t('power.readonlyBanner', { reason: power.readonly_reason })}
+          </div>
+        )}
+        {power.active_calls !== null && (
+          <p className="num text-sm text-muted">{t('power.activeCalls', { count: power.active_calls })}</p>
+        )}
+        <div className="flex gap-2">
+          <Button size="sm" variant="secondary" disabled={locked} onClick={() => setAction('reboot')}>{t('power.rebootButton')}</Button>
+          <Button size="sm" variant="danger" disabled={locked} onClick={() => setAction('poweroff')}>{t('power.poweroffButton')}</Button>
+        </div>
+      </div>
+      <PowerConfirmModal
+        action={action}
+        hostname={power.hostname}
+        loading={executeM.isPending}
+        onConfirm={handleConfirm}
+        onClose={() => setAction(null)}
+      />
+    </section>
+  );
+}
+
+/** Hostname'ni qoʻlda yozdirib tasdiqlatadi (xato bosilib ketmasligi uchun) — `ConfirmUpdateModal` bilan bir xil andoza. */
+function PowerConfirmModal({
+  action, hostname, loading, onConfirm, onClose,
+}: {
+  action: PowerAction | null;
+  hostname: string;
+  loading: boolean;
+  onConfirm: (confirm: string) => void;
+  onClose: () => void;
+}) {
+  const { t } = useTranslation('status');
+  const [typed, setTyped] = useState('');
+  const matches = typed.trim() === hostname;
+
+  const close = () => { setTyped(''); onClose(); };
+  const submit = () => { if (matches) onConfirm(typed.trim()); };
+
+  return (
+    <Modal
+      open={action !== null}
+      onOpenChange={(v) => closeOnOpenChange(v, close)}
+      title={action ? t(`power.modalTitle.${action}`) : ''}
+      footer={
+        <>
+          <Button variant="ghost" onClick={close}>{t('power.cancel')}</Button>
+          <Button variant={action === 'poweroff' ? 'danger' : 'primary'} loading={loading} disabled={!matches} onClick={submit}>
+            {t('power.confirm')}
+          </Button>
+        </>
+      }
+    >
+      <div className="flex flex-col gap-4">
+        {action && (
+          <div className="rounded-md border border-warning/30 bg-warning-soft px-3 py-2.5 text-sm text-on-warning-soft">
+            {t(`power.modalWarning.${action}`)}
+          </div>
+        )}
+        <Field label={t('power.confirmHint')} error={typed && !matches ? t('power.confirmMismatch') : undefined}>
+          {(a) => (
+            <Input {...a} mono placeholder={t('power.confirmPlaceholder')} value={typed} onChange={(e) => setTyped(e.target.value)} autoFocus />
+          )}
+        </Field>
+      </div>
+    </Modal>
   );
 }
 

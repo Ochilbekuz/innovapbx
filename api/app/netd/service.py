@@ -11,28 +11,26 @@ from typing import Any, Callable
 
 from app.netd import backend as backend_mod
 from app.netd import dns as dns_mod
+from app.netd import firewall as firewall_mod
 from app.netd import hostname as hostname_mod
 from app.netd import live as live_mod
+from app.netd import power as power_mod
+from app.netd import systemtime as systemtime_mod
 from app.netd import warnings as warnings_mod
+from app.netd.errors import NetdError
 from app.netd.executor import Executor
 from app.netd.ifupdown import DesiredInterface, IfupdownFile, Transition, build_target, parse, plan_transition, render
 from app.netd.pending import PendingRecord, Snapshot, clear_pending, load_pending, save_pending
 from app.netd.settings import NetdSettings
 from app.netd.validate import EDITABLE_KINDS, validate_config
 
+__all__ = ["NetdError", "NetdService", "LastResult"]
+
 _ROLLBACK_MESSAGES = {
     "timeout": "Vaqt tugadi — sozlama avtomatik qaytarildi",
     "manual": "Sozlama qo'lda qaytarildi",
     "restart": "netd qayta ishga tushdi — tasdiqlanmagan sozlama qaytarildi",
 }
-
-
-class NetdError(Exception):
-    def __init__(self, code: str, message: str, fields: list[dict] | None = None) -> None:
-        self.code = code
-        self.message = message
-        self.fields = fields or []
-        super().__init__(message)
 
 
 @dataclass(frozen=True)
@@ -47,12 +45,23 @@ def _utcnow() -> datetime:
 
 
 class NetdService:
+    """M12 B1-B3: tarmoq (yuqoridagi) bilan bir qatorda sana/vaqt, qayta
+    yuklash/o'chirish va firewall — har biri o'z holatini o'zi boshqaradigan
+    kichik servis (`self.time`/`self.power`/`self.firewall`), shu klass
+    ularga shunchaki yo'naltiradi (fasad — `protocol.py` bitta `service`
+    obyekt bilan ishlashda qoladi)."""
+
     def __init__(self, executor: Executor, settings: NetdSettings, now_fn: Callable[[], datetime] = _utcnow) -> None:
         self.executor = executor
         self.settings = settings
         self._now = now_fn
         self.pending: PendingRecord | None = load_pending(executor, settings.pending_path)
         self.last_result: LastResult | None = None
+        self.time = systemtime_mod.TimeService(executor, readonly=settings.readonly, now_fn=now_fn)
+        self.power = power_mod.PowerService(executor, readonly=settings.readonly)
+        self.firewall = firewall_mod.FirewallService(
+            executor, readonly=settings.readonly, pending_path=settings.firewall_pending_path, now_fn=now_fn,
+        )
 
     # --------------------------------------------------------------- reads
     def _interfaces_text(self) -> str:
@@ -138,6 +147,35 @@ class NetdService:
     async def startup_recover(self) -> None:
         if self.pending is not None:
             await self._do_rollback(reason="restart")
+        await self.firewall.startup_recover()
+
+    # --------------------------------------------------------------- M12 B1 (vaqt)/B2 (quvvat)/B3 (firewall)
+    async def time_state(self) -> dict[str, Any]:
+        return await self.time.state()
+
+    async def time_apply(self, config: Any) -> dict[str, Any]:
+        return await self.time.apply(config)
+
+    async def power_state(self) -> dict[str, Any]:
+        return await self.power.state()
+
+    async def power_execute(self, action: str) -> dict[str, Any]:
+        return await self.power.execute(action)
+
+    async def firewall_state(self) -> dict[str, Any]:
+        return await self.firewall.state()
+
+    async def firewall_validate(self, config: Any, *, request_host: str | None = None) -> dict[str, Any]:
+        return await self.firewall.validate(config, request_host=request_host)
+
+    async def firewall_apply(self, config: Any, *, request_host: str | None = None) -> dict[str, Any]:
+        return await self.firewall.apply(config, request_host=request_host)
+
+    async def firewall_confirm(self, pending_id: str) -> dict[str, Any]:
+        return await self.firewall.confirm(pending_id)
+
+    async def firewall_rollback(self, pending_id: str) -> dict[str, Any]:
+        return await self.firewall.rollback(pending_id)
 
     # --------------------------------------------------------------- guards
     def _readonly_reason(self, backend: backend_mod.BackendInfo) -> str | None:

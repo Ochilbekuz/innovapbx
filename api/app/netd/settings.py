@@ -13,6 +13,8 @@ class NetdSettings:
     exec_mode: str = "nsenter"  # "nsenter" | "local"
     host_root: str = "/proc/1/root"
     pending_path: str = "/var/lib/innova/netd/pending.json"
+    # M12 B3 — firewall o'z, tarmoqdan MUSTAQIL commit-confirm holatini saqlaydi.
+    firewall_pending_path: str = "/var/lib/innova/netd/firewall_pending.json"
     default_timeout_s: int = 180
     min_timeout_s: int = 60
     max_timeout_s: int = 600
@@ -26,4 +28,6 @@ def load_settings() -> NetdSettings:
         exec_mode=os.environ.get("NETD_EXEC", "nsenter"),
         host_root=os.environ.get("NETD_HOST_ROOT", "/proc/1/root"),
         pending_path=os.environ.get("NETD_PENDING_PATH", "/var/lib/innova/netd/pending.json"),
+        firewall_pending_path=os.environ.get(
+            "NETD_FIREWALL_PENDING_PATH", "/var/lib/innova/netd/firewall_pending.json"),
     )

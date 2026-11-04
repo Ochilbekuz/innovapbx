@@ -8,10 +8,55 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import os
+import re
 import tempfile
 from dataclasses import dataclass
+from typing import Callable
 
-ALLOWED_BINARIES = frozenset({"ip", "ifup", "ifdown", "hostname"})
+# M12 B3 — panel firewall qoidalari shu fayliga yoziladi, `nft`ga FAQAT shu
+# aniq yo'l bilan ishlashga ruxsat beriladi (pastda `_nft_argv_ok`). Fayl
+# mustaqil `table inet innova_fw` ni e'lon qiladi (asosiy `table inet innova`
+# — `/etc/nftables.conf`, sip_guard `innova_guard` — TEGILMAYDI, mustaqil
+# hook ustida faqat qo'shimcha `drop` qatlami, m12-contract.md B3).
+FIREWALL_CONF_PATH = "/etc/innova/firewall.nft"
+
+ALLOWED_BINARIES = frozenset({"ip", "ifup", "ifdown", "hostname", "timedatectl", "systemctl", "nft"})
+
+_TIMEZONE_RE = re.compile(r"^[A-Za-z0-9_+\-/]{1,64}$")
+
+
+def _timedatectl_argv_ok(args: list[str]) -> bool:
+    """M12 B1 — faqat holat o'qish va vaqt/NTP sozlash; boshqa hech narsa."""
+    if args == ["show"]:
+        return True
+    if args in (["set-ntp", "true"], ["set-ntp", "false"]):
+        return True
+    return len(args) == 2 and args[0] == "set-timezone" and bool(_TIMEZONE_RE.match(args[1]))
+
+
+def _systemctl_argv_ok(args: list[str]) -> bool:
+    """M12 B2 — FAQAT `reboot`/`poweroff`, boshqa argument (masalan `stop
+    <xizmat>`) RAD ETILADI — bu yagona maqsadli allowlist."""
+    return args in (["reboot"], ["poweroff"])
+
+
+def _nft_argv_ok(args: list[str]) -> bool:
+    """M12 B3 — FAQAT FIREWALL_CONF_PATH'ni tekshirish (`-c -f`) va qo'llash
+    (`-f`); boshqa fayl/amal (masalan `list ruleset`, `flush ruleset`, `-f
+    /etc/nftables.conf`) RAD ETILADI — bu bilan panel hech qachon asosiy
+    jadval/sip_guard'ga tegolmaydi, faqat OʻZ faylini yuklay oladi."""
+    return args in (["-c", "-f", FIREWALL_CONF_PATH], ["-f", FIREWALL_CONF_PATH])
+
+
+# Binar nomi -> argumentlar (argv[1:]) tekshiruvchisi. Ro'yxatda yo'q binar
+# (masalan `ip`/`ifup`/`ifdown`/`hostname`) argumentlarsiz ham ishlayveradi —
+# ularning xavfsizligi allaqachon yuqori darajada (`ifupdown.py`/`hostname.py`)
+# ta'minlangan, bu yerda FAQAT yangi (M12) binarlar uchun qo'shimcha chiziq.
+_ARGV_GUARDS: dict[str, Callable[[list[str]], bool]] = {
+    "timedatectl": _timedatectl_argv_ok,
+    "systemctl": _systemctl_argv_ok,
+    "nft": _nft_argv_ok,
+}
 
 
 class CommandNotAllowedError(ValueError):
@@ -51,6 +96,9 @@ class Executor:
     async def run(self, argv: list[str], *, timeout: float = 10.0) -> CommandResult:
         if not argv or argv[0] not in ALLOWED_BINARIES:
             raise CommandNotAllowedError(f"Ruxsat etilmagan buyruq: {argv[0] if argv else ''!r}")
+        guard = _ARGV_GUARDS.get(argv[0])
+        if guard is not None and not guard(argv[1:]):
+            raise CommandNotAllowedError(f"Ruxsat etilmagan argumentlar: {argv!r}")
         full_argv = self._wrap(argv)
         proc = await asyncio.create_subprocess_exec(
             *full_argv, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,

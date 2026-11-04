@@ -14,7 +14,13 @@ from typing import Any
 
 from app.netd.service import NetdError, NetdService
 
-_OPS = frozenset({"state", "validate", "apply", "confirm", "rollback"})
+_OPS = frozenset({
+    "state", "validate", "apply", "confirm", "rollback",
+    # M12 B1 (sana/vaqt) / B2 (quvvat) / B3 (firewall) — tarmoqdan MUSTAQIL amallar,
+    # lekin bitta soket/protokol qatlamidan o'tadi (m12-contract.md B1-B3).
+    "time_state", "time_apply", "power_state", "power_execute",
+    "firewall_state", "firewall_validate", "firewall_apply", "firewall_confirm", "firewall_rollback",
+})
 
 
 class ProtocolError(ValueError):
@@ -34,17 +40,30 @@ async def dispatch(service: NetdService, request: dict[str, Any]) -> dict[str, A
     return {"ok": True, "result": result}
 
 
+_DISPATCH_TABLE: dict[str, Any] = {
+    "state": lambda service, request: service.state(),
+    "validate": lambda service, request: service.validate(
+        _config_of(request), request_host=request.get("request_host")),
+    "apply": lambda service, request: service.apply(
+        _config_of(request), request_host=request.get("request_host"), meta=request.get("meta")),
+    "confirm": lambda service, request: service.confirm(_pending_id_of(request)),
+    "rollback": lambda service, request: service.rollback(_pending_id_of(request)),
+    "time_state": lambda service, request: service.time_state(),
+    "time_apply": lambda service, request: service.time_apply(_config_of(request)),
+    "power_state": lambda service, request: service.power_state(),
+    "power_execute": lambda service, request: service.power_execute(_action_of(request)),
+    "firewall_state": lambda service, request: service.firewall_state(),
+    "firewall_validate": lambda service, request: service.firewall_validate(
+        _config_of(request), request_host=request.get("request_host")),
+    "firewall_apply": lambda service, request: service.firewall_apply(
+        _config_of(request), request_host=request.get("request_host")),
+    "firewall_confirm": lambda service, request: service.firewall_confirm(_pending_id_of(request)),
+    "firewall_rollback": lambda service, request: service.firewall_rollback(_pending_id_of(request)),
+}
+
+
 async def _call(service: NetdService, op: str, request: dict[str, Any]) -> Any:
-    if op == "state":
-        return await service.state()
-    if op == "validate":
-        return await service.validate(_config_of(request), request_host=request.get("request_host"))
-    if op == "apply":
-        return await service.apply(_config_of(request), request_host=request.get("request_host"),
-                                    meta=request.get("meta"))
-    if op == "confirm":
-        return await service.confirm(_pending_id_of(request))
-    return await service.rollback(_pending_id_of(request))
+    return await _DISPATCH_TABLE[op](service, request)
 
 
 def _config_of(request: dict[str, Any]) -> Any:
@@ -67,6 +86,13 @@ def _pending_id_of(request: dict[str, Any]) -> str:
     if not isinstance(pending_id, str) or not pending_id:
         raise ProtocolError("`pending_id` maydoni majburiy")
     return pending_id
+
+
+def _action_of(request: dict[str, Any]) -> str:
+    action = request.get("action")
+    if not isinstance(action, str) or not action:
+        raise ProtocolError("`action` maydoni majburiy")
+    return action
 
 
 def _error(code: str, message: str, fields: list[dict] | None = None) -> dict[str, Any]:

@@ -57,6 +57,8 @@ import type {
   UpdateTtsSettingsPayload,
   // M11 — qarang ../../replica/m11-update-contract.md
   StartSystemUpdatePayload, SystemUpdateOut,
+  // M12 B1/B2/B3 — qarang ../../replica/m12-contract.md §B1/§B2/§B3
+  FirewallConfigIn, PowerActionIn, TimeConfigIn,
 } from './types';
 import { updateStatePollMs } from '@/domain/update';
 
@@ -178,6 +180,10 @@ export const qk = {
   qaSummary: ['qa-summary'] as const,
   callEvaluations: (linkedid: string) => ['call-evaluations', linkedid] as const,
   myEvaluations: (p: { page?: number; size?: number }) => ['my-evaluations', p] as const,
+  // M12 B1/B2/B3 — qarang ../../replica/m12-contract.md §B1/§B2/§B3
+  systemTime: ['system-time'] as const,
+  systemPower: ['system-power'] as const,
+  firewallState: ['firewall-state'] as const,
 };
 
 export function useSetupState() {
@@ -1418,6 +1424,64 @@ export function useRollbackNetwork() {
   });
 }
 
+// ─────────────────────── M12 B1 — Sana va vaqt (../../replica/m12-contract.md §B1) ───────────────────────
+// Pending/confirm yo'q — `applyTime` muvaffaqiyatli bo'lsa darhol keshni yangilaydi.
+
+export function useSystemTime() {
+  return useQuery({ queryKey: qk.systemTime, queryFn: () => apiClient.systemTime() });
+}
+export function useApplyTime() {
+  const invalidate = useInvalidate();
+  return useMutation({
+    mutationFn: (payload: TimeConfigIn) => apiClient.applyTime(payload),
+    onSuccess: () => invalidate([qk.systemTime]),
+  });
+}
+
+// ─────────────────────── M12 B2 — Qayta yuklash/o'chirish (../../replica/m12-contract.md §B2) ───────────────────────
+
+export function useSystemPower() {
+  return useQuery({ queryKey: qk.systemPower, queryFn: () => apiClient.systemPower() });
+}
+export function useExecutePower() {
+  return useMutation({ mutationFn: (payload: PowerActionIn) => apiClient.executePower(payload) });
+}
+
+// ─────────────────────── M12 B3 — Firewall GUI (../../replica/m12-contract.md §B3) ───────────────────────
+// `network`dagi bilan bir xil naqsh — `pending` bor ekan tezroq pollanadi.
+
+export function useFirewallState() {
+  return useQuery({
+    queryKey: qk.firewallState,
+    queryFn: () => apiClient.firewallState(),
+    refetchInterval: (query) => (query.state.data?.pending ? 3_000 : 30_000),
+  });
+}
+export function useValidateFirewall() {
+  return useMutation({ mutationFn: (payload: FirewallConfigIn) => apiClient.validateFirewall(payload) });
+}
+export function useApplyFirewall() {
+  const invalidate = useInvalidate();
+  return useMutation({
+    mutationFn: (payload: FirewallConfigIn) => apiClient.applyFirewall(payload),
+    onSuccess: () => invalidate([qk.firewallState]),
+  });
+}
+export function useConfirmFirewall() {
+  const invalidate = useInvalidate();
+  return useMutation({
+    mutationFn: (pendingId: string) => apiClient.confirmFirewall(pendingId),
+    onSuccess: () => invalidate([qk.firewallState]),
+  });
+}
+export function useRollbackFirewall() {
+  const invalidate = useInvalidate();
+  return useMutation({
+    mutationFn: (pendingId: string) => apiClient.rollbackFirewall(pendingId),
+    onSuccess: () => invalidate([qk.firewallState]),
+  });
+}
+
 // ─────────────────────── M11 — Paneldan yangilash (../../replica/m11-update-contract.md) ───────────────────────
 // `checking`/`updating`/`pending` paytida 2s poll (domain/update.ts); 502/503/tarmoq xatosida ham oldingi
 // `data` saqlanadi (`retry: false` — o'zimiz pollaymiz, react-query ichki qayta urinishi kerak emas).
@@ -1455,6 +1519,20 @@ export function useSystemUpdateLog(offset: number, enabled: boolean, pollMs: num
     enabled,
     refetchInterval: pollMs,
   });
+}
+
+/** M12 B4 — menyudagi "Yangilash" nuqtasi uchun; shu `qk.systemUpdate`ni qayta ishlatadi (dryer) — alohida kesh
+ * emas, faqat shu kuzatuvchiga xos uzun `staleTime` orqali 12 soatlik keshni taʼminlaydi (`UpdatePage`ning
+ * o'z, tezroq pollashi bilan bir xil yozuvni ulashadi). `enabled=false` — admin bo'lmaganlarga chaqirilmaydi. */
+export function useUpdateAvailableDot(enabled: boolean) {
+  const { data } = useQuery({
+    queryKey: qk.systemUpdate,
+    queryFn: () => apiClient.systemUpdate(),
+    enabled,
+    staleTime: 12 * 60 * 60 * 1000,
+    retry: false,
+  });
+  return enabled && !!data?.available;
 }
 
 // ─────────────────────── M9 A1 — Eʼlon (Announcement) ───────────────────────

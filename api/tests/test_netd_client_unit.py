@@ -78,6 +78,69 @@ async def test_none_fields_are_omitted_from_payload(tmp_path):
 
 
 @pytest.mark.asyncio
+async def test_time_apply_sends_time_apply_op_and_config(tmp_path):
+    sock = str(tmp_path / "netd.sock")
+    received = {}
+
+    async def handle(reader, writer):
+        raw = await reader.readline()
+        received.update(json.loads(raw))
+        writer.write(json.dumps({"ok": True, "result": {}}).encode() + b"\n")
+        await writer.drain()
+        writer.close()
+
+    server = await asyncio.start_unix_server(handle, path=sock)
+    try:
+        client = NetdClient(sock, timeout=2.0)
+        await client.time_apply({"timezone": "Asia/Tashkent"})
+        assert received == {"op": "time_apply", "config": {"timezone": "Asia/Tashkent"}}
+    finally:
+        server.close()
+
+
+@pytest.mark.asyncio
+async def test_power_execute_sends_power_execute_op_and_action(tmp_path):
+    sock = str(tmp_path / "netd.sock")
+    received = {}
+
+    async def handle(reader, writer):
+        raw = await reader.readline()
+        received.update(json.loads(raw))
+        writer.write(json.dumps({"ok": True, "result": {}}).encode() + b"\n")
+        await writer.drain()
+        writer.close()
+
+    server = await asyncio.start_unix_server(handle, path=sock)
+    try:
+        client = NetdClient(sock, timeout=2.0)
+        await client.power_execute("reboot")
+        assert received == {"op": "power_execute", "action": "reboot"}
+    finally:
+        server.close()
+
+
+@pytest.mark.asyncio
+async def test_firewall_apply_sends_firewall_apply_op_config_and_host(tmp_path):
+    sock = str(tmp_path / "netd.sock")
+    received = {}
+
+    async def handle(reader, writer):
+        raw = await reader.readline()
+        received.update(json.loads(raw))
+        writer.write(json.dumps({"ok": True, "result": {}}).encode() + b"\n")
+        await writer.drain()
+        writer.close()
+
+    server = await asyncio.start_unix_server(handle, path=sock)
+    try:
+        client = NetdClient(sock, timeout=2.0)
+        await client.firewall_apply({"services": []}, request_host="10.0.0.5")
+        assert received == {"op": "firewall_apply", "config": {"services": []}, "request_host": "10.0.0.5"}
+    finally:
+        server.close()
+
+
+@pytest.mark.asyncio
 async def test_missing_socket_raises_unavailable(tmp_path):
     client = NetdClient(str(tmp_path / "missing.sock"), timeout=1.0)
     with pytest.raises(NetdUnavailableError):

@@ -662,6 +662,50 @@ export type SystemUpdateOut = {
 export type StartSystemUpdatePayload = { version: string };
 export type SystemUpdateLog = { offset: number; size: number; text: string };
 
+// ─────────────────────── Sana va vaqt (M12 B1) — ../../replica/m12-contract.md §B1 ───────────────────────
+
+export type TimeStateOut = {
+  now_utc: string;
+  timezone: string;
+  ntp_enabled: boolean;
+  ntp_servers: string[];
+  synced: boolean;
+  backend: string;
+  readonly_reason: string | null;
+};
+
+export type TimeConfigIn = { timezone: string; ntp_servers: string[]; ntp_enabled: boolean };
+export type TimeFieldError = { field: string; message: string };
+
+// ─────────────────────── Qayta yuklash/o'chirish (M12 B2) — ../../replica/m12-contract.md §B2 ───────────────────────
+
+export type PowerStatusOut = { hostname: string; active_calls: number | null; readonly_reason: string | null };
+export type PowerActionIn = { action: 'reboot' | 'poweroff'; confirm: string };
+export type PowerActionOut = { action: string; delay_s: number; scheduled: boolean; active_calls: number | null };
+
+// ─────────────────────── Firewall GUI (M12 B3) — ../../replica/m12-contract.md §B3 ───────────────────────
+
+export type FirewallServiceName = 'ssh' | 'web' | 'sip' | 'rtp';
+export type FirewallServiceMode = 'all' | 'allowlist';
+export type FirewallServiceIn = { name: FirewallServiceName; mode: FirewallServiceMode; allow: string[] };
+export type FirewallServiceOut = { name: string; mode: string; allow: string[] };
+
+export type FirewallConfigIn = { services: FirewallServiceIn[]; blocked_cidrs: string[]; timeout_s: number };
+
+export type FirewallPending = { id: string; applied_at: string; expires_at: string; summary: string[] };
+export type FirewallLastResult = { kind: 'confirmed' | 'rolled_back' | 'apply_failed'; at: string; message: string | null };
+
+export type FirewallStateOut = {
+  services: FirewallServiceOut[];
+  blocked_cidrs: string[];
+  readonly_reason: string | null;
+  pending: FirewallPending | null;
+  last_result: FirewallLastResult | null;
+};
+
+export type FirewallFieldError = { field: string; message: string };
+export type FirewallValidateOut = { ok: boolean; errors: FirewallFieldError[]; warnings: string[]; diff: string[] };
+
 export type AuditAction = 'create' | 'update' | 'delete' | 'login' | 'login_failed' | 'restore' | 'restart' | 'override' | 'spy';
 export type AuditDiff = Record<string, [unknown, unknown]>;
 export type AuditEntry = {

@@ -51,6 +51,8 @@ import * as quality from '@/i18n/quality';
 import * as callback from '@/i18n/callback';
 import * as missedcalls from '@/i18n/missedcalls';
 import * as update from '@/i18n/update';
+import * as time from '@/i18n/time';
+import * as firewall from '@/i18n/firewall';
 import { apiClient } from '@/api';
 
 export const LANGS = ['uz', 'ru', 'en'] as const;
@@ -64,6 +66,7 @@ const NAMESPACES = {
   status, network,
   announcements, misc, parking, paging, phonebook, pinsets, cidsources, quality, callback, missedcalls,
   update,
+  time, firewall,
 } as const;
 
 function resourcesFor(lang: Lang) {

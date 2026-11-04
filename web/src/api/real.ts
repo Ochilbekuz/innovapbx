@@ -78,6 +78,9 @@ import type {
   TotpRecoveryCodesResult, LoginTotpPayload,
   // M11 — qarang ../../replica/m11-update-contract.md
   StartSystemUpdatePayload, SystemUpdateLog, SystemUpdateOut,
+  // M12 B1/B2/B3 — qarang ../../replica/m12-contract.md
+  TimeConfigIn, TimeStateOut, PowerActionIn, PowerActionOut, PowerStatusOut,
+  FirewallConfigIn, FirewallStateOut, FirewallValidateOut,
 } from './types';
 import type { ApplyResult } from './types';
 
@@ -451,6 +454,21 @@ export const realClient: ApiClient = {
   checkSystemUpdate: () => request<SystemUpdateOut>('/system/update/check', { method: 'POST' }),
   startSystemUpdate: (payload: StartSystemUpdatePayload) => request<SystemUpdateOut>('/system/update/start', { method: 'POST', body: payload }),
   systemUpdateLog: (offset: number) => request<SystemUpdateLog>(`/system/update/log?offset=${offset}`),
+
+  // M12 B1 — qarang ../../replica/m12-contract.md §B1
+  systemTime: () => request<TimeStateOut>('/system/time'),
+  applyTime: (payload: TimeConfigIn) => request<TimeStateOut>('/system/time', { method: 'PUT', body: payload }),
+
+  // M12 B2 — qarang §B2
+  systemPower: () => request<PowerStatusOut>('/system/power'),
+  executePower: (payload: PowerActionIn) => request<PowerActionOut>('/system/power', { method: 'POST', body: payload }),
+
+  // M12 B3 — qarang §B3
+  firewallState: () => request<FirewallStateOut>('/firewall/state'),
+  validateFirewall: (payload: FirewallConfigIn) => request<FirewallValidateOut>('/firewall/validate', { method: 'POST', body: payload }),
+  applyFirewall: (payload: FirewallConfigIn) => request<FirewallStateOut>('/firewall/apply', { method: 'POST', body: payload }),
+  confirmFirewall: (pendingId: string) => request<FirewallStateOut>('/firewall/confirm', { method: 'POST', body: { pending_id: pendingId } }),
+  rollbackFirewall: (pendingId: string) => request<FirewallStateOut>('/firewall/rollback', { method: 'POST', body: { pending_id: pendingId } }),
 
   // M9 A1 — qarang ../../replica/m9-freepbx-gaps-contract.md §A1 («E'lon»)
   listAnnouncements: () => request<Paged<Announcement>>('/announcements'),

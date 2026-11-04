@@ -7,6 +7,7 @@ import { cn } from '@/lib/cn';
 import { LANGS, persistLanguage, type Lang } from '@/lib/i18n';
 import { useTheme } from '@/lib/theme';
 import { apiClient, useSession } from '@/api';
+import { useUpdateAvailableDot } from '@/api/queries';
 import { hasPermission } from '@/auth/permissions';
 import { Kbd } from '@/ui/Button';
 import { Segmented } from '@/ui/Field';
@@ -147,10 +148,24 @@ type ShellProps = {
 
 /** Guruh sarlavhasi — tugma (chevron, `aria-expanded`/`aria-controls`) + silliq balandlik animatsiyali ro'yxat (M8 §6). */
 /** Yig'ilgan guruhdagi havola ko'rinmaydi — Tab bilan unga fokus tushmasligi uchun `tabIndex=-1`. */
-function NavItem({ item: it, on, focusable, onNavigate }: {
+/** Statik `it.live`/`it.count`dan farqli — faqat `update` elementi uchun, `/system/update`ni soʻrab dinamik
+ *  hisoblanadi (M12 B4, ../../replica/m12-contract.md §B4). Oddiy (animatsiyasiz) nuqta — `ui/Tabs.tsx`dagi
+ *  `invalid` uslubi bilan bir xil (`LiveDot`dan farqli, chunki bu "yangilanish bor" belgisi, jonli holat emas). */
+function UpdateAvailableDot() {
+  const { t } = useTranslation();
+  return (
+    <>
+      <span aria-hidden className="size-1.5 rounded-full bg-danger" />
+      <span className="sr-only">{t('updateAvailableDot')}</span>
+    </>
+  );
+}
+
+function NavItem({ item: it, on, focusable, showUpdateDot, onNavigate }: {
   item: ReturnType<typeof byGroup>[number];
   on: boolean;
   focusable: boolean;
+  showUpdateDot: boolean;
   onNavigate: () => void;
 }) {
   const { t } = useTranslation();
@@ -170,22 +185,26 @@ function NavItem({ item: it, on, focusable, onNavigate }: {
         <span aria-hidden className={on ? 'text-brand-fire' : 'text-sidebar-muted'}>{it.icon}</span>
         <span className="flex-1 truncate">{t(`nav.${it.id}`)}</span>
         {it.live && <LiveDot />}
+        {showUpdateDot && <UpdateAvailableDot />}
         {it.count !== undefined && <span className="num text-xs text-sidebar-muted">{it.count}</span>}
       </Link>
     </li>
   );
 }
 
-function NavGroup({ group, items, activeId, isOpen, onToggle, onNavigate }: {
+function NavGroup({ group, items, activeId, isOpen, onToggle, onNavigate, updateDotId }: {
   group: ScreenGroupId;
   items: ReturnType<typeof byGroup>;
   activeId: string | undefined;
   isOpen: boolean;
   onToggle: () => void;
   onNavigate: () => void;
+  /** `showUpdateDot` ekranning `id`si (odatda `'update'`) — qarang `AppShell`. */
+  updateDotId: string | null;
 }) {
   const { t } = useTranslation();
   const hasLive = items.some((it) => it.live);
+  const hasUpdateDot = updateDotId !== null && items.some((it) => it.id === updateDotId);
   const panelId = `nav-group-${group}`;
   return (
     <div className="mb-3">
@@ -198,7 +217,7 @@ function NavGroup({ group, items, activeId, isOpen, onToggle, onNavigate }: {
       >
         <ChevronDown aria-hidden className={cn('size-3 shrink-0 transition-transform duration-fast', !isOpen && '-rotate-90')} />
         <span className="flex-1 truncate text-left">{t(`groups.${group}`)}</span>
-        {!isOpen && hasLive && <LiveDot />}
+        {!isOpen && (hasLive || hasUpdateDot) && <LiveDot />}
       </button>
       <div
         id={panelId}
@@ -206,7 +225,7 @@ function NavGroup({ group, items, activeId, isOpen, onToggle, onNavigate }: {
       >
         <ul className="overflow-hidden" aria-hidden={!isOpen || undefined}>
           {items.map((it) => (
-            <NavItem key={it.id} item={it} on={it.id === activeId} focusable={isOpen} onNavigate={onNavigate} />
+            <NavItem key={it.id} item={it} on={it.id === activeId} focusable={isOpen} showUpdateDot={it.id === updateDotId} onNavigate={onNavigate} />
           ))}
         </ul>
       </div>
@@ -227,6 +246,9 @@ export function AppShell({ active, title, crumbs = [], health, revision, system,
   const showSystem = embedded || hasPermission(permissions, '*');
   const activeId = active ?? SCREENS.find((s) => location.pathname === s.path || location.pathname.startsWith(`${s.path}/`))?.id;
   const activeGroup = SCREENS.find((s) => s.id === activeId)?.group;
+  // M12 B4 — `/system/update`ni faqat haqiqiy adminlarga (`embedded` demo'da emas) soʻraydi, qarang ../../replica/m12-contract.md §B4.
+  const updateAvailable = useUpdateAvailableDot(!embedded && hasPermission(permissions, '*'));
+  const updateDotId = updateAvailable ? 'update' : null;
 
   const toggleGroup = (g: ScreenGroupId) => {
     setCollapsed((prev) => {
@@ -268,6 +290,7 @@ export function AppShell({ active, title, crumbs = [], health, revision, system,
                 isOpen={isOpen}
                 onToggle={() => toggleGroup(g)}
                 onNavigate={() => setNavOpen(false)}
+                updateDotId={updateDotId}
               />
             );
           })}

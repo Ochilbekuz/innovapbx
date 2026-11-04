@@ -75,4 +75,33 @@ describe('StatusPage', () => {
 
     expect(within(dialog).getByRole('button', { name: 'Oʻchirish' })).toBeDisabled();
   });
+
+  it(
+    'qayta yuklash — hostname mos kelmaguncha tasdiqlash oʻchirilgan, mos kelsa rejalashtiriladi (M12 B2)',
+    async () => {
+      const user = userEvent.setup();
+      await loginAs(client, 'admin');
+      renderPage(<ToastProvider><StatusPage /></ToastProvider>);
+
+      await user.click(await screen.findByRole('button', { name: 'Qayta yuklash' }));
+      const dialog = await screen.findByRole('dialog', { name: 'Tizimni qayta yuklash' });
+
+      const confirmBtn = within(dialog).getByRole('button', { name: 'Tasdiqlash' });
+      expect(confirmBtn).toBeDisabled();
+
+      const input = within(dialog).getByPlaceholderText('hostname');
+      await user.type(input, 'notahostname');
+      expect(confirmBtn).toBeDisabled();
+      expect(within(dialog).getByText("Hostname mos emas.")).toBeTruthy();
+
+      await user.clear(input);
+      await user.type(input, 'innova-pbx1');
+      expect(confirmBtn).not.toBeDisabled();
+      await user.click(confirmBtn);
+
+      await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Tizimni qayta yuklash' })).toBeNull());
+      expect(await screen.findByText(/soniyadan keyin bajariladi/)).toBeTruthy();
+    },
+    10_000,
+  );
 });

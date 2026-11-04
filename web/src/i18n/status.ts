@@ -52,6 +52,25 @@ export const uz = {
     doneToast: '{{size}} bosh joy ozod qilindi.',
     errorsTitle: 'Xatoliklar:',
   },
+
+  power: {
+    title: 'Qayta yuklash / oʻchirish',
+    activeCalls: 'Faol qoʻngʻiroqlar: {{count}}',
+    rebootButton: 'Qayta yuklash',
+    poweroffButton: "Oʻchirish",
+    readonlyBanner: 'Boshqarib boʻlmaydi: {{reason}}',
+    modalTitle: { reboot: 'Tizimni qayta yuklash', poweroff: 'Tizimni oʻchirish' },
+    modalWarning: {
+      reboot: 'Barcha faol qoʻngʻiroqlar uziladi va tizim bir necha daqiqaga ishlamay qoladi.',
+      poweroff: "Barcha faol qoʻngʻiroqlar uziladi va tizimni qoʻlda yoqishingiz kerak boʻladi.",
+    },
+    confirmHint: "Tasdiqlash uchun hostname'ni aniq yozing:",
+    confirmPlaceholder: 'hostname',
+    confirmMismatch: "Hostname mos emas.",
+    cancel: 'Bekor qilish',
+    confirm: 'Tasdiqlash',
+    scheduledToast: '{{delay}} soniyadan keyin bajariladi.',
+  },
 };
 
 export const ru = {
@@ -106,6 +125,25 @@ export const ru = {
     doneToast: 'Освобождено {{size}}.',
     errorsTitle: 'Ошибки:',
   },
+
+  power: {
+    title: 'Перезагрузка / выключение',
+    activeCalls: 'Активных звонков: {{count}}',
+    rebootButton: 'Перезагрузить',
+    poweroffButton: 'Выключить',
+    readonlyBanner: 'Невозможно управлять: {{reason}}',
+    modalTitle: { reboot: 'Перезагрузить систему', poweroff: 'Выключить систему' },
+    modalWarning: {
+      reboot: 'Все активные звонки будут прерваны, система будет недоступна несколько минут.',
+      poweroff: 'Все активные звонки будут прерваны, систему придётся включить вручную.',
+    },
+    confirmHint: 'Для подтверждения точно введите имя хоста:',
+    confirmPlaceholder: 'hostname',
+    confirmMismatch: 'Имя хоста не совпадает.',
+    cancel: 'Отмена',
+    confirm: 'Подтвердить',
+    scheduledToast: 'Будет выполнено через {{delay}} сек.',
+  },
 };
 
 export const en = {
@@ -159,5 +197,24 @@ export const en = {
     cancel: 'Cancel',
     doneToast: 'Freed {{size}}.',
     errorsTitle: 'Errors:',
+  },
+
+  power: {
+    title: 'Reboot / power off',
+    activeCalls: 'Active calls: {{count}}',
+    rebootButton: 'Reboot',
+    poweroffButton: 'Power off',
+    readonlyBanner: 'Cannot be controlled: {{reason}}',
+    modalTitle: { reboot: 'Reboot the system', poweroff: 'Power off the system' },
+    modalWarning: {
+      reboot: 'All active calls will be dropped and the system will be unavailable for a few minutes.',
+      poweroff: "All active calls will be dropped and you'll need to power the system back on manually.",
+    },
+    confirmHint: 'To confirm, type the hostname exactly:',
+    confirmPlaceholder: 'hostname',
+    confirmMismatch: "Hostname doesn't match.",
+    cancel: 'Cancel',
+    confirm: 'Confirm',
+    scheduledToast: 'Will run in {{delay}} seconds.',
   },
 };
