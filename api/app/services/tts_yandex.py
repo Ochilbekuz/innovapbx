@@ -55,8 +55,10 @@ async def synthesize_lpcm(cfg: TtsConfig, text: str, language: str, *,
     lang = _LANG_CODES.get(language, _LANG_CODES["uz"])
     data = {
         "text": text, "lang": lang, "voice": voice_for(cfg, language),
-        "folderId": cfg.folder_id or "", "format": "lpcm", "sampleRateHertz": str(_SAMPLE_RATE),
+        "format": "lpcm", "sampleRateHertz": str(_SAMPLE_RATE),
     }
+    # folderId yuborilmaydi: Api-Key = xizmat akkaunti, Yandex hujjati «Do not use this field if you make a request
+    # on behalf of a service account» — noto'g'ri katalog 401 «does not match with service account folder» berardi.
     headers = {"Authorization": f"Api-Key {cfg.api_key}"}
     url = f"{settings.tts_yandex_base.rstrip('/')}/speech/v1/tts:synthesize"
     try:

@@ -268,10 +268,15 @@ describe('IntegrationsPage', () => {
     await user.click(await screen.findByRole('option', { name: 'Yandex SpeechKit' }));
 
     await user.type(screen.getByLabelText('API kalit'), 'AQVN-sinov-kaliti');
-    await user.type(screen.getByRole('textbox', { name: 'Katalog ID (folder_id)' }), 'b1g...sinov');
+    // Katalog ID maydoni yoʻq — xizmat akkaunti kaliti bilan Yandex uni talab qilmaydi (notoʻgʻrisi 401 berardi).
+    expect(screen.queryByRole('textbox', { name: /folder_id/ })).toBeNull();
+    // Saqlanmagan oʻzgarish bor — sinov saqlangan sozlamani tekshiradi, shuning uchun tugma oʻchiq va sababi yozilgan.
+    expect(screen.getByRole('button', { name: 'Sinash' })).toBeDisabled();
+    expect(screen.getByText('Sinashdan oldin oʻzgarishlarni saqlang.')).toBeTruthy();
     await user.click(screen.getAllByRole('button', { name: 'Saqlash' }).at(2)!);
     expect(await screen.findAllByText('Saqlandi.')).not.toHaveLength(0);
 
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Sinash' })).not.toBeDisabled());
     await user.click(screen.getByRole('button', { name: 'Sinash' }));
     expect(await screen.findByText('Ulanish muvaffaqiyatli.')).toBeTruthy();
 

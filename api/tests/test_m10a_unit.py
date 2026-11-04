@@ -281,6 +281,9 @@ async def test_synthesize_lpcm_success_with_fake_transport():
     assert captured["auth"] == "Api-Key sekret-kalit"
     assert "speech/v1/tts:synthesize" in captured["url"]
     assert b"lang=uz-UZ" in captured["body"] and b"voice=nigora" in captured["body"]
+    # Xizmat akkaunti (Api-Key) bilan folderId YUBORILMAYDI — Yandex hujjati: «Do not use this field if you make
+    # a request on behalf of a service account»; noto'g'ri katalog 401 «does not match with service account folder» beradi.
+    assert b"folderId" not in captured["body"]
 
 
 async def test_synthesize_lpcm_non_200_raises_tts_error_without_leaking_key():

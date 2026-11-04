@@ -87,15 +87,16 @@ function SpeechKitSettingsForm({ data, canManage }: { data: TtsSettings; canMana
   const testM = useTestTtsSettings();
   const [provider, setProvider] = useState<TtsProvider>(data.provider);
   const [apiKey, setApiKey] = useState('');
-  const [folderId, setFolderId] = useState(data.folder_id ?? '');
   const [voices, setVoices] = useState<TtsVoices>(data.voices);
   const { field: errorField, message: errorMessage, stale } = useMutationError(updateM.error);
 
   const setVoice = (lang: keyof TtsVoices, v: string) => setVoices((prev) => ({ ...prev, [lang]: v }));
+  // Sinov SAQLANGAN sozlamani tekshiradi — saqlanmagan o'zgarish bilan bosilsa chalg'ituvchi natija beradi.
+  const dirty = apiKey !== '' || provider !== data.provider || JSON.stringify(voices) !== JSON.stringify(data.voices);
 
   const submit = () => {
     // Bo'sh qoldirilsa — mavjud kalitga tegilmaydi (faqat qayta kiritilganda almashtiriladi/o'chiriladi — "" bilan).
-    updateM.mutate({ provider, ...(apiKey !== '' ? { api_key: apiKey } : {}), folder_id: folderId.trim() || null, voices, updated_at: data.updated_at }, {
+    updateM.mutate({ provider, ...(apiKey !== '' ? { api_key: apiKey } : {}), voices, updated_at: data.updated_at }, {
       onSuccess: () => { toast({ kind: 'success', title: t('settings.saved') }); setApiKey(''); },
     });
   };
@@ -126,9 +127,6 @@ function SpeechKitSettingsForm({ data, canManage }: { data: TtsSettings; canMana
           >
             {(a) => <Input {...a} mono disabled={!canManage} type="password" placeholder={t('settings.speechkit.apiKeyPlaceholder')} value={apiKey} onChange={(e) => setApiKey(e.target.value)} />}
           </Field>
-          <Field label={t('settings.speechkit.folderIdLabel')} error={errorField === 'folder_id' ? errorMessage : undefined}>
-            {(a) => <Input {...a} mono disabled={!canManage} value={folderId} onChange={(e) => setFolderId(e.target.value)} />}
-          </Field>
           <div>
             <p className="mb-2 text-sm font-medium text-fg">{t('settings.speechkit.voicesTitle')}</p>
             <div className="grid gap-3 sm:grid-cols-3">
@@ -137,7 +135,12 @@ function SpeechKitSettingsForm({ data, canManage }: { data: TtsSettings; canMana
               <Field label={t('settings.speechkit.voiceEn')}>{(a) => <Input {...a} mono disabled={!canManage} value={voices.en} onChange={(e) => setVoice('en', e.target.value)} />}</Field>
             </div>
           </div>
-          {canManage && <div><Button variant="secondary" loading={testM.isPending} onClick={runTest}>{t('settings.speechkit.test')}</Button></div>}
+          {canManage && (
+            <div className="flex items-center gap-3">
+              <Button variant="secondary" loading={testM.isPending} disabled={dirty} onClick={runTest}>{t('settings.speechkit.test')}</Button>
+              {dirty && <span className="text-sm text-muted">{t('settings.speechkit.saveBeforeTest')}</span>}
+            </div>
+          )}
         </>
       )}
     </SettingsSection>

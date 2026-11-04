@@ -95,9 +95,8 @@ export const uz = {
       title: 'Nutq sintezi (Yandex SpeechKit)',
       providerLabel: 'Provayder', provider: { none: 'Oʻchirilgan', yandex: 'Yandex SpeechKit' },
       apiKeyLabel: 'API kalit', apiKeySetHint: 'Kalit saqlangan — oʻzgartirish uchun qayta kiriting.', apiKeyPlaceholder: 'AQVN...',
-      folderIdLabel: 'Katalog ID (folder_id)',
       voicesTitle: 'Ovozlar', voiceUz: 'Oʻzbekcha ovoz', voiceRu: 'Ruscha ovoz', voiceEn: 'Inglizcha ovoz',
-      test: 'Sinash', testOk: 'Ulanish muvaffaqiyatli.', testFail: 'Sinov muvaffaqiyatsiz: {{message}}',
+      saveBeforeTest: 'Sinashdan oldin oʻzgarishlarni saqlang.', test: 'Sinash', testOk: 'Ulanish muvaffaqiyatli.', testFail: 'Sinov muvaffaqiyatsiz: {{message}}',
     },
   },
 };
@@ -196,9 +195,8 @@ export const ru = {
       title: 'Синтез речи (Yandex SpeechKit)',
       providerLabel: 'Провайдер', provider: { none: 'Отключено', yandex: 'Yandex SpeechKit' },
       apiKeyLabel: 'API-ключ', apiKeySetHint: 'Ключ сохранён — введите заново, чтобы изменить.', apiKeyPlaceholder: 'AQVN...',
-      folderIdLabel: 'ID каталога (folder_id)',
       voicesTitle: 'Голоса', voiceUz: 'Узбекский голос', voiceRu: 'Русский голос', voiceEn: 'Английский голос',
-      test: 'Проверить', testOk: 'Соединение успешно.', testFail: 'Проверка не удалась: {{message}}',
+      saveBeforeTest: 'Сохраните изменения перед проверкой.', test: 'Проверить', testOk: 'Соединение успешно.', testFail: 'Проверка не удалась: {{message}}',
     },
   },
 };
@@ -297,9 +295,8 @@ export const en = {
       title: 'Speech synthesis (Yandex SpeechKit)',
       providerLabel: 'Provider', provider: { none: 'Disabled', yandex: 'Yandex SpeechKit' },
       apiKeyLabel: 'API key', apiKeySetHint: 'Key saved — re-enter it to change.', apiKeyPlaceholder: 'AQVN...',
-      folderIdLabel: 'Folder ID (folder_id)',
       voicesTitle: 'Voices', voiceUz: 'Uzbek voice', voiceRu: 'Russian voice', voiceEn: 'English voice',
-      test: 'Test', testOk: 'Connection successful.', testFail: 'Test failed: {{message}}',
+      saveBeforeTest: 'Save your changes before testing.', test: 'Test', testOk: 'Connection successful.', testFail: 'Test failed: {{message}}',
     },
   },
 };
