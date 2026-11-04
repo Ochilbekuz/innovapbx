@@ -1,5 +1,12 @@
 # O'zgarishlar tarixi
 
+## 1.0.15 — 2026-11-04
+- **Bir raqamda bir nechta qurilma** — endi BARCHASI jiringlaydi (stol telefoni + softfon + mobil). Avval
+  qo'ng'iroq faqat birinchi ro'yxatdan o'tgan qurilmaga borardi. Tuzatish to'g'ridan-to'g'ri qo'ng'iroq,
+  qo'ng'iroq guruhlari (DND hisobga olinadi), Follow Me, intercom (`*80`) va paging'ga taalluqli. Hech
+  qaysi qurilma ulanmagan bo'lsa — avvalgidek ovozli pochta/javobsiz yo'nalish.
+  Cheklov: navbat (Queue) a'zolari va API originate hozircha birinchi qurilmaga boradi.
+
 ## 1.0.14 — 2026-11-04
 - **Kun/Tun rejimi** — yangi sahifa **Marshrutlash → Kun/Tun** (`/day-night`): kunduzgi va tungi manzil, telefondan
   `*28<kod>` bilan almashtirish (ixtiyoriy PIN), BLF chiroqcha (`Custom:DAYNIGHT<kod>`), paneldan bir bosishda almashtirish.
