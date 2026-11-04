@@ -391,17 +391,51 @@ def test_ring_group_hunt_dials_members_sequentially():
     assert _rg_sets(ctx) == [["PJSIP/101"], ["PJSIP/102"]]
 
 
-def test_ring_group_memoryhunt_rings_growing_set_of_members():
-    """memoryhunt: 1-a'zo, keyin 1+2, keyin 1+2+3 — oldingilar jiringlashda davom etadi."""
+def test_ring_group_hunt_never_touches_astdb_always_starts_first():
+    """m12-contract.md A3: `hunt` DOIM birinchi a'zodan — AstDB `RG/.../last`ga
+    umuman murojaat qilmaydi (memoryhunt'dan aniq farqi)."""
+    snap = _snapshot(
+        extensions=[], targets=_rg_targets(), inbound_routes=[_route(target_id="rg-1")],
+        ring_groups=[_rg(strategy="hunt")],
+    )
+    ctx = compile_dialplan(snap).split("[t1-dest-rg-1]")[1].split("\n[")[0]
+    assert "DB(RG/" not in ctx
+    assert "DIALSTATUS" not in ctx
+
+
+def test_ring_group_memoryhunt_dials_members_in_order_with_rotation_logic():
+    """m12-contract.md A3: haqiqiy `memoryhunt` — matn tartibi hunt bilan BIR
+    XIL (1,2,3), farqi — AstDB `RG/<id>/last`dan o'qib aylanma boshlanish
+    nuqtasi hisoblanishi va javob berilsa o'rni yozilishi (keyingi qo'ng'iroq
+    undan KEYINGI a'zodan boshlanadi, aylanma)."""
     members = tuple(RingGroupMemberSnapshot(position=i, extension_number=n)
                     for i, n in enumerate(("101", "102", "103"), start=1))
     snap = _snapshot(
         extensions=[], targets=_rg_targets(), inbound_routes=[_route(target_id="rg-1")],
-        ring_groups=[_rg(strategy="memoryhunt", members=members)],
+        ring_groups=[_rg(strategy="memoryhunt", members=members, id="rg1")],
     )
     ctx = compile_dialplan(snap).split("[t1-dest-rg-1]")[1].split("[t1-dest-")[0]
-    assert _rg_sets(ctx) == [["PJSIP/101"], ["PJSIP/101", "PJSIP/102"],
-                             ["PJSIP/101", "PJSIP/102", "PJSIP/103"]]
+    assert _rg_sets(ctx) == [["PJSIP/101"], ["PJSIP/102"], ["PJSIP/103"]]
+    assert "Set(INNOVA_RG_LAST=${DB(RG/rg1/last)})" in ctx
+    assert "(${INNOVA_RG_LAST} % 3) + 1" in ctx
+    assert "Set(DB(RG/rg1/last)=1)" in ctx
+    assert "Set(DB(RG/rg1/last)=2)" in ctx
+    assert "Set(DB(RG/rg1/last)=3)" in ctx
+    assert 'GotoIf($["${DIALSTATUS}"="ANSWER"]?rg_m1_done)' in ctx
+    assert "rg_exhausted" in ctx
+
+
+def test_ring_group_memoryhunt_rotation_is_circular_mod_member_count():
+    """Aylanish doiraviy — N a'zo bo'lsa `% N` formulasi (oxirgidan keyin
+    birinchiga qaytadi)."""
+    members = tuple(RingGroupMemberSnapshot(position=i, extension_number=n)
+                    for i, n in enumerate(("101", "102"), start=1))
+    snap = _snapshot(
+        extensions=[], targets=_rg_targets(), inbound_routes=[_route(target_id="rg-1")],
+        ring_groups=[_rg(strategy="memoryhunt", members=members, id="rg2")],
+    )
+    ctx = compile_dialplan(snap).split("[t1-dest-rg-1]")[1].split("[t1-dest-")[0]
+    assert ctx.count("% 2) + 1") >= 1
 
 
 def test_ring_group_without_members_falls_back_to_no_answer():

@@ -35,6 +35,10 @@ def callback_context_lines(code: str, base_url: str, token: str) -> list[str]:
     return [
         f"[{code}-callback-dial]",
         "exten => s,1,NoOp(Innova: qayta chaqirish ${INNOVA_CB_REQUEST} -> operator)",
+        # M12 A4: CDR `accountcode` bo'sh qolgani uchun `/cdr`da ko'rinmasdi —
+        # boshqa `Set(CDR(accountcode)=<tenant kodi>)` joylar BILAN BIR XIL
+        # qolip (FAQAT shu maydon, boshqa CDR maydoni soxtalashtirilmaydi).
+        f" same => n,Set(CDR(accountcode)={code})",
         f" same => n,Set(CHANNEL(hangup_handler_push)={code}-callback-ophang,s,1)",
         " same => n,Goto(${INNOVA_CB_DESTCTX},s,1)",
         "",
@@ -45,6 +49,7 @@ def callback_context_lines(code: str, base_url: str, token: str) -> list[str]:
         "",
         f"[{code}-callback-answer]",
         "exten => s,1,NoOp(Innova: qayta chaqirish ${INNOVA_CB_REQUEST} operator javob berdi -> mijoz)",
+        f" same => n,Set(CDR(accountcode)={code})",
         f" same => n,Set(CHANNEL(hangup_handler_push)={code}-callback-custhang,s,1)",
         " same => n,Answer()",
         " same => n,Wait(1)",

@@ -96,6 +96,16 @@ def test_callback_context_lines_urls_and_flow():
     assert lines.count(" same => n,Return()") == 2
 
 
+def test_callback_context_lines_set_accountcode_to_tenant_code_only():
+    """M12 A4: CDR `accountcode` tenant kodiga o'rnatiladi — boshqa CDR
+    maydoni (userfield/disposition/...) soxtalashtirilmaydi."""
+    lines = callback_context_lines("t9", "http://api:8000", "tok")
+    text = "\n".join(lines)
+    assert text.count("Set(CDR(accountcode)=t9)") == 2
+    assert "CDR(disposition)" not in text
+    assert "CDR(userfield)" not in text
+
+
 def test_callback_contexts_in_compiled_dialplan():
     out = compile_dialplan(_snapshot())
     for ctx in ("t1-callback-dial", "t1-callback-ophang", "t1-callback-answer", "t1-callback-custhang"):
