@@ -3,9 +3,11 @@
 ## 1.0.15 — 2026-11-04
 - **Bir raqamda bir nechta qurilma** — endi BARCHASI jiringlaydi (stol telefoni + softfon + mobil). Avval
   qo'ng'iroq faqat birinchi ro'yxatdan o'tgan qurilmaga borardi. Tuzatish to'g'ridan-to'g'ri qo'ng'iroq,
-  qo'ng'iroq guruhlari (DND hisobga olinadi), Follow Me, intercom (`*80`) va paging'ga taalluqli. Hech
-  qaysi qurilma ulanmagan bo'lsa — avvalgidek ovozli pochta/javobsiz yo'nalish.
-  Cheklov: navbat (Queue) a'zolari va API originate hozircha birinchi qurilmaga boradi.
+  qo'ng'iroq guruhlari (DND hisobga olinadi), Follow Me va intercom (`*80`)ga taalluqli. Hech qaysi
+  qurilma ulanmagan bo'lsa — avvalgidek ovozli pochta/javobsiz yo'nalish.
+  Cheklov: navbat (Queue) a'zolari, API originate va **paging guruhlari** hozircha a'zoning birinchi
+  qurilmasiga boradi — Asterisk `Page()` ilovasi har manzilni oldindan "device state" bilan tekshiradi
+  va qo'ng'iroq-kontakt birikmasini qabul qilmaydi (jonli isbot bilan aniqlangan, 2026-11-04).
 
 ## 1.0.14 — 2026-11-04
 - **Kun/Tun rejimi** — yangi sahifa **Marshrutlash → Kun/Tun** (`/day-night`): kunduzgi va tungi manzil, telefondan
