@@ -50,6 +50,7 @@ import * as cidsources from '@/i18n/cidsources';
 import * as quality from '@/i18n/quality';
 import * as callback from '@/i18n/callback';
 import * as missedcalls from '@/i18n/missedcalls';
+import * as update from '@/i18n/update';
 import { apiClient } from '@/api';
 
 export const LANGS = ['uz', 'ru', 'en'] as const;
@@ -62,6 +63,7 @@ const NAMESPACES = {
   users, me, live, analytics, security, alerts, integrations, recordings, devices, backup, migration, followme, campaigns,
   status, network,
   announcements, misc, parking, paging, phonebook, pinsets, cidsources, quality, callback, missedcalls,
+  update,
 } as const;
 
 function resourcesFor(lang: Lang) {

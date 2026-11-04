@@ -134,6 +134,9 @@ import type {
   QaSummary,
   TotpSetup, TotpEnablePayload, TotpEnableResult, TotpDisablePayload, TotpRecoveryCodesPayload,
   TotpRecoveryCodesResult, LoginTotpPayload,
+  // M11 — qarang ../../replica/m11-update-contract.md
+  StartSystemUpdatePayload, SystemUpdateLog, SystemUpdateOut, UpdateChangelogEntry, UpdateErrorCode, UpdatePendingAction,
+  UpdatePhase, UpdateState,
 } from './types';
 import { API_KEY_SCOPES, DEVICE_VENDORS, EXTENSIONS_CSV_COLUMNS, WEBHOOK_EVENTS, WEBRTC_CODECS } from './types';
 
@@ -324,7 +327,12 @@ function filterCallsFor(calls: Call[], params: ListCallsParams): Call[] {
   });
 }
 
-export function createFakeClient(): ApiClient {
+/** `restart_502` — M11 testlari uchun: yangilash jarayonida bitta so'rov 502 bilan qaytadi ("qayta ishga tushmoqda"),
+ * boshqa qiymatlar — `failed` holatini shu xato kodi bilan yakunlaydi. Berilmasa — muvaffaqiyatli yakunlanadi. */
+export function createFakeClient(
+  opts: { updateScenario?: UpdateErrorCode | 'restart_502'; updateAgent?: boolean; updateAvailable?: boolean } = {},
+): ApiClient {
+  const { updateScenario } = opts;
   let needed = true;
   let extensions = seedExtensions();
   let trunks = seedTrunks();
@@ -453,6 +461,94 @@ export function createFakeClient(): ApiClient {
   let netPending: NetworkPending | null = null;
   let netPendingSnapshot: { hostname: string; dns: typeof netDns; interfaces: NetworkInterface[]; routes: NetworkStaticRoute[] } | null = null;
   let netLastResult: NetworkLastResult | null = null;
+
+  // ─────────────────────── Paneldan yangilash (update) — M11 (../../replica/m11-update-contract.md) ───────────────────────
+  // Vaqtga asoslangan simulyatsiya — `FakeBackupJob` bilan bir xil naqsh (setTimeout zanjiri yo'q, `Date.now()` farqidan hisoblanadi).
+  const UPD_CHECK_MS = 180;
+  const UPD_PHASE_MS = 300; // har bosqich (zaxira/kod/o'rnatish) — jami 900ms
+  const UPD_TOTAL_MS = UPD_PHASE_MS * 3;
+  const UPD_LOG_LINES = [
+    'Zaxira olinmoqda (ma\'lumotlar bazasi)…',
+    "Zaxira tayyor: pre-update paketi yozildi",
+    'Yangi kod olinmoqda (git fetch)…',
+    "git merge --ff-only bajarildi",
+    "Bog'liqliklar o'rnatilmoqda (pip/npm)…",
+    'Migratsiyalar qo\'llanmoqda…',
+    'Servislar qayta ishga tushirilmoqda…',
+    'Yangilanish yakunlandi.',
+  ];
+  let updAgent = opts.updateAgent ?? true;
+  let updCurrent = '1.0.12';
+  const updAvailable0 = opts.updateAvailable ?? true;
+  let updLatest = updAvailable0 ? '1.0.13' : updCurrent;
+  let updAvailable = updAvailable0;
+  let updState: UpdateState = 'idle';
+  let updPhase: UpdatePhase | null = null;
+  let updPending: UpdatePendingAction | null = null;
+  let updCheckedAt: string | null = null;
+  let updStartedAt: string | null = null;
+  let updFinishedAt: string | null = null;
+  let updError: UpdateErrorCode | null = null;
+  let updBackup: string | null = null;
+  let updChangelog: UpdateChangelogEntry[] = [
+    { version: '1.0.13', date: '2026-11-04', body: "## 1.0.13 — 2026-11-04\n\n- Paneldan yangilash qo'shildi\n- **Tuzatish**: `status` fayli endi atomik yoziladi\n- Kichik `<xato>` matni endi to'g'ri chiqadi" },
+  ];
+  let updJobStartedAt = 0;
+  let updCheckStartedAt = 0;
+  let updRestartFired = false;
+
+  /** `GET/POST /system/update*` chaqiruvi — poll vaqtida joriy ish (tekshirish/yangilash) elapsed vaqtiga qarab yakunlanadi. */
+  function advanceUpdateJob(): void {
+    if (updState === 'checking') {
+      if (Date.now() - updCheckStartedAt < UPD_CHECK_MS) return;
+      updState = 'idle';
+      updPending = null;
+      updCheckedAt = new Date().toISOString();
+      return;
+    }
+    if (updState !== 'updating') return;
+    const elapsed = Date.now() - updJobStartedAt;
+    if (elapsed < UPD_TOTAL_MS) {
+      updPhase = elapsed < UPD_PHASE_MS ? 'backup' : elapsed < UPD_PHASE_MS * 2 ? 'code' : 'install';
+      return;
+    }
+    updPhase = null;
+    updPending = null;
+    updFinishedAt = new Date().toISOString();
+    if (updateScenario && updateScenario !== 'restart_502') {
+      updState = 'failed';
+      updError = updateScenario;
+      updBackup = updateScenario === 'backup_failed' ? null : 'pre-update-1.0.12-20261104-100000.sql.gz';
+    } else {
+      updState = 'done';
+      updBackup = 'pre-update-1.0.12-20261104-100000.sql.gz';
+      updCurrent = updLatest;
+      updAvailable = false;
+      updError = null;
+    }
+  }
+
+  /** Jarayon logi — bosqich elapsed foiziga qarab `UPD_LOG_LINES`dan nechtasi "yozilgan" boʻlishini hisoblaydi. */
+  function currentUpdateLogText(): string {
+    if (updState === 'idle' && !updStartedAt) return '';
+    const elapsed = updState === 'updating' ? Date.now() - updJobStartedAt : UPD_TOTAL_MS;
+    const revealed = Math.min(UPD_LOG_LINES.length, Math.max(1, Math.ceil((Math.min(elapsed, UPD_TOTAL_MS) / UPD_TOTAL_MS) * UPD_LOG_LINES.length)));
+    return UPD_LOG_LINES.slice(0, revealed).join('\n') + '\n';
+  }
+
+  function buildSystemUpdateOut(): SystemUpdateOut {
+    if (!updAgent) {
+      return {
+        agent: false, current: null, latest: null, available: false, state: 'idle', phase: null, pending: null,
+        checked_at: null, started_at: null, finished_at: null, error: null, backup: null, changelog: [],
+      };
+    }
+    return {
+      agent: true, current: updCurrent, latest: updLatest, available: updAvailable, state: updState, phase: updPhase,
+      pending: updPending, checked_at: updCheckedAt, started_at: updStartedAt, finished_at: updFinishedAt,
+      error: updError, backup: updBackup, changelog: updAvailable ? updChangelog : [],
+    };
+  }
 
   // ─────────────────────── M9 — qarang ../../replica/m9-freepbx-gaps-contract.md ───────────────────────
   let announcements = seedAnnouncements();
@@ -2743,6 +2839,60 @@ export function createFakeClient(): ApiClient {
       netPendingSnapshot = null;
       auditAdd('update', 'network', pendingId, 'Tarmoq sozlamalari qaytarildi', {});
       return buildNetworkState();
+    },
+
+    // M11 — qarang ../../replica/m11-update-contract.md
+    async systemUpdate(): Promise<SystemUpdateOut> {
+      requireManage('*');
+      await delay(80);
+      if (updateScenario === 'restart_502' && updState === 'updating' && !updRestartFired) {
+        updRestartFired = true;
+        err(502, 'bad_gateway', 'Tizim qayta ishga tushmoqda.');
+      }
+      advanceUpdateJob();
+      return buildSystemUpdateOut();
+    },
+
+    async checkSystemUpdate(): Promise<SystemUpdateOut> {
+      requireManage('*');
+      await delay(100);
+      if (!updAgent) err(503, 'update_agent_missing', "Paneldan yangilash o'rnatilmagan — hostda agent topilmadi.");
+      advanceUpdateJob();
+      if (updPending || updState === 'checking' || updState === 'updating') err(409, 'update_busy', 'Boshqa yangilanish amali hali ketmoqda.');
+      updState = 'checking';
+      updPending = 'check';
+      updCheckStartedAt = Date.now();
+      return buildSystemUpdateOut();
+    },
+
+    async startSystemUpdate({ version }: StartSystemUpdatePayload): Promise<SystemUpdateOut> {
+      requireManage('*');
+      await delay(100);
+      if (!updAgent) err(503, 'update_agent_missing', "Paneldan yangilash o'rnatilmagan — hostda agent topilmadi.");
+      advanceUpdateJob();
+      if (updPending || updState === 'checking' || updState === 'updating') err(409, 'update_busy', 'Boshqa yangilanish amali hali ketmoqda.');
+      if (!updAvailable) err(409, 'update_not_available', "Yangi versiya yo'q.");
+      if (version !== updLatest) err(409, 'update_version_mismatch', "Versiya mos kelmadi — sahifa eskirgan, qayta tekshiring.");
+      updState = 'updating';
+      updPhase = 'backup';
+      updPending = 'update';
+      updStartedAt = new Date().toISOString();
+      updFinishedAt = null;
+      updError = null;
+      updBackup = null;
+      updJobStartedAt = Date.now();
+      updRestartFired = false;
+      auditAdd('update', 'system_update', 'update', `${updCurrent} → ${version}`, {});
+      return buildSystemUpdateOut();
+    },
+
+    async systemUpdateLog(offset: number): Promise<SystemUpdateLog> {
+      requireManage('*');
+      await delay(60);
+      advanceUpdateJob();
+      const text = currentUpdateLogText();
+      if (offset > text.length) return { offset: 0, size: 0, text: '' };
+      return { offset: text.length, size: text.length, text: text.slice(offset) };
     },
 
     async listAudit({ entity, user_id, action, from, to, q = '', page = 1, size = 50 }: ListAuditParams): Promise<Paged<AuditEntry>> {

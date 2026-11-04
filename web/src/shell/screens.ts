@@ -3,8 +3,8 @@ import { hasPermission } from '@/auth/permissions';
 import {
   Activity, ArrowRightLeft, AudioLines, BadgeCheck, BellRing, BookUser, CalendarClock, ChartNoAxesColumn, CircleUserRound,
   ClipboardCheck, DatabaseBackup, EthernetPort, Grid3x3, Hash, History, IdCard, KeyRound, LayoutDashboard, ListOrdered,
-  Megaphone, Mic2, Network, ParkingSquare, PhoneIncoming, PhoneMissed, PhoneOutgoing, Plug, RadioTower, ScrollText, ServerCog,
-  Shuffle, ShieldCheck, ShieldOff, Smartphone, UserCog, Users, Voicemail, Waypoints,
+  Megaphone, Mic2, Network, ParkingSquare, PhoneIncoming, PhoneMissed, PhoneOutgoing, Plug, RadioTower, RefreshCw, ScrollText,
+  ServerCog, Shuffle, ShieldCheck, ShieldOff, Smartphone, UserCog, Users, Voicemail, Waypoints,
 } from 'lucide-react';
 
 /**
@@ -82,6 +82,8 @@ export const SCREENS: ScreenDef[] = [
   { id: 'integrations', reconId: 'S15', path: '/settings/integrations', icon: icon(Plug), group: 'system', full: true },
   { id: 'license', reconId: 'S19', path: '/settings/license', icon: icon(BadgeCheck), group: 'system' },
   { id: 'users', reconId: 'S31', path: '/settings/users', icon: icon(UserCog), group: 'system', full: true },
+  // M11 — qarang ../../replica/m11-update-contract.md. S-raqam yo'q (M8 `network`dagi kabi yangi qo'shilgan).
+  { id: 'update', reconId: 'S45', path: '/settings/update', icon: icon(RefreshCw), group: 'system', full: true },
 ];
 
 /** Sidebarda ko'rsatilmaydigan, lekin marshruti bo'lishi kerak bo'lgan ekranlar (recon'dagi qolgan ID'lar). */

@@ -634,6 +634,34 @@ export type NetworkConfigIn = {
 export type NetworkFieldError = { field: string; message: string };
 export type NetworkValidateResult = { ok: boolean; errors: NetworkFieldError[]; warnings: string[]; diff: string[] };
 
+// ─────────────────────── Paneldan yangilash (M11) — ../../replica/m11-update-contract.md ───────────────────────
+
+export type UpdateState = 'idle' | 'checking' | 'updating' | 'done' | 'failed';
+export type UpdatePhase = 'backup' | 'code' | 'install';
+export type UpdatePendingAction = 'check' | 'update';
+export type UpdateErrorCode = 'no_source' | 'fetch_failed' | 'git_dirty' | 'backup_failed' | 'install_failed' | 'interrupted' | 'bad_request';
+
+export type UpdateChangelogEntry = { version: string; date: string; body: string };
+
+export type SystemUpdateOut = {
+  agent: boolean;
+  current: string | null;
+  latest: string | null;
+  available: boolean;
+  state: UpdateState;
+  phase: UpdatePhase | null;
+  pending: UpdatePendingAction | null;
+  checked_at: string | null;
+  started_at: string | null;
+  finished_at: string | null;
+  error: UpdateErrorCode | null;
+  backup: string | null;
+  changelog: UpdateChangelogEntry[];
+};
+
+export type StartSystemUpdatePayload = { version: string };
+export type SystemUpdateLog = { offset: number; size: number; text: string };
+
 export type AuditAction = 'create' | 'update' | 'delete' | 'login' | 'login_failed' | 'restore' | 'restart' | 'override' | 'spy';
 export type AuditDiff = Record<string, [unknown, unknown]>;
 export type AuditEntry = {

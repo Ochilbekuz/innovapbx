@@ -55,7 +55,10 @@ import type {
   TotpDisablePayload, TotpEnablePayload, TotpRecoveryCodesPayload,
   UpdateCallbackWidgetPayload, UpdateMissedCallRulePayload, UpdateQaChecklistPayload, UpdateQaEvaluationPayload,
   UpdateTtsSettingsPayload,
+  // M11 — qarang ../../replica/m11-update-contract.md
+  StartSystemUpdatePayload, SystemUpdateOut,
 } from './types';
+import { updateStatePollMs } from '@/domain/update';
 
 export const qk = {
   setupState: ['setup-state'] as const,
@@ -150,6 +153,9 @@ export const qk = {
   systemStatus: ['system-status'] as const,
   // M8 — qarang ../../replica/m8-network-contract.md
   networkState: ['network-state'] as const,
+  // M11 — qarang ../../replica/m11-update-contract.md
+  systemUpdate: ['system-update'] as const,
+  systemUpdateLog: ['system-update-log'] as const,
   // M9 — qarang ../../replica/m9-freepbx-gaps-contract.md
   announcements: ['announcements'] as const,
   miscDestinations: ['misc-destinations'] as const,
@@ -1409,6 +1415,45 @@ export function useRollbackNetwork() {
   return useMutation({
     mutationFn: (pendingId: string) => apiClient.rollbackNetwork(pendingId),
     onSuccess: () => invalidate([qk.networkState]),
+  });
+}
+
+// ─────────────────────── M11 — Paneldan yangilash (../../replica/m11-update-contract.md) ───────────────────────
+// `checking`/`updating`/`pending` paytida 2s poll (domain/update.ts); 502/503/tarmoq xatosida ham oldingi
+// `data` saqlanadi (`retry: false` — o'zimiz pollaymiz, react-query ichki qayta urinishi kerak emas).
+
+export function useSystemUpdate() {
+  return useQuery({
+    queryKey: qk.systemUpdate,
+    queryFn: () => apiClient.systemUpdate(),
+    retry: false,
+    refetchInterval: (query) => updateStatePollMs(query.state.data),
+  });
+}
+
+export function useCheckSystemUpdate() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => apiClient.checkSystemUpdate(),
+    onSuccess: (data: SystemUpdateOut) => qc.setQueryData(qk.systemUpdate, data),
+  });
+}
+
+export function useStartSystemUpdate() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: StartSystemUpdatePayload) => apiClient.startSystemUpdate(payload),
+    onSuccess: (data: SystemUpdateOut) => qc.setQueryData(qk.systemUpdate, data),
+  });
+}
+
+/** Jurnal — chaqiruvchi `offset`ni o'zi saqlaydi va qaytgan matnni qo'shib boradi (domain/update.ts `appendUpdateLog`). */
+export function useSystemUpdateLog(offset: number, enabled: boolean, pollMs: number | false) {
+  return useQuery({
+    queryKey: qk.systemUpdateLog,
+    queryFn: () => apiClient.systemUpdateLog(offset),
+    enabled,
+    refetchInterval: pollMs,
   });
 }
 

@@ -76,6 +76,8 @@ import type {
   QaSummary,
   TotpSetup, TotpEnablePayload, TotpEnableResult, TotpDisablePayload, TotpRecoveryCodesPayload,
   TotpRecoveryCodesResult, LoginTotpPayload,
+  // M11 — qarang ../../replica/m11-update-contract.md
+  StartSystemUpdatePayload, SystemUpdateLog, SystemUpdateOut,
 } from './types';
 import type { ApplyResult } from './types';
 
@@ -405,6 +407,12 @@ export interface ApiClient {
   applyNetwork(payload: NetworkConfigIn): Promise<NetworkStateOut>;
   confirmNetwork(pendingId: string): Promise<NetworkStateOut>;
   rollbackNetwork(pendingId: string): Promise<NetworkStateOut>;
+
+  // M11 — qarang ../../replica/m11-update-contract.md §4, S45 «Yangilanish»
+  systemUpdate(): Promise<SystemUpdateOut>;
+  checkSystemUpdate(): Promise<SystemUpdateOut>;
+  startSystemUpdate(payload: StartSystemUpdatePayload): Promise<SystemUpdateOut>;
+  systemUpdateLog(offset: number): Promise<SystemUpdateLog>;
 
   // M9 A1 — qarang ../../replica/m9-freepbx-gaps-contract.md §A1 («E'lon»)
   listAnnouncements(): Promise<Paged<Announcement>>;

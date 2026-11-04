@@ -106,6 +106,11 @@ export const uz = {
   campaign_empty: 'Teriladigan raqam yoʻq — avval CSV yuklang.',
   csv_too_large: 'CSV 1 MB dan katta — boʻlib yuklang.',
   csv_too_many: 'Bitta kampaniyada 50 000 dan ortiq raqam boʻlmaydi.',
+  // M11 — qarang ../../replica/m11-update-contract.md
+  update_agent_missing: "Paneldan yangilash o'rnatilmagan — hostda agent topilmadi.",
+  update_busy: 'Boshqa yangilanish amali hali ketmoqda — birozdan keyin qayta urinib koʻring.',
+  update_not_available: "Hozircha yangi versiya yoʻq.",
+  update_version_mismatch: 'Versiya mos kelmadi — sahifa eskirgan boʻlishi mumkin, holat yangilandi.',
 };
 
 export const ru = {
@@ -213,6 +218,11 @@ export const ru = {
   campaign_empty: 'Нет номеров для набора — сначала загрузите CSV.',
   csv_too_large: 'CSV больше 1 МБ — загрузите частями.',
   csv_too_many: 'В одной кампании не больше 50 000 номеров.',
+  // M11 — см. ../../replica/m11-update-contract.md
+  update_agent_missing: 'Обновление из панели не настроено — агент на хосте не найден.',
+  update_busy: 'Другое действие обновления уже выполняется — попробуйте позже.',
+  update_not_available: 'Новой версии пока нет.',
+  update_version_mismatch: 'Версия не совпадает — страница устарела, статус обновлён.',
 };
 
 export const en = {
@@ -320,4 +330,9 @@ export const en = {
   campaign_empty: 'No numbers to dial — upload a CSV first.',
   csv_too_large: 'The CSV is larger than 1 MB — split it up.',
   csv_too_many: 'A campaign can hold at most 50,000 numbers.',
+  // M11 — see ../../replica/m11-update-contract.md
+  update_agent_missing: 'Panel updates are not set up — no agent found on the host.',
+  update_busy: 'Another update action is already running — try again shortly.',
+  update_not_available: 'No new version available yet.',
+  update_version_mismatch: 'Version mismatch — this page was stale, status refreshed.',
 };
