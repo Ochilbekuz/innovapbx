@@ -31,10 +31,10 @@ MAILPIT_IMAGE="axllent/mailpit"
 PG=innova-m0-postgres-1
 AST=innova-m0-asterisk-1
 
-EXT201_IP="172.21.0.160"   # 201 — qutili ext (jiringlaydi, javob bermaydi; *97 chaqiruvchi)
-EXT202_IP="172.21.0.161"   # 202 — chaqiruvchi (qutisiz; *98)
-MAILPIT_IP="172.21.0.163"  # test SMTP (1025) + API (8025)
-TG_IP="172.21.0.164"       # soxta Telegram Bot API (8081)
+EXT201_IP="172.28.0.160"   # 201 — qutili ext (jiringlaydi, javob bermaydi; *97 chaqiruvchi)
+EXT202_IP="172.28.0.161"   # 202 — chaqiruvchi (qutisiz; *98)
+MAILPIT_IP="172.28.0.163"  # test SMTP (1025) + API (8025)
+TG_IP="172.28.0.164"       # soxta Telegram Bot API (8081)
 
 ADMIN_PASSWORD="${PROOF_ADMIN_PASSWORD:-$(grep -E '^PROOF_ADMIN_PASSWORD=' "$DEPLOY_DIR/.env" | cut -d= -f2-)}"
 [[ -n "$ADMIN_PASSWORD" ]] || { echo "PROOF_ADMIN_PASSWORD deploy/.env da yo'q"; exit 2; }

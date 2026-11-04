@@ -31,7 +31,7 @@ PY_IMAGE="python:3.12-slim"
 PG=innova-m0-postgres-1
 AST=innova-m0-asterisk-1
 
-declare -A IP=([201]="172.21.0.170" [202]="172.21.0.171" [203]="172.21.0.172" [trunk]="172.21.0.173")
+declare -A IP=([201]="172.28.0.170" [202]="172.28.0.171" [203]="172.28.0.172" [trunk]="172.28.0.173")
 EXT_NUMBER="998901112233"   # tashqi yo'naltirish raqami (marshrut 998XXXXXXXXX -> M2aTrunk)
 
 # shellcheck source=lib/m2a_common.sh

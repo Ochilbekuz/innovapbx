@@ -23,7 +23,7 @@ PY_IMAGE="python:3.12-slim"
 PG=innova-m0-postgres-1
 AST=innova-m0-asterisk-1
 
-declare -A IP=([201]="172.21.0.190" [trunk]="172.21.0.191")
+declare -A IP=([201]="172.28.0.190" [trunk]="172.28.0.191")
 CID="712000000"
 BLACK="998900000099"
 OPTOUT_NUM="998900000051"

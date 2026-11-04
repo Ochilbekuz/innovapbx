@@ -8,7 +8,7 @@
 # AST(=innova-m0-asterisk-1), api/jget/jbody/jcode/check/pass/fail/wait_until,
 # tg_is_decoded/tg_count_decoded (m1b-proof.sh'dagi register-trunk qolipi
 # BILAN BIR XIL — dryer: isbotlangan naqsh qayta ishlatildi).
-TM_IP="172.21.0.205"  # register-rejim trunk peer (EXT/TRUNK/TG/SG_*dan ALOHIDA)
+TM_IP="172.28.0.205"  # register-rejim trunk peer (EXT/TRUNK/TG/SG_*dan ALOHIDA)
 
 TM_TRUNK_J=$(api POST /trunks "{\"name\":\"M2cRegTrunk\",\"host\":\"$TM_IP\",\"port\":5060,\"auth_mode\":\"register\",\"username\":\"m2cregtrunk\",\"password\":\"M2cRegTrunkPass123\",\"codecs\":[\"ulaw\"],\"max_channels\":5,\"enabled\":true}")
 TM_TRUNK_ID=$(jget "$(jbody "$TM_TRUNK_J")" item id)

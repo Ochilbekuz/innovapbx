@@ -23,8 +23,8 @@ PY_IMAGE="python:3.12-slim"
 PG=innova-m0-postgres-1
 AST=innova-m0-asterisk-1
 
-declare -A IP=([201]="172.21.0.180" [202]="172.21.0.181" [203]="172.21.0.182" [204]="172.21.0.183"
-               [trunk]="172.21.0.184" [probe]="172.21.0.185")
+declare -A IP=([201]="172.28.0.180" [202]="172.28.0.181" [203]="172.28.0.182" [204]="172.28.0.183"
+               [trunk]="172.28.0.184" [probe]="172.28.0.185")
 EXT_NUMBER="998901112233"   # Follow Me tashqi raqami (marshrut 998XXXXXXXXX -> M5bTrunk)
 DID="555010050"             # trunk -> 201
 OPERATOR_LOGIN="m5b_operator"

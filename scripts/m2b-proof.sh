@@ -37,7 +37,7 @@ PY_IMAGE="python:3.12-slim"
 PG=innova-m0-postgres-1
 AST=innova-m0-asterisk-1
 
-declare -A IP=([101]="172.21.0.180" [102]="172.21.0.181" [103]="172.21.0.182" [caller]="172.21.0.183")
+declare -A IP=([101]="172.28.0.180" [102]="172.28.0.181" [103]="172.28.0.182" [caller]="172.28.0.183")
 
 # shellcheck source=lib/m2a_common.sh
 # M2a'dan QAYTA ISHLATILADI (dryer) — bu yerdagi login/api/jget/sql/ast/wait_until/

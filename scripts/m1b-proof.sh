@@ -34,12 +34,12 @@ PROJECT="innova-m0"
 NET="${PROJECT}_innova-net"
 SIPP_IMAGE="python:3.12-slim"
 
-EXT_IP="172.21.0.150"       # 101/109 (ichki raqam, chiquvchi qo'ng'iroqlar)
-TRUNKA_IP="172.21.0.151"    # trunk A (503 rad)
-TRUNKB_IP="172.21.0.152"    # trunk B (javob beradi, log qiladi)
-TRUNKRG_IP="172.21.0.153"   # ring group tashqi a'zo trunk
-INBOUND_UAC_IP="172.21.0.154"  # kiruvchi DID'ni simulyatsiya qiluvchi UAC
-REGTRUNK_IP="172.21.0.155"  # register-rejim trunk (test registrar)
+EXT_IP="172.28.0.150"       # 101/109 (ichki raqam, chiquvchi qo'ng'iroqlar)
+TRUNKA_IP="172.28.0.151"    # trunk A (503 rad)
+TRUNKB_IP="172.28.0.152"    # trunk B (javob beradi, log qiladi)
+TRUNKRG_IP="172.28.0.153"   # ring group tashqi a'zo trunk
+INBOUND_UAC_IP="172.28.0.154"  # kiruvchi DID'ni simulyatsiya qiluvchi UAC
+REGTRUNK_IP="172.28.0.155"  # register-rejim trunk (test registrar)
 
 ADMIN_PASSWORD="${PROOF_ADMIN_PASSWORD:-$(grep -E '^PROOF_ADMIN_PASSWORD=' "$DEPLOY_DIR/.env" | cut -d= -f2-)}"
 [[ -n "$ADMIN_PASSWORD" ]] || { echo "PROOF_ADMIN_PASSWORD deploy/.env da yo'q"; exit 2; }

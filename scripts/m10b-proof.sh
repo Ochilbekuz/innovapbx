@@ -408,8 +408,10 @@ for _ in 1 2 3 4 5 6; do
 done
 BF_LOGIN=$(curl -s -w '\n%{http_code}' -X POST "$API_BASE/auth/login" -H 'Content-Type: application/json' \
   -d "{\"login\":\"m10badmin2\",\"password\":\"$ADM2_PASSWORD\"}")
-check "$(err_is "$BF_LOGIN" 423 locked; echo $?)" \
-  "5+ noto'g'ri TOTP (har biri yangi challenge) -> hisob bloklandi (423 locked)" "$BF_LOGIN $BF_LAST"
+# M12 C M5: qulflangan hisob TO'G'RI parolda ham `bad_credentials` (401) — 423 faqat IP-limiter
+# uchun (hisob holati oshkor qilinmaydi). To'g'ri parol rad etilishi — qulf dalili.
+check "$(err_is "$BF_LOGIN" 401 bad_credentials; echo $?)" \
+  "5+ noto'g'ri TOTP (har biri yangi challenge) -> hisob bloklandi (to'g'ri parol ham 401 bad_credentials)" "$BF_LOGIN $BF_LAST"
 
 echo "=== tozalash ==="
 api DELETE "/users/$ADM2_ID" >/dev/null

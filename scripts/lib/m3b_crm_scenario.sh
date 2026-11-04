@@ -4,7 +4,7 @@
 # DID_*, OUT_NUM, HANGUP_T, PUBLIC_BASE, target_of, CONTAINERS). Soxta CRM: `tests/sipp/fake_crm.py` (bitta konteyner,
 # Bitrix `/rest/...` va amoCRM `/api/v4/...`), har so'rovni yozadi va N marta 503/429 qaytara oladi.
 
-CRM_IP="172.21.0.227"; CRM_PORT=9001
+CRM_IP="172.28.0.227"; CRM_PORT=9001
 CRM_BASE="http://$CRM_IP:$CRM_PORT"
 BX_HOOK_URL="$CRM_BASE/rest/1/abc123/"
 BX_APP_TOKEN="apptok-M3b"; AMO_TOKEN="amotok-M3b"

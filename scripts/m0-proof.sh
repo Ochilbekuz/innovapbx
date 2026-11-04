@@ -23,8 +23,8 @@ API_BASE="${API_BASE:-http://127.0.0.1:8710/api/v1}"
 PROJECT="innova-m0"
 NET="${PROJECT}_innova-net"
 SIPP_IMAGE="python:3.12-slim"
-UAC_IP="172.21.0.90"
-UAS_IP="172.21.0.91"
+UAC_IP="172.28.0.90"
+UAS_IP="172.28.0.91"
 
 ADMIN_PASSWORD="${PROOF_ADMIN_PASSWORD:-$(grep -E '^PROOF_ADMIN_PASSWORD=' "$DEPLOY_DIR/.env" | cut -d= -f2-)}"
 [[ -n "$ADMIN_PASSWORD" ]] || { echo "PROOF_ADMIN_PASSWORD deploy/.env da yo'q"; exit 2; }

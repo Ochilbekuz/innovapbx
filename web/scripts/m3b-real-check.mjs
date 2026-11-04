@@ -23,8 +23,8 @@ const RECORDINGS_DIR = '/var/spool/asterisk/monitor';
 
 // Haqiqiy backend run'lar orasida holatni saqlaydi (reset yo'q) — har ishga tushirishda yagona teg.
 const RUN_TAG = Date.now().toString(36);
-const BITRIX_WEBHOOK_URL = 'http://172.21.0.250/rest/1/abc/';
-const AMO_BASE_URL = 'https://172.21.0.251';
+const BITRIX_WEBHOOK_URL = 'http://172.28.0.250/rest/1/abc/';
+const AMO_BASE_URL = 'https://172.28.0.251';
 const AMO_TOKEN = `sinov-amo-token-${RUN_TAG}`;
 
 function adminPassword() {

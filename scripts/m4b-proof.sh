@@ -164,7 +164,8 @@ check "$(docker exec "$APICONT" test -f "/var/lib/innova/backups/$FNAME1"; echo 
   "1: zaxira fayli api konteynerida bor ($FNAME1)"
 
 LEAK=0
-for needle in "101" "M4b101" "$TRUNK_USER" "PGDMP"; do
+# Yalang'och "101" (3 bayt) shifrlangan MB'lik faylda tasodifan uchrab turadi (~1/16M har pozitsiyada) — flaky.
+for needle in "M4b101" "$TRUNK_USER" "PGDMP"; do
   docker exec "$APICONT" grep -qaF "$needle" "/var/lib/innova/backups/$FNAME1" && LEAK=1
 done
 check "$( [[ "$LEAK" == "0" ]]; echo $?)" "1: faylda ochiq matn yo'q (raqam/trunk nomi/PGDMP grep 0)"
@@ -354,7 +355,9 @@ check "$( [[ "$NEW_EXT" == "$BASE_EXT" && "$NEW_IVR" == "$BASE_IVR" && "$NEW_TRU
 docker rm -f m4b-proof-101 >/dev/null 2>&1 || true
 docker run -d --name m4b-proof-101 --network "$NET" "$PY_IMAGE" sleep infinity >/dev/null
 docker cp "$SIPP_DIR/register_only.py" m4b-proof-101:/tmp/register_only.py
-REG=$(docker exec m4b-proof-101 python3 /tmp/register_only.py asterisk 5060 5090 "101" "${SECRET[101]}")
+# Telefon (m2a_phone) bilan BIR XIL port: contact URI bir xil bo'ladi va almashtiriladi. Boshqa port
+# 2-contact qoldirardi — `Dial(PJSIP/101)` faqat BIRINCHI contact'ga INVITE yuboradi (o'lik 5090 tanlansa FAIL).
+REG=$(docker exec m4b-proof-101 python3 /tmp/register_only.py asterisk 5060 5070 "101" "${SECRET[101]}")
 check "$( [[ "$REG" == REGISTER\ OK:* ]]; echo $?)" "4: 101 eski (zaxiradagi) parol bilan REGISTER -> 200" "$REG"
 
 for f in m2a_phone.py vm_caller.py outbound_invite.py; do docker cp "$SIPP_DIR/$f" "m4b-proof-101:/tmp/$f"; done
@@ -363,7 +366,9 @@ docker exec m4b-proof-101 sh -c "echo answer > /tmp/mode"
 wait_until 15 docker exec m4b-proof-101 grep -q 'REGISTER_RESULT: OK' /tmp/phone.log
 check "$( docker exec m4b-proof-101 grep -q 'REGISTER_RESULT: OK' /tmp/phone.log; echo $?)" \
   "4: tiklashdan keyin 101 telefon qayta ro'yxatdan o'tdi" "$(docker exec m4b-proof-101 tail -3 /tmp/phone.log)"
+ast "pjsip set logger on" >/dev/null 2>&1
 docker exec m4b-proof-ph sh -c "cd /tmp && python3 m2a_phone.py call 102 '${SECRET[102]}' 5073 13004 101 3 >/tmp/call3.log 2>&1"
+ast "pjsip set logger off" >/dev/null 2>&1
 check "$( grep -Eq 'BYE_SENT|REMOTE_BYE|INVITE_FINAL: SIP/2.0 2' <(docker exec m4b-proof-ph cat /tmp/call3.log); echo $?)" \
   "4: tiklashdan keyin 102->101 qo'ng'iroq javob topadi" "$(docker exec m4b-proof-ph cat /tmp/call3.log | tail -3)"
 if ! grep -Eq 'BYE_SENT|REMOTE_BYE|INVITE_FINAL: SIP/2.0 2' <(docker exec m4b-proof-ph cat /tmp/call3.log); then
@@ -373,6 +378,9 @@ if ! grep -Eq 'BYE_SENT|REMOTE_BYE|INVITE_FINAL: SIP/2.0 2' <(docker exec m4b-pr
   ast "dialplan show t1-from-internal" | head -4
   sql "select id,status,dialplan_sha256,left(coalesce(error,''),160) from config_revisions order by id desc limit 4"
   docker logs --since 3m "$AST" 2>&1 | grep -E "102|404|No matching|Failed to authenticate|anonymous" | tail -15
+  ast "pjsip show aor 101" | grep -E "contact|max_contacts|remove_existing" | head -6
+  docker exec m4b-proof-101 sh -c "tail -8 /tmp/phone.log; cat /tmp/mode" 2>&1
+  docker logs --since 2m "$AST" 2>&1 | grep -aE "^(INVITE|SIP/2.0) |Transmitting|Received SIP|Called|Unreachable" | tail -20
   echo "--- /DIAG ---"
 fi
 

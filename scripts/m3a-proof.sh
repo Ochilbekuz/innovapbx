@@ -32,7 +32,7 @@ WEBCONT=innova-m0-web-1
 export M3A_CTL_PORT="${M3A_CTL_PORT:-8799}"
 CTL="http://127.0.0.1:$M3A_CTL_PORT"
 export CHROME_PATH="${CHROME_PATH:-$HOME/.cache/ms-playwright/chromium-1234/chrome-linux64/chrome}"
-declare -A IP=([102]="172.21.0.180" [trunk]="172.21.0.181")
+declare -A IP=([102]="172.28.0.180" [trunk]="172.28.0.181")
 OP_PW="M3aProof!2026a"   # operatorlarning yangi (o'zgartirilgan) paroli
 DID_QUEUE="712000303"
 IVR_NUM="550"; QUEUE_NUM="560"

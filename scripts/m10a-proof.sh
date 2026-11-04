@@ -37,7 +37,7 @@ AST=innova-m0-asterisk-1
 
 # .234/.235/.236 — `docker network inspect innova-m0_innova-net` bilan bo'sh ekani
 # tasdiqlangan (boshqa proof skriptlari .233 gacha ishlatadi).
-declare -A IP=([268]="172.21.0.234" [trunk]="172.21.0.235" [tg]="172.21.0.236")
+declare -A IP=([268]="172.28.0.234" [trunk]="172.28.0.235" [tg]="172.28.0.236")
 OPERATOR_NUM="268"            # 101-104/201-203/221-223 boshqa proof'larning doimiy
                               # qoldiq fixturalari bilan to'qnashmasin (M2a/M9a/M3b/M6)
 #   DIQQAT: haqiqiy "rate-limit" bloklanishning aybdori IP limiteri (60s oyna) EMAS

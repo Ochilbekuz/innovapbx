@@ -93,7 +93,7 @@ check "$( [[ "$(jcode "$ADD_PINS_JSON")" == "201" ]]; echo $?)" "POST /pin-sets/
 DUP_PIN_JSON=$(api POST "/pin-sets/$PS_ID/pins" '{"pins":[{"pin":"4455","label":"dublikat"}]}')
 check "$(err_is "$DUP_PIN_JSON" 409 pin_taken; echo $?)" "takror PIN -> 409 pin_taken" "$DUP_PIN_JSON"
 
-TRUNK_JSON=$(api POST /trunks '{"name":"M9bTrunk","host":"172.21.0.199","port":5060,"match":["172.21.0.199/32"],"codecs":["ulaw"],"max_channels":2,"enabled":true}')
+TRUNK_JSON=$(api POST /trunks '{"name":"M9bTrunk","host":"172.28.0.199","port":5060,"match":["172.28.0.199/32"],"codecs":["ulaw"],"max_channels":2,"enabled":true}')
 TRUNK_ID=$(jget "$(jbody "$TRUNK_JSON")" item id)
 [[ -n "$TRUNK_ID" ]] && pass "POST /trunks -> M9bTrunk yaratildi" || fail "POST /trunks -> $TRUNK_JSON"
 # DIQQAT (jonli isbotda topilgan): `ip` rejimdagi trunk yangi realtime AOR
@@ -155,11 +155,11 @@ else
   SIPP_DIR="$ROOT_DIR/tests/sipp"
   NET="${PROJECT}_innova-net"
   SIPP_IMAGE="python:3.12-slim"
-  CALL_EXT_IP="172.21.0.200"
+  CALL_EXT_IP="172.28.0.200"
   # DIQQAT: trunk-UAS IP yuqoridagi `TRUNK_JSON` (M9bTrunk) `host` qiymati
-  # (172.21.0.199) BILAN AYNAN BIR XIL bo'lishi SHART — Asterisk
+  # (172.28.0.199) BILAN AYNAN BIR XIL bo'lishi SHART — Asterisk
   # `from-trunk`ni shu IP orqali aniqlaydi.
-  CALL_TRUNK_IP="172.21.0.199"
+  CALL_TRUNK_IP="172.28.0.199"
   CALL_SIP_CONTAINERS=(m9b-proof-ext m9b-proof-trunk)
   docker rm -f "${CALL_SIP_CONTAINERS[@]}" >/dev/null 2>&1 || true
   cleanup_m9b_sip() { docker rm -f "${CALL_SIP_CONTAINERS[@]}" >/dev/null 2>&1 || true; }

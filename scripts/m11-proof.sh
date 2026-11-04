@@ -39,7 +39,7 @@ trap cleanup EXIT
 st() { jget "$(jbody "$(api GET /system/update)")" "$1"; }
 
 setup_host() {
-  rm -rf "$P" && mkdir -p "$P/upd" "$P/opt/deploy" "$P/opt/backups"
+  rm -rf "$P" && mkdir -p "$P/upd/req" "$P/opt/deploy" "$P/opt/backups"
   export GIT_AUTHOR_NAME=proof GIT_AUTHOR_EMAIL=p@p GIT_COMMITTER_NAME=proof GIT_COMMITTER_EMAIL=p@p
   git init -q -b main "$P/work"
   cat > "$P/work/install.sh" <<'EOF'
@@ -69,10 +69,12 @@ publish_release() { # versiya — origin'ga yangi versiya
 }
 
 setup_units() {
-  sed -e "s#/var/lib/innova/update/request#$P/upd/request#" -e "s#innova-update-agent.service#$UNIT.service#" \
+  # H1d `PrivateTmp=yes` — isbot papkasi $P /tmp ostida, xizmat uni ko'rishi uchun faqat shu yerda o'chiriladi.
+  sed -e "s#/var/lib/innova/update/req/request#$P/upd/req/request#" -e "s#innova-update-agent.service#$UNIT.service#" \
     "$ROOT_DIR/iso/files/innova-update-agent.path" > "/etc/systemd/system/$UNIT.path"
   sed -e "s#ExecStart=/usr/local/sbin/innova-update#ExecStart=/bin/bash $ROOT_DIR/iso/files/innova-update.sh#" \
-      -e "s#/var/lib/innova/update/request#$P/upd/request#" \
+      -e "s#/var/lib/innova/update/req/request#$P/upd/req/request#" \
+      -e "s#^PrivateTmp=yes#PrivateTmp=no#" \
       -e "s#^Type=oneshot#Type=oneshot\nEnvironment=INNOVA_DEST=$P/opt INNOVA_UPDATE_DIR=$P/upd INNOVA_UPDATE_LOCK=$P/lock#" \
     "$ROOT_DIR/iso/files/innova-update-agent.service" > "/etc/systemd/system/$UNIT.service"
   systemctl daemon-reload && systemctl start "$UNIT.path"
@@ -85,7 +87,9 @@ services:
     environment:
       INNOVA_VERSION: "1.0.12"
     volumes:
-      - $P/upd:/var/lib/innova/update
+      # H1c: appliance bilan bir xil — papka :ro, API faqat req/ ga yozadi.
+      - $P/upd:/var/lib/innova/update:ro
+      - $P/upd/req:/var/lib/innova/update/req
 EOF
   flock /tmp/innova-stack.lock -c "cd '$DEPLOY_DIR' && docker compose -p '$PROJECT' -f docker-compose.yml -f '$OVERRIDE' up -d --no-deps api" >/dev/null
   wait_api
@@ -106,7 +110,7 @@ check "$([ "$(st current)" = 1.0.12 ]; echo $?)" "current=1.0.12 (INNOVA_VERSION
 
 echo "=== 2. Tekshirish — yangi versiya yo'q ==="
 R=$(api POST /system/update/check); check "$([ "$(jcode "$R")" = 202 ]; echo $?)" "check → 202" "$R"
-wait_until 20 bash -c "[ ! -e '$P/upd/request' ] && grep -q '^state=idle' '$P/upd/status' 2>/dev/null"
+wait_until 20 bash -c "[ ! -e '$P/upd/req/request' ] && grep -q '^state=idle' '$P/upd/status' 2>/dev/null"
 check "$([ -n "$(st checked_at)" ] && [ "$(st latest)" = 1.0.12 ]; echo $?)" "agent tekshirdi: checked_at bor, latest=1.0.12" "$(cat "$P/upd/status" 2>&1)"
 check "$([ "$(st available)" = False ] || [ "$(st available)" = false ]; echo $?)" "available=false" "$(cat "$P/upd/status")"
 R=$(api POST /system/update/start '{"version":"1.0.13"}'); check "$([ "$(jcode "$R")" = 409 ]; echo $?)" "start → 409 update_not_available" "$R"
@@ -149,8 +153,8 @@ mv "$P/src/.git.off" "$P/src/.git"; chmod 644 "$P/opt/VERSION"
 sed -i "s#^ExecStart=.*#ExecStart=/bin/false#" "/etc/systemd/system/$UNIT.service"; systemctl daemon-reload
 LEFT=0
 for _ in 1 2 3 4 5 6 7 8; do
-  echo check > "$P/upd/request"
-  wait_until 5 bash -c "[ ! -e '$P/upd/request' ]" || LEFT=$((LEFT + 1))
+  echo check > "$P/upd/req/request"
+  wait_until 5 bash -c "[ ! -e '$P/upd/req/request' ]" || LEFT=$((LEFT + 1))
 done
 check "$([ "$LEFT" = 0 ]; echo $?)" "8 ta ketma-ket yiqilish: so'rov har safar o'chdi (ExecStopPost)"
 check "$(systemctl is-active -q "$UNIT.path"; echo $?)" "start-limit yo'q: path unit hamon faol"

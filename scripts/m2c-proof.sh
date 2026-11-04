@@ -40,9 +40,9 @@ PG=innova-m0-postgres-1
 AST=innova-m0-asterisk-1
 APICONT=innova-m0-api-1
 
-EXT_IP="172.21.0.200"    # chiquvchi test-UA (barcha ichki raqamlar shu konteynerdan teradi)
-TRUNK_IP="172.21.0.201"  # yagona trunk-UAS (bitta INVITE'dan keyin o'zi chiqadi — qayta ishga tushiriladi)
-TG_IP="172.21.0.202"     # soxta Telegram
+EXT_IP="172.28.0.200"    # chiquvchi test-UA (barcha ichki raqamlar shu konteynerdan teradi)
+TRUNK_IP="172.28.0.201"  # yagona trunk-UAS (bitta INVITE'dan keyin o'zi chiqadi — qayta ishga tushiriladi)
+TG_IP="172.28.0.202"     # soxta Telegram
 
 # shellcheck source=lib/m2a_common.sh
 source "$LIB_DIR/m2a_common.sh"

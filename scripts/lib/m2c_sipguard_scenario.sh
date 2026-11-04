@@ -9,8 +9,8 @@
 #
 # IKKI YANGI maxsus konteyner/IP — ATAYLAB `EXT_IP`/`TRUNK_IP`/`TG_IP`dan
 # ALOHIDA (5/6-ssenariy toll-fraud SIP trafigiga ta'sir qilmasligi uchun):
-SG_ATTACK_IP="172.21.0.203"   # 2: brute-force -> avtoban; 4: qo'lda ban/unban/409/muddat
-SG_TRUST_IP="172.21.0.204"    # 3: ishonchli tarmoq istisnosi; 4: 409 trusted_ip
+SG_ATTACK_IP="172.28.0.203"   # 2: brute-force -> avtoban; 4: qo'lda ban/unban/409/muddat
+SG_TRUST_IP="172.28.0.204"    # 3: ishonchli tarmoq istisnosi; 4: 409 trusted_ip
 
 CONTAINERS+=(m2c-proof-sgattack m2c-proof-sgtrust)
 docker run -d --name m2c-proof-sgattack --network "$NET" --ip "$SG_ATTACK_IP" "$SIPP_IMAGE" sleep infinity >/dev/null

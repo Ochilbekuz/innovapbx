@@ -22,7 +22,7 @@ const API = 'http://127.0.0.1:8710/api/v1';
 const PG_CONTAINER = 'innova-m0-postgres-1';
 const NET = 'innova-m0_innova-net';
 const PHONE = 'm4a-check-phone';
-const PHONE_IP = '172.21.0.238';
+const PHONE_IP = '172.28.0.238';
 const TARGET_EXT = '105'; // 104 da m4a-proof max_contacts (3) ni to'ldirib qo'ygan
 const BLF_EXT = '102';
 

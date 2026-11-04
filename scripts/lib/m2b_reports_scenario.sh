@@ -32,7 +32,7 @@ TODAY=$(python3 -c "
 from datetime import datetime
 from zoneinfo import ZoneInfo
 print(datetime.now(ZoneInfo('Asia/Tashkent')).date().isoformat())")
-TRUNK_IP="172.21.0.184"
+TRUNK_IP="172.28.0.184"
 DID_QUEUE="712000600"
 DID_MISSED="712000105"
 

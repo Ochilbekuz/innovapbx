@@ -31,7 +31,7 @@ PY_IMAGE="python:3.12-slim"
 PG=innova-m0-postgres-1
 AST=innova-m0-asterisk-1
 
-declare -A IP=([221]="172.21.0.230" [222]="172.21.0.231" [223]="172.21.0.232" [trunk]="172.21.0.233")
+declare -A IP=([221]="172.28.0.230" [222]="172.28.0.231" [223]="172.28.0.232" [trunk]="172.28.0.233")
 DID1=712099701   # A1: e'lon
 DID2=712099702   # A2: boshqa manzil
 
