@@ -122,6 +122,10 @@ _PREFIX_REGION: tuple[tuple[str, str], ...] = (
     ("/recordings", "reports"),
     # M10 B1: sifat baholash varaqalari/baholashlari — `reports` (edit=baholash).
     ("/qa", "reports"),
+    # M12 A1: kun/tun rejimi — IVR/navbat kabi marshrutlash satelliti.
+    ("/day-night", "routing"),
+    # M12 A2: DISA — konferensiya/parking kabi "ilova" (`apps`).
+    ("/disa", "apps"),
 )
 
 

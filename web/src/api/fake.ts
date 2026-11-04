@@ -2,6 +2,9 @@
 // `createFakeClient()` — har chaqiriqda yangi, mustaqil holat (testlar uchun); `fakeClient` — ilova bo'ylab yagona nusxa.
 import type { ApiClient, Created, Mutated } from './client';
 import type { FollowMe, FollowMeInfo, FollowMeTarget, QrProvisioning, UpdateFollowMePayload } from './types';
+import type {
+  CreateDayNightPayload, CreateDisaPayload, DayNight, Disa, UpdateDayNightPayload, UpdateDisaPayload,
+} from './types';
 import { defaultFollowMe, sameFollowMe } from '@/domain/followMe';
 import { generateSipPassword, validateSipPassword, type SipPasswordIssue } from '@/domain/sipPassword';
 import { normalizeFollowMe } from './fakeFollowMe';
@@ -38,6 +41,8 @@ import {
   // M9 — qarang ../../replica/m9-freepbx-gaps-contract.md
   seedAnnouncements, seedCidSources, seedContacts, seedMiscApplications, seedMiscDestinations,
   seedPageGroups, seedParkingSettings, seedPinSets,
+  // M12 A1/A2 — qarang ../../replica/m12-contract.md §A1/§A2
+  seedDayNight, seedDisa, SEED_DISA_PIN,
 } from './fakeSeed';
 import { findDuplicateDigit, findIvrLoop, type IvrEdgeLookup, type IvrEdges } from '../domain/ivr';
 import { buildFlowGraph, type FlowGraphNode, type FlowLookup, type FlowLookupResult, type FlowRef } from '../domain/flow';
@@ -1105,6 +1110,10 @@ export function createFakeClient(
       if (c.closed_target.id === id) items.push({ kind: 'time_condition', id: c.id, label: c.name, field: 'closed' });
     });
     announcements.forEach((a) => { if (a.next_target.id === id) items.push({ kind: 'announcement', id: a.id, label: a.name, field: 'next' }); });
+    dayNights.forEach((dn) => {
+      if (dn.day_target.id === id) items.push({ kind: 'day_night', id: dn.id, label: dn.name, field: 'day' });
+      if (dn.night_target.id === id) items.push({ kind: 'day_night', id: dn.id, label: dn.name, field: 'night' });
+    });
     return items;
   }
 
@@ -1127,6 +1136,17 @@ export function createFakeClient(
     if (conflictFc) err(409, 'code_taken', `Bu kod «${conflictFc.code}» bilan toʻqnashadi.`, { field: 'toggle_code', details: { conflict: conflictFc.code } });
     const conflictTc = timeConditions.find((c) => c.id !== excludeId && c.toggle_code && codesConflict(c.toggle_code, code));
     if (conflictTc) err(409, 'code_taken', `Bu kod «${conflictTc.toggle_code}» bilan toʻqnashadi.`, { field: 'toggle_code', details: { conflict: conflictTc.toggle_code } });
+  }
+
+  /** Kun/tun `*28<code>` — boshqa xususiyat/almashtirish kodlari bilan toʻqnashmasin (M12 A1, `_validate_exten_code` bilan bir xil g'oya). */
+  function checkDayNightCodeTaken(code: string, excludeId?: string) {
+    const exten = `*28${code}`;
+    const conflictFc = featureCodes.find((f) => codesConflict(f.code, exten));
+    if (conflictFc) err(409, 'code_taken', `Bu kod «${conflictFc.code}» bilan toʻqnashadi.`, { field: 'code', details: { conflict: conflictFc.code } });
+    const conflictTc = timeConditions.find((c) => c.toggle_code && codesConflict(c.toggle_code, exten));
+    if (conflictTc) err(409, 'code_taken', `Bu kod «${conflictTc.toggle_code}» bilan toʻqnashadi.`, { field: 'code', details: { conflict: conflictTc.toggle_code } });
+    const conflictDn = dayNights.find((d) => d.id !== excludeId && codesConflict(`*28${d.code}`, exten));
+    if (conflictDn) err(409, 'code_taken', `Bu kod «*28${conflictDn.code}» bilan toʻqnashadi.`, { field: 'code', details: { conflict: `*28${conflictDn.code}` } });
   }
 
   function voicemailCounts(boxId: string) {
@@ -1160,6 +1180,10 @@ export function createFakeClient(
     if (an) return { id: an.target_id, kind: 'announcement', label: an.name, number: null, broken: false };
     const md = miscDestinations.find((x) => x.target_id === id);
     if (md) return { id: md.target_id, kind: 'misc', label: md.name, number: md.dial, broken: false };
+    const dn = dayNights.find((x) => x.id === id);
+    if (dn) return { id: dn.id, kind: 'day_night', label: dn.name, number: null, broken: false };
+    const da = disas.find((x) => x.id === id);
+    if (da) return { id: da.id, kind: 'disa', label: da.name, number: null, broken: false };
     if (id === SYS_HANGUP_TARGET.id) return SYS_HANGUP_TARGET;
     if (id === SYS_BUSY_TARGET.id) return SYS_BUSY_TARGET;
     return null;
@@ -1203,6 +1227,8 @@ export function createFakeClient(
       ...conferences.map((cf): Target => ({ id: cf.target_id, kind: 'conference', label: cf.name, number: cf.number, broken: false })),
       ...announcements.map((an): Target => ({ id: an.target_id, kind: 'announcement', label: an.name, number: null, broken: false })),
       ...miscDestinations.map((md): Target => ({ id: md.target_id, kind: 'misc', label: md.name, number: md.dial, broken: false })),
+      ...dayNights.map((dn): Target => ({ id: dn.id, kind: 'day_night', label: dn.name, number: null, broken: false })),
+      ...disas.map((da): Target => ({ id: da.id, kind: 'disa', label: da.name, number: null, broken: false })),
       SYS_HANGUP_TARGET,
       SYS_BUSY_TARGET,
     ];
@@ -1835,6 +1861,14 @@ export function createFakeClient(
       created_at: now, finished_at: null,
     };
   }
+
+  // ─────────────────────── M12 A1 — Kun/Tun rejimi (*28N) ───────────────────────
+  let dayNights = seedDayNight(toExtensionTarget(extensions[0]!), { id: ringGroups[0]!.id, kind: 'ring_group', label: ringGroups[0]!.name, number: ringGroups[0]!.number, broken: false });
+  const dayNightPins = new Map<string, string>();
+
+  // ─────────────────────── M12 A2 — DISA ───────────────────────
+  let disas = seedDisa();
+  const disaPins = new Map<string, string>([[disas[0]!.id, SEED_DISA_PIN]]);
 
   return {
     async setupState() {
@@ -6080,6 +6114,132 @@ export function createFakeClient(
       totpPendingSecret.delete(userId);
       if (currentUser && currentUser.id === userId) currentUser = toSessionUser(mu);
       auditAdd('update', 'user_2fa', mu.id, mu.full_name, {});
+    },
+
+    // ─────────────────────── M12 A1 — Kun/Tun rejimi (*28N) ───────────────────────
+    async listDayNight(): Promise<{ items: DayNight[] }> {
+      await delay();
+      return { items: dayNights };
+    },
+
+    async createDayNight(payload: CreateDayNightPayload): Promise<Mutated<DayNight>> {
+      await delay();
+      requireManage('routes.manage');
+      checkDayNightCodeTaken(payload.code);
+      const dayTarget = requireTarget(payload.day_target_id, 'day_target_id');
+      const nightTarget = requireTarget(payload.night_target_id, 'night_target_id');
+      const id = randomId('dn');
+      const now = new Date().toISOString();
+      if (payload.pin) dayNightPins.set(id, payload.pin);
+      const item: DayNight = {
+        id, name: payload.name, code: payload.code, mode: 'day',
+        day_target: dayTarget, night_target: nightTarget, has_pin: !!payload.pin, updated_at: now,
+      };
+      dayNights = [...dayNights, item];
+      return { item, apply: apply(`Kun/tun rejimi «${item.name}» qoʻshildi`, item.name) };
+    },
+
+    async updateDayNight(id: string, payload: UpdateDayNightPayload): Promise<Mutated<DayNight>> {
+      await delay();
+      requireManage('routes.manage');
+      const cur = dayNights.find((d) => d.id === id);
+      if (!cur) err(404, 'not_found', 'Kun/tun rejimi topilmadi.');
+      if (payload.updated_at !== cur.updated_at) err(409, 'stale', 'Bu yozuv boshqa joyda oʻzgartirilgan. Sahifani yangilang.', { details: { current: cur } });
+      if (payload.code !== undefined && payload.code !== cur.code) checkDayNightCodeTaken(payload.code, id);
+      const dayTarget = payload.day_target_id !== undefined ? requireTarget(payload.day_target_id, 'day_target_id') : cur.day_target;
+      const nightTarget = payload.night_target_id !== undefined ? requireTarget(payload.night_target_id, 'night_target_id') : cur.night_target;
+      if (payload.pin_clear) dayNightPins.delete(id);
+      else if (payload.pin !== undefined) { if (payload.pin) dayNightPins.set(id, payload.pin); else dayNightPins.delete(id); }
+      const now = new Date().toISOString();
+      const item: DayNight = {
+        ...cur, name: payload.name ?? cur.name, code: payload.code ?? cur.code,
+        day_target: dayTarget, night_target: nightTarget,
+        has_pin: payload.pin_clear ? false : payload.pin !== undefined ? !!payload.pin : cur.has_pin,
+        updated_at: now,
+      };
+      dayNights = dayNights.map((d) => (d.id === id ? item : d));
+      return { item, apply: apply(`Kun/tun rejimi «${item.name}» tahrirlandi`, item.name) };
+    },
+
+    async toggleDayNight(id: string): Promise<Mutated<DayNight>> {
+      await delay();
+      requireManage('routes.manage');
+      const cur = dayNights.find((d) => d.id === id);
+      if (!cur) err(404, 'not_found', 'Kun/tun rejimi topilmadi.');
+      const now = new Date().toISOString();
+      const item: DayNight = { ...cur, mode: cur.mode === 'day' ? 'night' : 'day', updated_at: now };
+      dayNights = dayNights.map((d) => (d.id === id ? item : d));
+      return { item, apply: apply(`«${item.name}»: ${item.mode === 'night' ? 'tungi' : 'kunduzgi'} rejimga almashtirildi`) };
+    },
+
+    async deleteDayNight(id: string) {
+      await delay();
+      requireManage('routes.manage');
+      const cur = dayNights.find((d) => d.id === id);
+      if (!cur) err(404, 'not_found', 'Kun/tun rejimi topilmadi.');
+      const usages = usagesForTargetId(cur.id);
+      if (usages.length > 0) err(409, 'in_use', `«${cur.name}» hali ishlatilmoqda.`, { details: { usages } });
+      dayNights = dayNights.filter((d) => d.id !== id);
+      dayNightPins.delete(id);
+      apply(`Kun/tun rejimi «${cur.name}» oʻchirildi`);
+    },
+
+    // ─────────────────────── M12 A2 — DISA ───────────────────────
+    async listDisa(): Promise<{ items: Disa[] }> {
+      await delay();
+      return { items: disas };
+    },
+
+    async createDisa(payload: CreateDisaPayload): Promise<Mutated<Disa>> {
+      await delay();
+      requireManage('pbx.manage');
+      if (!payload.pin && !payload.allow_no_pin) err(422, 'pin_required', 'PIN boʻsh boʻlishi uchun allow_no_pin=true koʻrsatilishi shart.', { field: 'pin' });
+      const id = randomId('disa');
+      const now = new Date().toISOString();
+      if (payload.pin) disaPins.set(id, payload.pin);
+      const item: Disa = {
+        id, name: payload.name, has_pin: !!payload.pin, allow_no_pin: payload.allow_no_pin ?? false,
+        cid_override: payload.cid_override ?? null, digit_timeout: payload.digit_timeout ?? 5,
+        response_timeout: payload.response_timeout ?? 10, max_attempts: payload.max_attempts ?? 3,
+        enabled: payload.enabled ?? true, updated_at: now,
+      };
+      disas = [...disas, item];
+      return { item, apply: apply(`DISA «${item.name}» qoʻshildi`, item.name) };
+    },
+
+    async updateDisa(id: string, payload: UpdateDisaPayload): Promise<Mutated<Disa>> {
+      await delay();
+      requireManage('pbx.manage');
+      const cur = disas.find((d) => d.id === id);
+      if (!cur) err(404, 'not_found', 'DISA topilmadi.');
+      if (payload.updated_at !== cur.updated_at) err(409, 'stale', 'Bu yozuv boshqa joyda oʻzgartirilgan. Sahifani yangilang.', { details: { current: cur } });
+      const nextAllowNoPin = payload.allow_no_pin ?? cur.allow_no_pin;
+      const willHavePin = payload.pin_clear ? false : payload.pin !== undefined ? !!payload.pin : cur.has_pin;
+      if (!willHavePin && !nextAllowNoPin) err(422, 'pin_required', 'PIN boʻsh boʻlishi uchun allow_no_pin=true koʻrsatilishi shart.', { field: 'pin' });
+      if (payload.pin_clear) disaPins.delete(id);
+      else if (payload.pin !== undefined) { if (payload.pin) disaPins.set(id, payload.pin); else disaPins.delete(id); }
+      const now = new Date().toISOString();
+      const item: Disa = {
+        ...cur, name: payload.name ?? cur.name, has_pin: willHavePin, allow_no_pin: nextAllowNoPin,
+        cid_override: payload.cid_override !== undefined ? payload.cid_override : cur.cid_override,
+        digit_timeout: payload.digit_timeout ?? cur.digit_timeout, response_timeout: payload.response_timeout ?? cur.response_timeout,
+        max_attempts: payload.max_attempts ?? cur.max_attempts, enabled: payload.enabled ?? cur.enabled,
+        updated_at: now,
+      };
+      disas = disas.map((d) => (d.id === id ? item : d));
+      return { item, apply: apply(`DISA «${item.name}» tahrirlandi`, item.name) };
+    },
+
+    async deleteDisa(id: string) {
+      await delay();
+      requireManage('pbx.manage');
+      const cur = disas.find((d) => d.id === id);
+      if (!cur) err(404, 'not_found', 'DISA topilmadi.');
+      const usages = usagesForTargetId(cur.id);
+      if (usages.length > 0) err(409, 'in_use', `«${cur.name}» hali ishlatilmoqda.`, { details: { usages } });
+      disas = disas.filter((d) => d.id !== id);
+      disaPins.delete(id);
+      apply(`DISA «${cur.name}» oʻchirildi`);
     },
 
     // ─────────────────────── M6 — qarang ../../replica/m6-contract.md ───────────────────────

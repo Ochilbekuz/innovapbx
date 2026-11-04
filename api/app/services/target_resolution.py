@@ -14,7 +14,9 @@ from app.db.models import (
     Announcement,
     CallTarget,
     Conference,
+    DayNight,
     DialNumber,
+    Disa,
     Extension,
     Ivr,
     MiscDestination,
@@ -35,6 +37,9 @@ _SATELLITE_MODELS = {
     # M9 A1/A2.
     "announcement": Announcement,
     "misc": MiscDestination,
+    # M12 A1/A2.
+    "day_night": DayNight,
+    "disa": Disa,
 }
 
 

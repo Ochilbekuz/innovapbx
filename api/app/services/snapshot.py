@@ -13,7 +13,9 @@ from app.db.models import (
     CallbackWidget,
     CallTarget,
     Conference,
+    DayNight,
     DialNumber,
+    Disa,
     Extension,
     ExtensionOutboundRoute,
     FeatureCode,
@@ -38,8 +40,10 @@ from app.db.models import (
 from app.services.compiler import (
     AnnouncementSnapshot,
     ConferenceSnapshot,
+    DayNightSnapshot,
     DialNumberSnapshot,
     DialplanSnapshot,
+    DisaSnapshot,
     ExtensionCallerIdSnapshot,
     ExtensionSnapshot,
     InboundRouteSnapshot,
@@ -127,6 +131,11 @@ async def build_snapshot(session: AsyncSession, tenant_id: str) -> DialplanSnaps
         .options(selectinload(PageGroup.members).selectinload(PageGroupMember.extension)),
     )).scalars().all()
     parking = await get_parking_settings(session, tenant_id)
+    # M12 A1/A2.
+    day_night_rows = (await session.execute(
+        select(DayNight).where(DayNight.tenant_id == tenant_id))).scalars().all()
+    disa_rows = (await session.execute(
+        select(Disa).where(Disa.tenant_id == tenant_id, Disa.enabled))).scalars().all()
     # M10 A1 — faqat operator `target_id`lari kerak (`<code>-dest-<target_id>`
     # umumiy manzil kontekstini majburan yozish uchun; vidjetning o'zi
     # dialplan'ga ta'sir qilmaydi, shu sabab boshqa maydon olinmaydi).
@@ -266,6 +275,23 @@ async def build_snapshot(session: AsyncSession, tenant_id: str) -> DialplanSnaps
         ],
         parking=parking,
         callback_widget_target_ids=callback_widget_target_ids,
+        day_night=[
+            DayNightSnapshot(
+                id=str(dn.id), target_id=str(dn.target_id), name=dn.name, code=dn.code,
+                day_target_id=str(dn.day_target_id), night_target_id=str(dn.night_target_id),
+                has_pin=dn.pin_hmac is not None,
+            )
+            for dn in day_night_rows
+        ],
+        disa=[
+            DisaSnapshot(
+                id=str(d.id), target_id=str(d.target_id), name=d.name,
+                has_pin=d.pin_hmac is not None, cid_override=d.cid_override or None,
+                digit_timeout=d.digit_timeout, response_timeout=d.response_timeout,
+                max_attempts=d.max_attempts,
+            )
+            for d in disa_rows
+        ],
     )
 
 

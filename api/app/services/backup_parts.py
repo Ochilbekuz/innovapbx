@@ -47,6 +47,7 @@ CONFIG_TABLES: frozenset[str] = frozenset({
     "phonebook_contacts", "phonebook_numbers", "cid_lookup_sources",  # M9 B2
     "qa_checklists", "qa_criteria",  # M10 B1: baholash varaqalari ta'rifi
     "callback_widgets", "missed_call_rules", "missed_notify_cursor", "tts_settings",  # M10 A
+    "day_night", "disa",  # M12 A1/A2
 })
 
 # Fayl qismlari — api konteynerida ulangan hajm ildizlari (`deploy/docker-compose.yml`).

@@ -335,6 +335,36 @@ class PageGroupSnapshot:
 
 
 @dataclass(frozen=True)
+class DayNightSnapshot:
+    """M12 A1: Kun/Tun rejimi. Holat (`mode`) astdb'da EMAS — PG'da, dialplan
+    CURL orqali reload'siz o'qiydi/yozadi (`_day_night_dest_lines`/
+    `_day_night_toggle_lines`). `has_pin` — `OutboundRouteSnapshot.has_pin`
+    BILAN BIR XIL qolip (hash/HMAC'ning o'zi bu yerda YO'Q)."""
+    id: str
+    target_id: str
+    name: str
+    code: str
+    day_target_id: str
+    night_target_id: str
+    has_pin: bool = False
+
+
+@dataclass(frozen=True)
+class DisaSnapshot:
+    """M12 A2: DISA — PIN tekshiruvi ichki CURL() orqali (hash/HMAC dialplan'da
+    yo'q), muvaffaqiyatli bo'lsa `{code}-outbound-rg`ga Goto (faqat chiquvchi
+    marshrut ruxsatlari qo'llanadi, ichki xizmat kodlariga yo'l YO'Q)."""
+    id: str
+    target_id: str
+    name: str
+    has_pin: bool
+    cid_override: str | None = None
+    digit_timeout: int = 5
+    response_timeout: int = 10
+    max_attempts: int = 3
+
+
+@dataclass(frozen=True)
 class DialplanSnapshot:
     tenant_code: str
     extensions: list[ExtensionSnapshot] = field(default_factory=list)
@@ -377,6 +407,10 @@ class DialplanSnapshot:
     # (umumiy `<code>-dest-<target_id>` kontekstini `dest_ids`ga qo'shish uchun;
     # vidjet kontekstlari o'zi statik, `callback_context_lines()` orqali).
     callback_widget_target_ids: tuple[str, ...] = ()
+    # M12 A1/A2: Kun/Tun rejimi (`*28<code>`, BLF) + DISA (PIN bilan chiquvchi
+    # marshrutga kirish, ichki xizmat kodlariga yo'l YO'Q).
+    day_night: list[DayNightSnapshot] = field(default_factory=list)
+    disa: list[DisaSnapshot] = field(default_factory=list)
 
 
 def dialplan_sha256(dialplan_text: str) -> str:
@@ -407,6 +441,9 @@ def _build_edges(snapshot: DialplanSnapshot) -> dict[str, list[str]]:
         add(q.target_id, q.timeout_target_id)
     for ann in snapshot.announcements:
         add(ann.target_id, ann.next_target_id)
+    for dn in snapshot.day_night:
+        add(dn.target_id, dn.day_target_id)
+        add(dn.target_id, dn.night_target_id)
     return edges
 
 
@@ -1023,6 +1060,65 @@ def _conference_dest_lines(code: str, conf: ConferenceSnapshot, snapshot: Dialpl
     return lines
 
 
+def _day_night_dest_lines(code: str, dn: DayNightSnapshot, snapshot: DialplanSnapshot) -> list[str]:
+    """M12 A1: holat (`mode`) astdb'da EMAS — PG'da (yagona manba), har
+    qo'ng'iroqda ichki CURL() orqali reload'siz O'QILADI (`*28<code>`/API
+    YOZADI, bu YERDA faqat o'qiladi). CURL ishlamasa/bo'sh qaytsa — fail-safe:
+    kun rejimi (ko'pincha xavfsizroq/ochiq tomon, `_route_pin_*` fail-closed
+    falsafasidan FARQLI — bu yerda "berk qolish" emas, "kun rejimi" tanlanadi,
+    chunki ikkisi ham oddiy marshrut, xavfsizlik PIN bilan ta'minlanmaydi)."""
+    url = (f"{snapshot.internal_api_base_url}/internal/day-night/{dn.id}/state"
+           f"?token={snapshot.internal_api_token}")
+    return [
+        f"exten => s,1,NoOp(Innova: kun/tun {_dp_text(dn.name)})",
+        f" same => n,Set(INNOVA_DN_MODE=${{CURL({url})}})",
+        ' same => n,GotoIf($["${INNOVA_DN_MODE}"="night"]?night)',
+        f" same => n,Goto({code}-dest-{dn.day_target_id},s,1)",
+        f" same => n(night),Goto({code}-dest-{dn.night_target_id},s,1)",
+    ]
+
+
+def _disa_dest_lines(code: str, disa: DisaSnapshot, snapshot: DialplanSnapshot) -> list[str]:
+    """M12 A2: PIN bo'lsa ko'pi bilan `disa.max_attempts` marta so'raydi
+    (`_conference_dest_lines`/`CONF_PIN_ATTEMPTS` BILAN BIR XIL "qayta urinish"
+    qolipi, tekshiruv — ichki CURL(), PIN hech qachon dialplan'da ochiq emas).
+    Muvaffaqiyatli bo'lsa (yoki `allow_no_pin=true` bilan umuman PIN'siz
+    yaratilgan bo'lsa) terilgan raqam `{code}-outbound-rg`ga Goto qilinadi —
+    bu kontekst FAQAT tenant chiquvchi marshrut ruxsatlarini qo'llaydi
+    (`enforce_extension_filter=False` — trunk-bloklanmagan/toll-ext-tekshiruvsiz,
+    LEKIN xalqaro/pattern/PIN/CallerID/concurrent-limit tekshiruvlari BOR),
+    ichki xizmat kodlari (`-from-internal`)ga HECH QANDAY yo'l YO'Q."""
+    lines = [
+        f"exten => s,1,NoOp(Innova: DISA {_dp_text(disa.name)})",
+        " same => n,Answer()",
+        f" same => n,Set(TIMEOUT(digit)={disa.digit_timeout})",
+        f" same => n,Set(TIMEOUT(response)={disa.response_timeout})",
+    ]
+    if disa.cid_override:
+        cid = _dp_num(disa.cid_override, field="disa.cid_override")
+        lines.append(f" same => n,Set(CALLERID(num)={cid})")
+    if disa.has_pin:
+        url = (f"{snapshot.internal_api_base_url}/internal/disa/{disa.id}/pin-check"
+               f"?token={snapshot.internal_api_token}&pin=${{INNOVA_PIN}}")
+        lines += [
+            " same => n,Set(INNOVA_DISA_TRY=0)",
+            " same => n(pin),Set(INNOVA_DISA_TRY=$[${INNOVA_DISA_TRY} + 1])",
+            " same => n,Read(INNOVA_PIN,,8)",
+            f" same => n,Set(INNOVA_DISA_OK=${{CURL({url})}})",
+            ' same => n,GotoIf($["${INNOVA_DISA_OK}"="1"]?dial)',
+            f" same => n,GotoIf($[${{INNOVA_DISA_TRY}} < {disa.max_attempts}]?pin)",
+            " same => n,Hangup()",
+        ]
+    # Read()'ning 2-argumenti (fayl nomi) ATAYLAB BO'SH -- mavjud bo'lmagan
+    # ovoz fayli nomi butun Read()'ni ishlamay qo'yadi (ishlab chiqarish
+    # xatosi, `_route_pin_lines`/`_vm_main_lines`dagi IZOH bilan BIR XIL).
+    lines += [
+        " same => n(dial),Read(INNOVA_DISA_NUM,,20)",
+        f" same => n,Goto({code}-outbound-rg,${{INNOVA_DISA_NUM}},1)",
+    ]
+    return lines
+
+
 # Satellit manzil turlari: tur -> (snapshot ro'yxati, target_id -> qatorlar quruvchi).
 _SATELLITE_BUILDERS = {
     "time_condition": lambda code, item, snap: _time_condition_dest_lines(code, item, snap.holidays_mmdd),
@@ -1033,6 +1129,8 @@ _SATELLITE_BUILDERS = {
     "conference": lambda code, item, snap: _conference_dest_lines(code, item, snap),
     "announcement": lambda code, item, snap: _announcement_dest_lines(code, item, snap.audio_paths),
     "misc": lambda code, item, snap: _misc_dest_lines(code, item),
+    "day_night": lambda code, item, snap: _day_night_dest_lines(code, item, snap),
+    "disa": lambda code, item, snap: _disa_dest_lines(code, item, snap),
 }
 
 
@@ -1047,6 +1145,8 @@ def _satellite_index(snapshot: DialplanSnapshot) -> dict[str, dict[str, object]]
         "conference": snapshot.conferences,
         "announcement": snapshot.announcements,
         "misc": snapshot.misc_destinations,
+        "day_night": snapshot.day_night,
+        "disa": snapshot.disa,
     }
     return {kind: {item.target_id: item for item in items} for kind, items in sources.items()}
 
@@ -1109,6 +1209,43 @@ def _vm_main_lines(snapshot: DialplanSnapshot) -> list[str]:
 
 
 # ------------------------------------------------------------ kontekstlar
+def _day_night_toggle_lines(code: str, dn: DayNightSnapshot, base_url: str, token: str) -> list[str]:
+    """M12 A1: `*28<code>` — PIN bo'lsa bitta urinish so'raydi (DISA'dagi 3
+    urinishdan FARQLI — shartnoma kun/tun uchun qayta urinishni talab
+    qilmaydi), so'ng ichki CURL() orqali holatni ALMASHTIRADI (PG — yagona
+    manba, reload shart emas). Telefon orqali almashtirilganda `DEVICE_STATE()`
+    SHU qo'ng'iroqni qabul qilgan Asterisk nusxasida darhol yangilanadi (BLF
+    hint subscriberlariga sinxron xabar beradi). Veb-UI orqali almashtirishda
+    BLF chirog'i KEYINGI telefon-orqali almashtirish/qayta obuna bo'lishigacha
+    yangilanmasligi mumkin — AMI'da to'g'ridan-to'g'ri qurilma-holat yuborish
+    amal(action) yo'q, shuning uchun bu alohida AMI-sync yurilmaydi (ma'lum
+    cheklov, chaqiruv yo'naltirishiga ta'sir qilmaydi — u doim jonli CURL
+    o'qiydi, `_day_night_dest_lines`)."""
+    dn_code = _dp_num(dn.code, field="day_night.code")
+    exten = f"*28{dn_code}"
+    hint_device = f"Custom:DAYNIGHT{dn_code}"
+    url = f"{base_url}/internal/day-night/{dn.id}/toggle?token={token}&pin=${{INNOVA_PIN}}"
+    lines = [
+        f"exten => {exten},hint,{hint_device}",
+        f"exten => {exten},1,NoOp(Innova: kun/tun {_dp_text(dn.name)} almashtirish)",
+        " same => n,Answer()",
+    ]
+    if dn.has_pin:
+        lines.append(" same => n,Read(INNOVA_PIN,,8)")
+    else:
+        lines.append(" same => n,Set(INNOVA_PIN=)")
+    lines += [
+        f" same => n,Set(INNOVA_DN_NEW=${{CURL({url})}})",
+        ' same => n,GotoIf($["${INNOVA_DN_NEW}"="0"]?err)',
+        f' same => n,Set(DEVICE_STATE({hint_device})=${{IF($["${{INNOVA_DN_NEW}}"="night"]?INUSE:NOT_INUSE)}})',
+        ' same => n,Playback(${IF($["${INNOVA_DN_NEW}"="night"]?activated:de-activated)})',
+        " same => n,Hangup()",
+        " same => n(err),Playback(invalid)",
+        " same => n,Hangup()",
+    ]
+    return lines
+
+
 def _from_internal_lines(snapshot: DialplanSnapshot) -> list[str]:
     """Ichki raqamlar ro'yxatiga BOG'LIQ EMAS (raqam qo'shish — `<code>-ext`da).
     `dial_numbers`dagi manzillar (navbat/guruh/IVR/ish vaqti raqami), funksiya
@@ -1129,6 +1266,9 @@ def _from_internal_lines(snapshot: DialplanSnapshot) -> list[str]:
                                         skip_busy=pg.skip_busy, beep=pg.beep)
     lines += feat.feature_code_lines(code, snapshot.feature_codes)
     lines += feat.park_lines(code, snapshot.parking)
+    # M12 A1: `*28<code>` — har bir kun/tun qatori o'z funksiya kodi + BLF hint.
+    for dn in sorted(snapshot.day_night, key=lambda d: d.code):
+        lines += _day_night_toggle_lines(code, dn, snapshot.internal_api_base_url, snapshot.internal_api_token)
     for tc in snapshot.time_conditions:
         if tc.toggle_code:
             toggle_code = _dp_num(tc.toggle_code, field="time_condition.toggle_code")
@@ -1259,6 +1399,10 @@ def _all_dest_ids(snapshot: DialplanSnapshot) -> list[str]:
         ids.add(q.timeout_target_id)
     for ann in snapshot.announcements:
         ids.add(ann.next_target_id)
+    # M12 A1: kun/tun rejimi — foydalanuvchi tanlovisiz "avtomatik" manzillar
+    # (`tc.open_target_id`/`closed_target_id` BILAN BIR XIL qolip).
+    for dn in snapshot.day_night:
+        ids |= {dn.day_target_id, dn.night_target_id}
     # Boshqa ilovalar (M9 A2) — kodi orqali TO'G'RIDAN-TO'G'RI terib yetiladi
     # (`dial_numbers` orqali EMAS), shu sabab bu yerda ANIQ qo'shilishi SHART.
     ids |= {ma.target_id for ma in snapshot.misc_applications}

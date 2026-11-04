@@ -19,7 +19,9 @@ from app.api.v1 import (
     conferences,
     crm,
     dashboard,
+    day_night,
     devices,
+    disa,
     extensions,
     feature_codes,
     firewall,
@@ -141,3 +143,5 @@ router.include_router(system_update.router)  # M11 — paneldan yangilash
 router.include_router(system_time.router)  # M12 B1 — sana va vaqt
 router.include_router(system_power.router)  # M12 B2 — qayta yuklash/o'chirish
 router.include_router(firewall.router)  # M12 B3 — firewall GUI
+router.include_router(day_night.router)  # M12 A1 — kun/tun rejimi
+router.include_router(disa.router)  # M12 A2 — DISA

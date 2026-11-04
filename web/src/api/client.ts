@@ -81,6 +81,8 @@ import type {
   // M12 B1/B2/B3 — qarang ../../replica/m12-contract.md
   TimeConfigIn, TimeStateOut, PowerActionIn, PowerActionOut, PowerStatusOut,
   FirewallConfigIn, FirewallStateOut, FirewallValidateOut,
+  // M12 A1/A2 — qarang ../../replica/m12-contract.md §A1/§A2
+  DayNight, CreateDayNightPayload, UpdateDayNightPayload, Disa, CreateDisaPayload, UpdateDisaPayload,
 } from './types';
 import type { ApplyResult } from './types';
 
@@ -532,6 +534,19 @@ export interface ApiClient {
   disableTotp(payload: TotpDisablePayload): Promise<void>;
   regenerateTotpRecoveryCodes(payload: TotpRecoveryCodesPayload): Promise<TotpRecoveryCodesResult>;
   resetUserTotp(userId: string): Promise<void>;
+
+  // M12 A1 — qarang ../../replica/m12-contract.md §A1 («Kun/Tun rejimi», *28N)
+  listDayNight(): Promise<{ items: DayNight[] }>;
+  createDayNight(payload: CreateDayNightPayload): Promise<Mutated<DayNight>>;
+  updateDayNight(id: string, payload: UpdateDayNightPayload): Promise<Mutated<DayNight>>;
+  deleteDayNight(id: string): Promise<void>;
+  toggleDayNight(id: string): Promise<Mutated<DayNight>>;
+
+  // M12 A2 — qarang §A2 («DISA»)
+  listDisa(): Promise<{ items: Disa[] }>;
+  createDisa(payload: CreateDisaPayload): Promise<Mutated<Disa>>;
+  updateDisa(id: string, payload: UpdateDisaPayload): Promise<Mutated<Disa>>;
+  deleteDisa(id: string): Promise<void>;
 }
 
 export const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));

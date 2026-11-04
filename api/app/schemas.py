@@ -30,6 +30,9 @@ TargetKind = Literal[
     # Avval ham `call_targets`/`target_resolution.py`da mavjud edi (conference — M2a),
     # lekin shu Literal'da yo'q edi — M9 A bilan birga tuzatildi.
     "conference", "announcement", "misc",
+    # M12 A1/A2: Kun/Tun rejimi va DISA — boshqa marshrut/IVR ularni manzil
+    # sifatida ko'rsata oladi (satellit qolipi).
+    "day_night", "disa",
 ]
 RingGroupStrategy = Literal["ringall", "hunt", "memoryhunt"]
 QueueStrategy = Literal[
@@ -38,7 +41,8 @@ QueueStrategy = Literal[
 TimeConditionOverride = Literal["auto", "force_open", "force_closed"]
 TimeConditionState = Literal["open", "closed"]
 UsageKind = Literal["inbound_route", "ivr", "ivr_option", "time_condition", "ring_group", "queue", "outbound_route",
-                    "extension", "announcement", "misc_application", "parking_settings"]
+                    "extension", "announcement", "misc_application", "parking_settings",
+                    "day_night"]  # M12 A1
 AuthMode = Literal["ip", "register"]
 RegistrationState = Literal["registered", "rejected", "unregistered", "null"]
 SimulateStepResult = Literal["match", "no_pattern", "ext_not_allowed", "international_blocked", "disabled"]
@@ -646,6 +650,101 @@ class TimeConditionMutated(BaseModel):
 
 class OverridePayload(BaseModel):
     override: TimeConditionOverride
+
+
+# =============================================================================== M12 A1: Kun/Tun rejimi
+class DayNightOut(BaseModel):
+    id: str
+    name: str
+    code: str
+    mode: Literal["day", "night"]
+    day_target: RouteTarget
+    night_target: RouteTarget
+    has_pin: bool
+    updated_at: datetime
+
+
+class CreateDayNightPayload(BaseModel):
+    name: str = Field(min_length=1, max_length=128)
+    code: str = Field(pattern=r"^[0-9]$")
+    day_target_id: str
+    night_target_id: str
+    pin: str | None = Field(default=None, pattern=r"^\d{4,8}$")
+
+    _check_name = field_validator("name")(_check_no_control_chars)
+
+
+class UpdateDayNightPayload(BaseModel):
+    name: str | None = None
+    code: str | None = Field(default=None, pattern=r"^[0-9]$")
+    day_target_id: str | None = None
+    night_target_id: str | None = None
+    pin: str | None = Field(default=None, pattern=r"^\d{4,8}$")
+    pin_clear: bool = False
+    updated_at: datetime
+
+    _check_name = field_validator("name")(_check_no_control_chars)
+
+
+class DayNightMutated(BaseModel):
+    item: DayNightOut
+    apply: ApplyResult
+
+
+# =============================================================================== M12 A2: DISA
+class DisaOut(BaseModel):
+    id: str
+    name: str
+    has_pin: bool
+    allow_no_pin: bool
+    cid_override: str | None
+    digit_timeout: int
+    response_timeout: int
+    max_attempts: int
+    enabled: bool
+    updated_at: datetime
+
+
+class CreateDisaPayload(BaseModel):
+    name: str = Field(min_length=1, max_length=128)
+    pin: str | None = Field(default=None, pattern=r"^\d{4,8}$")
+    allow_no_pin: bool = False
+    cid_override: str | None = None
+    digit_timeout: int = Field(default=5, ge=1, le=60)
+    response_timeout: int = Field(default=10, ge=1, le=60)
+    max_attempts: int = Field(default=3, ge=1, le=10)
+    enabled: bool = True
+
+    _check_name = field_validator("name")(_check_no_control_chars)
+    _check_cid = field_validator("cid_override")(_check_dialplan_number_opt)
+
+    @model_validator(mode="after")
+    def _check_pin_or_allow(self) -> "CreateDisaPayload":
+        # m12-contract.md A2: PIN bo'sh FAQAT `allow_no_pin=true` bilan.
+        if not self.pin and not self.allow_no_pin:
+            raise ValueError("PIN bo'sh bo'lishi uchun allow_no_pin=true ko'rsatilishi SHART")
+        return self
+
+
+class UpdateDisaPayload(BaseModel):
+    name: str | None = None
+    pin: str | None = Field(default=None, pattern=r"^\d{4,8}$")
+    pin_clear: bool = False
+    allow_no_pin: bool | None = None
+    cid_override: str | None = None
+    digit_timeout: int | None = Field(default=None, ge=1, le=60)
+    response_timeout: int | None = Field(default=None, ge=1, le=60)
+    max_attempts: int | None = Field(default=None, ge=1, le=10)
+    enabled: bool | None = None
+    updated_at: datetime
+
+    _check_name = field_validator("name")(_check_no_control_chars)
+    _check_cid = field_validator("cid_override")(_check_dialplan_number_opt)
+
+
+class DisaMutated(BaseModel):
+    item: DisaOut
+    apply: ApplyResult
 
 
 # =============================================================================== IVR

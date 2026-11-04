@@ -1,0 +1,70 @@
+// "daynight" namespace — DayNightPage (Kun/Tun rejimi). Qarang ../../replica/m12-contract.md §A1.
+
+export const uz = {
+  title: 'Kun/Tun rejimi',
+  readOnlyNotice: "Sizda kun/tun rejimini boshqarish ruxsati yoʻq — faqat koʻrish mumkin.",
+  column: { name: 'Nom', code: 'Kod', mode: 'Joriy holat', dayTarget: 'Kunduzgi manzil', nightTarget: 'Tungi manzil', pin: 'PIN' },
+  caption: 'Kun/Tun rejimi',
+  modeDay: 'Kunduzgi', modeNight: 'Tungi',
+  empty: { title: 'Hali kun/tun qoidasi yoʻq', body: "Kun/tun rejimi — xizmat kodi (*28N) orqali qoʻngʻiroqlarni kunduzgi yoki tungi manzilga almashtiradi.", action: 'Qoida qoʻshish' },
+  newRule: 'Yangi qoida',
+  toggleAriaLabel: '{{name}} holatini almashtirish', toggled: '{{name}} — {{mode}} holatiga oʻtkazildi',
+  toast: { added: 'Qoida qoʻshildi', saved: 'Qoida saqlandi', deleted: '{{name}} oʻchirildi', deleteFailed: "Oʻchirib boʻlmadi", toggleFailed: "Holatni almashtirib boʻlmadi" },
+  deleteModal: { title: '{{name}}ni oʻchirish', description: 'Bu qoidaga yoʻnaltirilgan qoʻngʻiroqlar endi javobsiz ohang eshittiradi.', body: '«{{name}}» butunlay oʻchiriladi.', usagePrefix: '«{{name}}» hali ishlatilmoqda — avval ulardan olib tashlang:' },
+  cancel: 'Bekor qilish', delete: "Oʻchirish", save: 'Saqlash', add: "Qoʻshish",
+  editAriaLabel: '{{name}}ni tahrirlash', deleteAriaLabel: '{{name}}ni oʻchirish',
+  form: {
+    newTitle: 'Yangi qoida', editTitle: '{{name}}ni tahrirlash',
+    nameLabel: 'Nom',
+    codeLabel: 'Xizmat kodi', codeHint: 'Faqat bitta raqam — *28<kod> shaklida chaqiriladi', codePrefix: '*28',
+    dayTargetLabel: 'Kunduzgi manzil', dayTargetHint: "Holat «kunduzgi» boʻlganda qoʻngʻiroq shu yerga boradi",
+    nightTargetLabel: 'Tungi manzil', nightTargetHint: "Holat «tungi» boʻlganda qoʻngʻiroq shu yerga boradi",
+    pinLabel: 'PIN (ixtiyoriy)', pinHint: 'Holatni almashtirishdan oldin soʻraladi — 4–8 raqam', pinClearLabel: 'PINni olib tashlash',
+  },
+};
+
+export const ru = {
+  title: 'Режим День/Ночь',
+  readOnlyNotice: 'У вас нет прав на управление режимом день/ночь — доступен только просмотр.',
+  column: { name: 'Имя', code: 'Код', mode: 'Текущее состояние', dayTarget: 'Дневной адрес', nightTarget: 'Ночной адрес', pin: 'PIN' },
+  caption: 'Режим День/Ночь',
+  modeDay: 'Дневной', modeNight: 'Ночной',
+  empty: { title: 'Правил день/ночь пока нет', body: 'Режим день/ночь переключает маршрут звонков через код функции (*28N) на дневной или ночной адрес.', action: 'Добавить правило' },
+  newRule: 'Новое правило',
+  toggleAriaLabel: 'Переключить состояние {{name}}', toggled: '{{name}} — переключено в состояние {{mode}}',
+  toast: { added: 'Правило добавлено', saved: 'Правило сохранено', deleted: '{{name}} удалено', deleteFailed: 'Не удалось удалить', toggleFailed: 'Не удалось переключить состояние' },
+  deleteModal: { title: 'Удаление {{name}}', description: 'Звонки на это правило будут слышать сигнал «нет ответа».', body: '«{{name}}» будет удалено полностью.', usagePrefix: '«{{name}}» всё ещё используется — сначала удалите отсюда:' },
+  cancel: 'Отмена', delete: 'Удалить', save: 'Сохранить', add: 'Добавить',
+  editAriaLabel: 'Редактировать {{name}}', deleteAriaLabel: 'Удалить {{name}}',
+  form: {
+    newTitle: 'Новое правило', editTitle: 'Редактирование {{name}}',
+    nameLabel: 'Имя',
+    codeLabel: 'Код функции', codeHint: 'Только одна цифра — вызывается как *28<код>', codePrefix: '*28',
+    dayTargetLabel: 'Дневной адрес', dayTargetHint: 'Когда состояние «дневное» — звонок идёт сюда',
+    nightTargetLabel: 'Ночной адрес', nightTargetHint: 'Когда состояние «ночное» — звонок идёт сюда',
+    pinLabel: 'PIN (необязательно)', pinHint: 'Запрашивается перед переключением состояния — 4–8 цифр', pinClearLabel: 'Удалить PIN',
+  },
+};
+
+export const en = {
+  title: 'Day/Night mode',
+  readOnlyNotice: "You don't have permission to manage day/night mode — view only.",
+  column: { name: 'Name', code: 'Code', mode: 'Current state', dayTarget: 'Day destination', nightTarget: 'Night destination', pin: 'PIN' },
+  caption: 'Day/Night mode',
+  modeDay: 'Day', modeNight: 'Night',
+  empty: { title: 'No day/night rules yet', body: 'Day/night mode switches calls to a day or night destination via a feature code (*28N).', action: 'Add rule' },
+  newRule: 'New rule',
+  toggleAriaLabel: 'Toggle {{name}}', toggled: '{{name}} switched to {{mode}}',
+  toast: { added: 'Rule added', saved: 'Rule saved', deleted: '{{name}} deleted', deleteFailed: 'Could not delete', toggleFailed: 'Could not toggle state' },
+  deleteModal: { title: 'Delete {{name}}', description: 'Calls to this rule will now hear a "no answer" tone.', body: '"{{name}}" will be permanently deleted.', usagePrefix: '"{{name}}" is still in use — remove it from these first:' },
+  cancel: 'Cancel', delete: 'Delete', save: 'Save', add: 'Add',
+  editAriaLabel: 'Edit {{name}}', deleteAriaLabel: 'Delete {{name}}',
+  form: {
+    newTitle: 'New rule', editTitle: 'Edit {{name}}',
+    nameLabel: 'Name',
+    codeLabel: 'Feature code', codeHint: 'A single digit — dialed as *28<code>', codePrefix: '*28',
+    dayTargetLabel: 'Day destination', dayTargetHint: 'When state is "day", the call goes here',
+    nightTargetLabel: 'Night destination', nightTargetHint: 'When state is "night", the call goes here',
+    pinLabel: 'PIN (optional)', pinHint: 'Asked before toggling state — 4–8 digits', pinClearLabel: 'Clear PIN',
+  },
+};

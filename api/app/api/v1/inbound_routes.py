@@ -37,6 +37,9 @@ router = APIRouter(tags=["inbound-routes"])
 _ALLOWED_ROUTE_TARGET_KINDS = {
     "extension", "ring_group", "queue", "ivr", "time_condition", "hangup", "busy", "voicemail",
     "announcement", "misc",
+    # M12 A1/A2: kun/tun rejimi va DISA ham kiruvchi marshrut manzili bo'lishi mumkin
+    # (masalan: tashqi DID -> DISA, yoki DID -> kun/tun qoidasi -> ish vaqtiga qarab manzil).
+    "day_night", "disa",
 }
 
 _ROUTE_OPTIONS = (selectinload(InboundRoute.cid_lookup_source),)

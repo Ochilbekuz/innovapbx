@@ -81,6 +81,8 @@ import type {
   // M12 B1/B2/B3 — qarang ../../replica/m12-contract.md
   TimeConfigIn, TimeStateOut, PowerActionIn, PowerActionOut, PowerStatusOut,
   FirewallConfigIn, FirewallStateOut, FirewallValidateOut,
+  // M12 A1/A2 — qarang §A1/§A2
+  DayNight, CreateDayNightPayload, UpdateDayNightPayload, Disa, CreateDisaPayload, UpdateDisaPayload,
 } from './types';
 import type { ApplyResult } from './types';
 
@@ -576,4 +578,17 @@ export const realClient: ApiClient = {
   disableTotp: (payload: TotpDisablePayload) => request<void>('/me/2fa/disable', { method: 'POST', body: payload }),
   regenerateTotpRecoveryCodes: (payload: TotpRecoveryCodesPayload) => request<TotpRecoveryCodesResult>('/me/2fa/recovery-codes', { method: 'POST', body: payload }),
   resetUserTotp: (userId: string) => request<void>(`/users/${userId}/2fa/reset`, { method: 'POST' }),
+
+  // M12 A1 — qarang ../../replica/m12-contract.md §A1 («Kun/Tun rejimi», *28N)
+  listDayNight: () => request<{ items: DayNight[] }>('/day-night'),
+  createDayNight: (payload: CreateDayNightPayload) => request<Mutated<DayNight>>('/day-night', { method: 'POST', body: payload }),
+  updateDayNight: (id: string, payload: UpdateDayNightPayload) => request<Mutated<DayNight>>(`/day-night/${id}`, { method: 'PATCH', body: payload }),
+  deleteDayNight: (id: string) => request<void>(`/day-night/${id}`, { method: 'DELETE' }),
+  toggleDayNight: (id: string) => request<Mutated<DayNight>>(`/day-night/${id}/toggle`, { method: 'POST' }),
+
+  // M12 A2 — qarang §A2 («DISA»)
+  listDisa: () => request<{ items: Disa[] }>('/disa'),
+  createDisa: (payload: CreateDisaPayload) => request<Mutated<Disa>>('/disa', { method: 'POST', body: payload }),
+  updateDisa: (id: string, payload: UpdateDisaPayload) => request<Mutated<Disa>>(`/disa/${id}`, { method: 'PATCH', body: payload }),
+  deleteDisa: (id: string) => request<void>(`/disa/${id}`, { method: 'DELETE' }),
 };

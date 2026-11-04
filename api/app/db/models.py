@@ -1706,3 +1706,60 @@ class TtsSettings(Base):
     folder_id: Mapped[str | None] = mapped_column(Text, nullable=True)
     voices: Mapped[dict] = mapped_column(JSONB, default=lambda: {"uz": "nigora", "ru": "alena", "en": "john"})
     updated_at: Mapped[datetime] = mapped_column(server_default=text("now()"))
+
+
+class DayNight(Base):
+    """M12 A1 — Kun/Tun rejimi (Call Flow Control). O'z `call_targets` yozuvi
+    (`target_id`) bor — IVR/marshrut/vaqt sharti undan manzil sifatida
+    foydalanishi mumkin (`TimeCondition` bilan BIR XIL qolip). Holat (`mode`)
+    astdb'da EMAS — shu qatorda (PG — yagona manba, dialplan CURL bilan
+    reload'siz o'qiydi/yozadi, `compiler.py::_day_night_dest_lines`/
+    `_day_night_toggle_lines`). `pin_hmac` — mavjud HMAC-SHA256 usuli
+    (`pin_hmac.py`, `pin_sets.pin_hmac` BILAN BIR XIL qolip, ochiq matn
+    saqlanmaydi)."""
+    __tablename__ = "day_night"
+    __table_args__ = (
+        Index("ix_day_night_tenant_code", "tenant_id", "code", unique=True),
+        Index("ix_day_night_tenant_name", "tenant_id", "name", unique=True),
+    )
+
+    id: Mapped[str] = _uuid_pk()
+    tenant_id: Mapped[str] = mapped_column(UUID(as_uuid=False),
+                                                  ForeignKey("tenants.id", ondelete="CASCADE"))
+    target_id: Mapped[str] = mapped_column(
+        UUID(as_uuid=False), ForeignKey("call_targets.id", ondelete="CASCADE"), unique=True)
+    name: Mapped[str] = mapped_column(Text)
+    code: Mapped[str] = mapped_column(Text)
+    mode: Mapped[str] = mapped_column(Text, default="day")
+    day_target_id: Mapped[str] = mapped_column(
+        UUID(as_uuid=False), ForeignKey("call_targets.id", ondelete="RESTRICT"))
+    night_target_id: Mapped[str] = mapped_column(
+        UUID(as_uuid=False), ForeignKey("call_targets.id", ondelete="RESTRICT"))
+    pin_hmac: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(server_default=text("now()"))
+    updated_at: Mapped[datetime] = mapped_column(server_default=text("now()"))
+
+
+class Disa(Base):
+    """M12 A2 — DISA (tashqaridan PIN bilan chiquvchi marshrutga kirish).
+    `cid_override` — DISA orqali chiqadigan qo'ng'iroq uchun CallerID (bo'sh
+    bo'lsa o'zgartirilmaydi). `max_attempts`/`allow_no_pin` — xavfsizlik
+    (API: PIN bo'sh faqat `allow_no_pin=true` bilan, `compiler.py` 3
+    urinishdan keyin Hangup qiladi)."""
+    __tablename__ = "disa"
+
+    id: Mapped[str] = _uuid_pk()
+    tenant_id: Mapped[str] = mapped_column(UUID(as_uuid=False),
+                                                  ForeignKey("tenants.id", ondelete="CASCADE"))
+    target_id: Mapped[str] = mapped_column(
+        UUID(as_uuid=False), ForeignKey("call_targets.id", ondelete="CASCADE"), unique=True)
+    name: Mapped[str] = mapped_column(Text)
+    pin_hmac: Mapped[str | None] = mapped_column(Text, nullable=True)
+    allow_no_pin: Mapped[bool] = mapped_column(default=False)
+    cid_override: Mapped[str | None] = mapped_column(Text, nullable=True)
+    digit_timeout: Mapped[int] = mapped_column(Integer, default=5)
+    response_timeout: Mapped[int] = mapped_column(Integer, default=10)
+    max_attempts: Mapped[int] = mapped_column(Integer, default=3)
+    enabled: Mapped[bool] = mapped_column(default=True)
+    created_at: Mapped[datetime] = mapped_column(server_default=text("now()"))
+    updated_at: Mapped[datetime] = mapped_column(server_default=text("now()"))

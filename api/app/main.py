@@ -14,6 +14,8 @@ from app.api.internal_callback import router as internal_callback_router
 from app.api.internal_campaigns import router as internal_campaigns_router
 from app.api.internal_cidlookup import router as internal_cidlookup_router
 from app.api.internal_conference import router as internal_conference_router
+from app.api.internal_day_night import router as internal_day_night_router
+from app.api.internal_disa import router as internal_disa_router
 from app.api.internal_pinset import router as internal_pinset_router
 from app.api.internal_softphone import router as internal_softphone_router
 from app.api.internal_toll import router as internal_toll_router
@@ -174,6 +176,8 @@ app.include_router(internal_campaigns_router)
 app.include_router(internal_pinset_router)
 app.include_router(internal_cidlookup_router)
 app.include_router(internal_callback_router)
+app.include_router(internal_day_night_router)  # M12 A1
+app.include_router(internal_disa_router)  # M12 A2
 app.include_router(public_router)
 app.include_router(public_crm_router)
 app.include_router(public_events_ws_router)

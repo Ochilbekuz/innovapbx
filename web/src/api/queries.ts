@@ -57,6 +57,8 @@ import type {
   UpdateTtsSettingsPayload,
   // M11 — qarang ../../replica/m11-update-contract.md
   StartSystemUpdatePayload, SystemUpdateOut,
+  // M12 A1/A2 — qarang ../../replica/m12-contract.md §A1/§A2.
+  CreateDayNightPayload, CreateDisaPayload, UpdateDayNightPayload, UpdateDisaPayload,
   // M12 B1/B2/B3 — qarang ../../replica/m12-contract.md §B1/§B2/§B3
   FirewallConfigIn, PowerActionIn, TimeConfigIn,
 } from './types';
@@ -180,6 +182,9 @@ export const qk = {
   qaSummary: ['qa-summary'] as const,
   callEvaluations: (linkedid: string) => ['call-evaluations', linkedid] as const,
   myEvaluations: (p: { page?: number; size?: number }) => ['my-evaluations', p] as const,
+  // M12 A1/A2 — qarang ../../replica/m12-contract.md §A1/§A2.
+  dayNight: ['day-night'] as const,
+  disa: ['disa'] as const,
   // M12 B1/B2/B3 — qarang ../../replica/m12-contract.md §B1/§B2/§B3
   systemTime: ['system-time'] as const,
   systemPower: ['system-power'] as const,
@@ -1936,4 +1941,66 @@ export function useRegenerateTotpRecoveryCodes() {
 export function useResetUserTotp() {
   const invalidate = useInvalidate();
   return useMutation({ mutationFn: (userId: string) => apiClient.resetUserTotp(userId), onSuccess: () => invalidate([qk.users]) });
+}
+
+// ─────────────────────── M12 A1 — Kun/Tun rejimi (*28N) ───────────────────────
+// `['targets']` ham invalidatsiya qilinadi — day_night DestinationPicker katalogida nishon sifatida chiqadi.
+
+export function useDayNight() {
+  return useQuery({ queryKey: qk.dayNight, queryFn: () => apiClient.listDayNight() });
+}
+export function useCreateDayNight() {
+  const invalidate = useInvalidate();
+  return useMutation({
+    mutationFn: (payload: CreateDayNightPayload) => apiClient.createDayNight(payload),
+    onSuccess: () => invalidate([qk.dayNight, ['targets'], qk.health, qk.revisions]),
+  });
+}
+export function useUpdateDayNight() {
+  const invalidate = useInvalidate();
+  return useMutation({
+    mutationFn: ({ id, payload }: { id: string; payload: UpdateDayNightPayload }) => apiClient.updateDayNight(id, payload),
+    onSuccess: () => invalidate([qk.dayNight, ['targets'], qk.health, qk.revisions]),
+  });
+}
+export function useToggleDayNight() {
+  const invalidate = useInvalidate();
+  return useMutation({
+    mutationFn: (id: string) => apiClient.toggleDayNight(id),
+    onSuccess: () => invalidate([qk.dayNight, ['targets'], qk.health, qk.revisions]),
+  });
+}
+export function useDeleteDayNight() {
+  const invalidate = useInvalidate();
+  return useMutation({
+    mutationFn: (id: string) => apiClient.deleteDayNight(id),
+    onSuccess: () => invalidate([qk.dayNight, ['targets'], qk.health, qk.revisions]),
+  });
+}
+
+// ─────────────────────── M12 A2 — DISA ───────────────────────
+
+export function useDisa() {
+  return useQuery({ queryKey: qk.disa, queryFn: () => apiClient.listDisa() });
+}
+export function useCreateDisa() {
+  const invalidate = useInvalidate();
+  return useMutation({
+    mutationFn: (payload: CreateDisaPayload) => apiClient.createDisa(payload),
+    onSuccess: () => invalidate([qk.disa, ['targets'], qk.health, qk.revisions]),
+  });
+}
+export function useUpdateDisa() {
+  const invalidate = useInvalidate();
+  return useMutation({
+    mutationFn: ({ id, payload }: { id: string; payload: UpdateDisaPayload }) => apiClient.updateDisa(id, payload),
+    onSuccess: () => invalidate([qk.disa, ['targets'], qk.health, qk.revisions]),
+  });
+}
+export function useDeleteDisa() {
+  const invalidate = useInvalidate();
+  return useMutation({
+    mutationFn: (id: string) => apiClient.deleteDisa(id),
+    onSuccess: () => invalidate([qk.disa, ['targets'], qk.health, qk.revisions]),
+  });
 }

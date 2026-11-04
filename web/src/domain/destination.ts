@@ -14,6 +14,8 @@ export const TARGET_KINDS = [
   'voicemail',
   'announcement',
   'misc',
+  'day_night',
+  'disa',
 ] as const;
 export type TargetKind = (typeof TARGET_KINDS)[number];
 export type DestKind = TargetKind | 'external';

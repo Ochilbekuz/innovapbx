@@ -116,6 +116,8 @@ export const TARGET_KINDS = [
   'extension', 'ring_group', 'queue', 'ivr', 'time_condition', 'conference', 'hangup', 'busy',
   // M9 A1/A2 — qarang ../../replica/m9-freepbx-gaps-contract.md §A1/§A2.
   'announcement', 'misc',
+  // M12 A1/A2 — qarang ../../replica/m12-contract.md §A1/§A2.
+  'day_night', 'disa',
 ] as const;
 export type TargetKind = (typeof TARGET_KINDS)[number];
 export type Target = { id: string; kind: TargetKind; label: string; number: string | null; broken: boolean };
@@ -1943,3 +1945,48 @@ export type TotpDisablePayload = { code: string };
 export type TotpRecoveryCodesPayload = { code: string };
 export type TotpRecoveryCodesResult = { recovery_codes: string[] };
 export type LoginTotpPayload = { challenge: string; code: string };
+
+// ─────────────────────── M12 A1 — Kun/Tun rejimi (*28N) ───────────────────────
+// Backend `DayNightOut` (`api/app/schemas.py`) — PIN hech qachon qaytarilmaydi,
+// faqat `has_pin: bool`. `mode` — joriy holat (web orqali almashtirish darhol
+// YANGILANMAYDI, qarang `toggle_day_night()` docstring).
+export type DayNightMode = 'day' | 'night';
+export type DayNight = {
+  id: string;
+  name: string;
+  code: string;
+  mode: DayNightMode;
+  day_target: Target;
+  night_target: Target;
+  has_pin: boolean;
+  updated_at: string;
+};
+export type CreateDayNightPayload = {
+  name: string; code: string; day_target_id: string; night_target_id: string; pin?: string | null;
+};
+export type UpdateDayNightPayload = Partial<Omit<CreateDayNightPayload, 'pin'>> & {
+  pin?: string | null; pin_clear?: boolean; updated_at: string;
+};
+
+// ─────────────────────── M12 A2 — DISA ───────────────────────
+// Backend `DisaOut` — PIN bo'sh FAQAT `allow_no_pin=true` bilan (ham yaratishda
+// Pydantic, ham yangilashda qayta tekshiriladi).
+export type Disa = {
+  id: string;
+  name: string;
+  has_pin: boolean;
+  allow_no_pin: boolean;
+  cid_override: string | null;
+  digit_timeout: number;
+  response_timeout: number;
+  max_attempts: number;
+  enabled: boolean;
+  updated_at: string;
+};
+export type CreateDisaPayload = {
+  name: string; pin?: string | null; allow_no_pin?: boolean; cid_override?: string | null;
+  digit_timeout?: number; response_timeout?: number; max_attempts?: number; enabled?: boolean;
+};
+export type UpdateDisaPayload = Partial<Omit<CreateDisaPayload, 'pin'>> & {
+  pin?: string | null; pin_clear?: boolean; updated_at: string;
+};

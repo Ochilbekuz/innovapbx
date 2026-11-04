@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import (
     Announcement,
+    DayNight,
     Extension,
     InboundRoute,
     Ivr,
@@ -83,6 +84,16 @@ async def usages_for_target(session: AsyncSession, tenant_id: str, target_id: st
         select(MiscApplication).where(MiscApplication.tenant_id == tenant_id,
                                         MiscApplication.target_id == target_id))).scalars().all()
     items += [{"kind": "misc_application", "id": str(m.id), "label": m.name, "field": "target"} for m in apps_]
+
+    # M12 A1: kun/tun rejimi — kun/tun manzili (`day_target_id`/`night_target_id`).
+    day_nights = (await session.execute(
+        select(DayNight).where(
+            DayNight.tenant_id == tenant_id,
+            (DayNight.day_target_id == target_id) | (DayNight.night_target_id == target_id),
+        ))).scalars().all()
+    for dn in day_nights:
+        field = "day" if str(dn.day_target_id) == target_id else "night"
+        items.append({"kind": "day_night", "id": str(dn.id), "label": dn.name, "field": field})
 
     # M9 A3: parking muddati tugagach manzil (`on_timeout="target"`).
     park = await session.get(ParkingSettings, tenant_id)

@@ -17,6 +17,8 @@ import type {
   MigrationJob,
   // M9 — qarang ../../replica/m9-freepbx-gaps-contract.md
   Announcement, CidSource, Contact, MiscApplication, MiscDestination, PageGroup, ParkingSettings, PinSet,
+  // M12 A1/A2 — qarang ../../replica/m12-contract.md §A1/§A2
+  DayNight, Disa,
 } from './types';
 
 export const SIM_ROLLBACK_MARK = 'SIMULYATSIYA_XATO';
@@ -421,6 +423,29 @@ export function seedConferences(): Conference[] {
 }
 export const SEED_CONFERENCE_PIN = '2468';
 export const SEED_CONFERENCE_ADMIN_PIN = '9999';
+
+// ─────────────────────── M12 A1 — Kun/Tun rejimi (*28N) ───────────────────────
+export function seedDayNight(dayTarget: Target, nightTarget: Target): DayNight[] {
+  const now = '2026-10-27T05:00:00Z';
+  return [
+    {
+      id: 'dn-asosiy', name: 'Asosiy', code: '0', mode: 'day',
+      day_target: dayTarget, night_target: nightTarget, has_pin: false, updated_at: now,
+    },
+  ];
+}
+
+// ─────────────────────── M12 A2 — DISA ───────────────────────
+export function seedDisa(): Disa[] {
+  const now = '2026-10-27T05:00:00Z';
+  return [
+    {
+      id: 'disa-tashqi', name: 'Tashqi', has_pin: true, allow_no_pin: false, cid_override: null,
+      digit_timeout: 5, response_timeout: 10, max_attempts: 3, enabled: true, updated_at: now,
+    },
+  ];
+}
+export const SEED_DISA_PIN = '13579';
 
 export function seedBlacklist(): BlacklistEntry[] {
   return [
