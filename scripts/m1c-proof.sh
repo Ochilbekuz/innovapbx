@@ -11,6 +11,7 @@
 #      (`core show channels` + CDR lastapp). `*98` (istalgan quti) ham.
 #   4. TLS — (boshqa agent, joy ajratilgan).
 #   5. memoryhunt — (joy ajratilgan).
+#   6. Bir raqamda ikki qurilma (2 kontakt) — 202 -> 214 IKKALASIGA INVITE.
 #
 # Foydalanish:
 #   scripts/m1c-proof.sh            # joriy `innova-m0` stackka qarshi (M1c qoldiqlari bo'lsa — exit 2)
@@ -366,6 +367,23 @@ MH_CALL=$(docker exec m1c-proof-ext202 python3 /tmp/call.py 202 "$EXT202_SECRET"
 invites_of() { docker exec m1c-proof-ext201 grep -c '^REQ INVITE' "/tmp/mh$1.log" 2>/dev/null; }
 MH_COUNTS="$(invites_of 211)/$(invites_of 212)/$(invites_of 213)"
 check "$( [[ "$MH_COUNTS" == "3/2/1" ]]; echo $?)" "5: INVITE soni 211/212/213 = 3/2/1 (yig'ilib boruvchi)" "$MH_COUNTS; $MH_CALL"
+
+# ---------------------------------------------------------------- 6
+echo "--- 6. bir raqamda ikki qurilma: ikkalasi ham jiringlaydi ---"
+# `Dial(PJSIP/214)` faqat BIRINCHI kontaktga INVITE yuborardi (2026-11-04 bug).
+j=$(api POST /extensions '{"number":"214","name":"M1cDual"}')
+MC_SECRET=$(jget "$(jbody "$j")" sip password)
+for port in 5093 5094; do
+  docker exec -d m1c-proof-ext201 sh -c "python3 /tmp/mh_ring.py 214 '$MC_SECRET' $port $((12020 + port - 5093)) 30 > /tmp/mc$port.log 2>&1"
+done
+mc_registered() { for port in 5093 5094; do docker exec m1c-proof-ext201 grep -q 'REGISTER_RESULT: OK' /tmp/mc$port.log 2>/dev/null || return 1; done; }
+wait_until 15 mc_registered && pass "6: 214 ikki portdan REGISTER -> 200 OK" || fail "6: 214 qurilmalari ro'yxatdan o'tmadi"
+MC_CONTACTS=$(ast "pjsip show aor 214" | grep -c "Contact:  214/sip:")
+check "$( [[ "$MC_CONTACTS" == "2" ]]; echo $?)" "6: AOR 214 — 2 kontakt" "$MC_CONTACTS"
+MC_CALL=$(docker exec m1c-proof-ext202 python3 /tmp/call.py 202 "$EXT202_SECRET" 5086 214 1 2>&1)
+mc_invites() { docker exec m1c-proof-ext201 grep -c '^REQ INVITE' "/tmp/mc$1.log" 2>/dev/null; }
+MC_COUNTS="$(mc_invites 5093)/$(mc_invites 5094)"
+check "$( [[ "$MC_COUNTS" =~ ^[1-9][0-9]*/[1-9][0-9]*$ ]]; echo $?)" "6: 202 -> 214: IKKALA qurilma INVITE oldi ($MC_COUNTS)" "$MC_CALL"
 
 echo "=== NATIJA: PASS=$PASS FAIL=$FAIL ==="
 [[ "$FAIL" -eq 0 ]]

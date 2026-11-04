@@ -51,7 +51,7 @@ def test_generates_static_from_internal_context():
     assert "[t1-from-internal]" in text
     # M2a: ichki raqamga qo'ng'iroq — yagona `<code>-ext` oqimi (DND/yo'naltirish realtime).
     assert " same => n,Goto(t1-ext,${EXTEN},1)" in text.split("[t1-ext]")[0]
-    assert "Dial(PJSIP/${EXTEN},${INNOVA_RING}," in text
+    assert "Dial(${INNOVA_DIAL:1},${INNOVA_RING}," in text
 
 
 def test_from_internal_is_independent_of_extension_list():
@@ -352,13 +352,16 @@ def _rg(**kw) -> RingGroupSnapshot:
 
 
 def _rg_sets(ctx: str) -> list[list[str]]:
-    """Runtime'da yig'iladigan `Dial()` to'plamlari (M2a: DND a'zo tashlab ketiladi)."""
+    """Runtime'da yig'iladigan `Dial()` to'plamlari (M2a: DND a'zo tashlab ketiladi).
+    Ichki a'zo `PJSIP/<n>` ko'rinishida — `innova-dial-contacts` uning BARCHA kontaktlarini qo'shadi."""
     sets: list[list[str]] = []
     for line in ctx.splitlines():
-        if line == " same => n,Set(INNOVA_RG=)":
+        if line == " same => n,Set(INNOVA_DIAL=)":
             sets.append([])
-        elif "INNOVA_RG=${INNOVA_RG}&" in line:
-            sets[-1].append(line.split("INNOVA_RG=${INNOVA_RG}&")[1].rstrip(")"))
+        elif "INNOVA_DIAL=${INNOVA_DIAL}&" in line:
+            sets[-1].append(line.split("INNOVA_DIAL=${INNOVA_DIAL}&")[1].rstrip(")"))
+        elif "innova-dial-contacts,s,1(" in line:
+            sets[-1].append("PJSIP/" + line.split("innova-dial-contacts,s,1(")[1].rstrip(")"))
     return sets
 
 
@@ -377,7 +380,7 @@ def test_ring_group_ringall_dials_all_members_at_once():
     text = compile_dialplan(snap)
     ctx = text.split("[t1-dest-rg-1]")[1].split("[t1-dest-")[0]
     assert _rg_sets(ctx) == [["PJSIP/101", "PJSIP/102"]]
-    assert "Dial(${INNOVA_RG:1},20," in ctx
+    assert "Dial(${INNOVA_DIAL:1},20," in ctx
     assert "Goto(t1-dest-hangup-1,s,1)" in ctx
 
 

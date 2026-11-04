@@ -26,6 +26,7 @@ import logging
 from collections.abc import Callable
 from dataclasses import dataclass
 
+from app.services import dialplan_contacts as contacts
 from app.services.dialplan_recording import recorded_dial_lines
 from app.services.dialplan_safety import is_dialplan_number, sanitize_dialplan_text
 from app.services.feature_codes import CODE_RE
@@ -144,6 +145,13 @@ def _call_waiting_check_lines(code: str) -> list[str]:
     ]
 
 
+def _endpoint_dial_lines(timeout: str) -> list[str]:
+    """`${EXTEN}` ning BARCHA kontaktlari (`dialplan_contacts`). SIP endpoint id —
+    prefikssiz (`sip_identity.endpoint_id`), ${EXTEN} shu bilan BIR XIL."""
+    return [*contacts.endpoint_targets_lines("${EXTEN}"),
+            *recorded_dial_lines(contacts.TARGETS, timeout, XFER_OPTIONS_HDR)]
+
+
 def ext_call_lines(code: str) -> list[str]:
     seen_limit = MAX_FORWARD_HOPS + 1  # FIELDQTY: bosh bo'sh maydon + ko'rilgan raqamlar
     return [
@@ -157,8 +165,7 @@ def ext_call_lines(code: str) -> list[str]:
         *_call_waiting_check_lines(code),
         f" same => n(dial),Set(__PICKUPMARK={code}-${{EXTEN}})",
         f" same => n,Set(__TRANSFER_CONTEXT={code}-from-internal)",
-        # SIP endpoint id — prefikssiz (`sip_identity.endpoint_id`), ${EXTEN} shu bilan BIR XIL.
-        *recorded_dial_lines("PJSIP/${EXTEN}", "${INNOVA_RING}", XFER_OPTIONS_HDR),
+        *_endpoint_dial_lines("${INNOVA_RING}"),
         ' same => n,GotoIf($["${DIALSTATUS}"!="BUSY"]?noans)',
         f" same => n(busycheck),Set(INNOVA_FWD={realtime_read(code, '${EXTEN}', 'forward_busy')})",
         " same => n,Set(INNOVA_FWD_STOP=noans)",
@@ -238,8 +245,7 @@ def fm_leg_lines(code: str) -> list[str]:
         f' same => n,GotoIf($["{realtime_read(code, "${EXTEN}", "dnd")}"="t"]?skip)',
         f" same => n,Set(__PICKUPMARK={code}-${{EXTEN}})",
         f" same => n,Set(__TRANSFER_CONTEXT={code}-from-internal)",
-        # SIP endpoint id — prefikssiz (`sip_identity.endpoint_id`), ${EXTEN} shu bilan BIR XIL.
-        *recorded_dial_lines("PJSIP/${EXTEN}", "", XFER_OPTIONS_HDR),
+        *_endpoint_dial_lines(""),
         " same => n,Hangup()",
         " same => n(skip),Hangup(17)",
         # Tashqi: ruxsat/toll — Follow Me EGASINIKI (`INNOVA_FWD_FROM`, yo'naltirish kabi);
@@ -282,18 +288,17 @@ def outbound_blocked_lines() -> list[str]:
 def ring_group_set_lines(code: str, idx: int, members: list[tuple[str, bool]], ring_seconds: int) -> list[str]:
     """Bitta `Dial()` to'plami runtime'da yig'iladi: DND yoqilgan ichki a'zo
     tashlab ketiladi, tashqi a'zo (`Local/...@<code>-outbound-rg`) doim kiradi."""
-    lines = [" same => n,Set(INNOVA_RG=)"]
+    lines = [contacts.reset_line()]
     for raw_number, is_external in members:
         number = _dp_num(raw_number, field="ring_group_member.extension_number")
         if is_external:
-            lines.append(f" same => n,Set(INNOVA_RG=${{INNOVA_RG}}&Local/{number}@{code}-outbound-rg)")
+            lines.append(contacts.add_raw_line(f"Local/{number}@{code}-outbound-rg"))
             continue
-        dnd = realtime_read(code, number, "dnd")
         # SIP endpoint id — prefikssiz (`sip_identity.endpoint_id`), `number` shu bilan BIR XIL.
-        lines.append(f' same => n,ExecIf($["{dnd}"!="t"]?Set(INNOVA_RG=${{INNOVA_RG}}&PJSIP/{number}))')
+        lines.append(contacts.add_endpoint_line(number, when=f'"{realtime_read(code, number, "dnd")}"!="t"'))
     lines += [
-        f' same => n,GotoIf($["${{INNOVA_RG}}"=""]?rg{idx}_skip)',
-        *recorded_dial_lines("${INNOVA_RG:1}", str(ring_seconds), XFER_OPTIONS_HDR),
+        f' same => n,GotoIf($["${{{contacts.VAR}}}"=""]?rg{idx}_skip)',
+        *recorded_dial_lines(contacts.TARGETS, str(ring_seconds), XFER_OPTIONS_HDR),
         f" same => n(rg{idx}_skip),NoOp(Innova: guruh to'plami {idx} tugadi)",
     ]
     return lines
@@ -451,7 +456,8 @@ def _intercom(code: str, fc: str) -> list[str]:
         f" same => n,Set(INNOVA_NUM={rest})",
         " same => n,Set(__INNOVA_AUTOANSWER=1)",
         f" same => n,Set(__TRANSFER_CONTEXT={code}-from-internal)",
-        f" same => n,Dial(PJSIP/${{INNOVA_NUM}},20,{PREDIAL_OPTION})",
+        *contacts.endpoint_targets_lines("${INNOVA_NUM}"),
+        f" same => n,Dial({contacts.TARGETS},20,{PREDIAL_OPTION})",
         " same => n,Hangup()",
     ]
 
@@ -656,11 +662,12 @@ def page_group_lines(number: str, member_numbers: tuple[str, ...], *,
         opts += "q"
     number = _dp_num(number, field="page_group.number")
     members = [_dp_num(m, field="page_group.member_number") for m in member_numbers]
-    targets = "&".join(f"PJSIP/{m}" for m in members)
     return [
         f"exten => {number},1,NoOp(Innova: paging {number})",
         " same => n,Answer()",
         " same => n,Set(__INNOVA_AUTOANSWER=1)",
-        f" same => n,Page({targets},{opts})",
+        contacts.reset_line(),
+        *(contacts.add_endpoint_line(m) for m in members),
+        f" same => n,Page({contacts.TARGETS},{opts})",
         " same => n,Hangup()",
     ]

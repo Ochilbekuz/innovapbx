@@ -49,6 +49,7 @@ import hashlib
 import re
 from dataclasses import dataclass, field
 
+from app.services import dialplan_contacts as contacts
 from app.services import dialplan_features as feat
 from app.services import dialplan_recording as rec
 from app.services import outbound_rules as rules
@@ -1398,6 +1399,7 @@ def _compile_dialplan_unsafe(snapshot: DialplanSnapshot) -> str:
         "",
     ]
     parts += rec.recording_context_lines()
+    parts += contacts.context_lines() + [""]
     # M9 A4: B bo'lagi (kiruvchi CID Alert-Info) va A agenti (intercom/paging
     # avtomatik javob) BIR XIL gosub'dan foydalanadi — BIR MARTA yoziladi.
     parts += feat.predial_hdr_context_lines()
