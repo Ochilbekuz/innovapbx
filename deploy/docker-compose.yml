@@ -202,10 +202,13 @@ networks:
     # `FORWARDED_ALLOW_IPS`ni butun 172.16/12+10/8+192.168/16 bilan mos
     # keltirib bo'lmasligi uchun kerak edi (quyida tor qilindi). Appliance
     # qatlami (`docker-compose.appliance.yml`) o'z subnet'ini ustiga qo'yadi.
+    # Appliance `innova-start` 172.30.0.0/24 ni env orqali beradi: appliance faylida
+    # alohida `ipam.config` yozilsa compose 2.24 ro'yxatlarni QO'SHADI (ikki subnet,
+    # konteyner 172.28'dan IP olib AMI/FORWARDED_ALLOW_IPS ruxsatidan chiqib qoladi).
     ipam:
       config:
-        - subnet: 172.28.0.0/24
-          gateway: 172.28.0.1
+        - subnet: ${INNOVA_NET_SUBNET:-172.28.0.0/24}
+          gateway: ${INNOVA_NET_GATEWAY:-172.28.0.1}
 
 volumes:
   pgdata:

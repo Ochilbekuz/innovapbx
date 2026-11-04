@@ -170,7 +170,9 @@ now_iso() { date -u +%Y-%m-%dT%H:%M:%SZ; }
 # ro'yxatga olingan ro'yxat o'rniga umumiy belgilar to'plami ishlatiladi —
 # `state`/`phase` ham, `current`/`latest` versiyalar ham, ISO vaqt
 # belgilari ham shu bitta qolipga mos keladi (DRY).
-sanitize_value() { printf '%s' "$1" | tr -cd 'A-Za-z0-9._:+-' | cut -c1-32; }
+# Qopqoq 80: eng uzun qiymat — `backup` (pre-update-<versiya ≤32>-YYYYmmdd-HHMMSS.sql.gz,
+# 66 belgigacha); 32 da zaxira nomi kesilib, panel yo'q faylni ko'rsatardi.
+sanitize_value() { printf '%s' "$1" | tr -cd 'A-Za-z0-9._:+-' | cut -c1-80; }
 
 status_load() {
   local k

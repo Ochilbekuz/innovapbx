@@ -75,5 +75,7 @@ else
   COMPOSE="docker-compose"
 fi
 cd "$DEPLOY"
+# `innova-net` subnet'i (1.0.13 dan beri shu) — AMI_PERMIT_CIDR/FORWARDED_ALLOW_IPS va nftables bilan mos.
+export INNOVA_NET_SUBNET=172.30.0.0/24 INNOVA_NET_GATEWAY=172.30.0.1
 exec $COMPOSE -f docker-compose.yml -f docker-compose.appliance.yml --env-file "$ENV_FILE" \
   up -d --no-build --remove-orphans

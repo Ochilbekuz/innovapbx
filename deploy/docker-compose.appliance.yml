@@ -66,9 +66,5 @@ services:
     environment:
       INNOVA_ASTERISK_WS: http://172.30.0.1:8088/ws
 
-networks:
-  innova-net:
-    ipam:
-      config:
-        - subnet: 172.30.0.0/24
-          gateway: 172.30.0.1
+# `innova-net` subnet'i 172.30.0.0/24 — `innova-start` INNOVA_NET_SUBNET/GATEWAY
+# orqali beradi (base fayldagi ipam; bu yerda qayta yozish compose 2.24'da ro'yxatni qo'shadi).
