@@ -10,12 +10,15 @@ import type { ApiClient } from '@/api/client';
 import { useSession } from '@/api/session';
 import { SEED_ADMIN, SEED_ADMIN_PASSWORD, SEED_OPERATOR, SEED_OPERATOR_PASSWORD } from '@/api/fakeSeed';
 
-/** Yangi `QueryClient` (retry'siz) + `MemoryRouter` bilan render — sahifalar `AppShell` ichida navigatsiyaga tayanadi. */
-export function renderPage(children: ReactNode) {
+/**
+ * Yangi `QueryClient` (retry'siz) + `MemoryRouter` bilan render — sahifalar `AppShell` ichida navigatsiyaga tayanadi.
+ * `route` — boshlang'ich manzil (sukut `/`), masalan faol menyu guruhini tekshirish uchun.
+ */
+export function renderPage(children: ReactNode, route = '/') {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
   return render(
     <QueryClientProvider client={queryClient}>
-      <MemoryRouter>{children}</MemoryRouter>
+      <MemoryRouter initialEntries={[route]}>{children}</MemoryRouter>
     </QueryClientProvider>,
   );
 }

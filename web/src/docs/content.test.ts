@@ -1,9 +1,11 @@
 // Haqiqiy qo'llanma fayllari tekshiruvi: har fayl to'g'ri formatda, har ichki havola mavjud bo'limga yoki
 // panel ekraniga olib boradi, har menyu ekranining o'z bo'limi bor (sahifadagi «?» tugmasi bo'sh qolmasin).
+// Uchala til (uz/ru/en) uchun; ru/en — uz asli bilan bir xil tuzilmada va to'liq tarjima qilingan.
 import { describe, expect, it } from 'vitest';
 import { EXTRA_ROUTES, SCREENS } from '@/shell/screens';
 import { parseMarkdown, safeHref, type Block, type Inline } from './markdown';
-import { CATALOG } from './content';
+import { LANGS } from '@/lib/i18n';
+import { CATALOGS, TRANSLATED, catalogFor } from './content';
 
 /** Hali qurilmagan (ScreenStub) ekranlar — hujjat talab qilinmaydi. */
 const NO_DOC_SCREENS = ['license'];
@@ -27,7 +29,9 @@ function linksOf(blocks: Block[]): string[] {
   });
 }
 
-describe("qo'llanma fayllari", () => {
+describe.each(LANGS)("qo'llanma fayllari (%s)", (lang) => {
+  const CATALOG = CATALOGS[lang];
+
   it('kamida bitta bo\'lim bor va har bo\'limda title/summary to\'ldirilgan', () => {
     expect(CATALOG.flat.length).toBeGreaterThan(0);
     for (const d of CATALOG.flat) {
@@ -66,5 +70,34 @@ describe("qo'llanma fayllari", () => {
   it('HTML teg ishlatilmagan (panel ko\'rsatmaydi)', () => {
     const withHtml = CATALOG.flat.filter((d) => /^\s*<[a-z!]/im.test(d.body.replace(/```[\s\S]*?```/g, ''))).map((d) => d.id);
     expect(withHtml).toEqual([]);
+  });
+});
+
+describe('tarjimalar', () => {
+  const uz = CATALOGS.uz;
+
+  it.each(['ru', 'en'] as const)('%s: har uz bo\'limi tarjima qilingan, ortiqcha fayl yo\'q', (lang) => {
+    expect([...TRANSLATED[lang]].sort()).toEqual(uz.flat.map((d) => d.id).sort());
+  });
+
+  it.each(['ru', 'en'] as const)('%s: guruh/tartib/ekran manzili va ichki havolalar uz asli bilan bir xil', (lang) => {
+    const internal = (body: string) => [...new Set(linksOf(parseMarkdown(body)).filter((h) => h.startsWith('/')))].sort();
+    for (const d of CATALOGS[lang].flat) {
+      const src = uz.byId.get(d.id);
+      expect({ group: d.group, order: d.order, path: d.path }, d.id).toEqual({ group: src?.group, order: src?.order, path: src?.path });
+      expect(internal(d.body), d.id).toEqual(internal(src?.body ?? ''));
+    }
+  });
+
+  it('tarjimalar haqiqatan boshqa tilda (uz matni nusxalanmagan)', () => {
+    expect(CATALOGS.ru.byId.get('ivr')?.body).toMatch(/[а-яё]/i);
+    expect(CATALOGS.en.byId.get('extensions')?.title).not.toBe(uz.byId.get('extensions')?.title);
+  });
+
+  it('catalogFor: til kodi bo\'yicha katalog, noma\'lum til — uz', () => {
+    expect(catalogFor('ru')).toBe(CATALOGS.ru);
+    expect(catalogFor('en')).toBe(CATALOGS.en);
+    expect(catalogFor('de')).toBe(uz);
+    expect(catalogFor(undefined)).toBe(uz);
   });
 });

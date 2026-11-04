@@ -14,7 +14,7 @@ doimiy bezovta qiladigan reklama raqamini roʻyxatga qoʻyib qoʻysangiz, u tizi
 
 ## Qayerda
 
-Menyu: **Qoʻshimcha → Qora roʻyxat**. Kim koʻradi: `apps` ruxsatiga ega foydalanuvchilar tahrirlaydi,
+Menyu: **Ilovalar → Qora roʻyxat**. Kim koʻradi: `apps` ruxsatiga ega foydalanuvchilar tahrirlaydi,
 qolganlar faqat koʻradi.
 
 ## Asosiy tushunchalar

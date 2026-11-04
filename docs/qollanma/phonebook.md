@@ -14,7 +14,7 @@ qoʻngʻiroq qilsa, panelda va qoʻllab-quvvatlaydigan SIP telefonlarda raqam o�
 
 ## Qayerda
 
-Menyu: **Qoʻshimcha → Telefon kitobi**. Kim koʻradi: `routing` ruxsatiga ega foydalanuvchilar tahrirlaydi,
+Menyu: **Ilovalar → Telefon kitobi**. Kim koʻradi: `routing` ruxsatiga ega foydalanuvchilar tahrirlaydi,
 qolganlar faqat koʻradi.
 
 ## Asosiy tushunchalar

@@ -35,9 +35,12 @@ export const uz = {
   health: { asterisk: 'Asterisk', database: 'Baza', asteriskDown: 'Asterisk prosessi javob bermayapti', dbDown: 'PostgreSQLga ulanmadi' },
   systemName: 'Innova PBX',
   asteriskNotRunning: 'Asterisk ishlamayapti',
+  uptimeUnits: { d: 'kun', h: 'soat', m: 'daq' },
   brandWord: 'innova',
   brandSuffix: 'PBX',
   shortcutCtrl: 'Ctrl',
+  navMode: { collapse: 'Menyuni yigʻish', pin: 'Menyuni qotirish', hint: '{{label}} (Ctrl+B)' },
+  navActiveGroup: 'joriy sahifa shu boʻlimda',
 };
 
 export const ru = {
@@ -75,9 +78,12 @@ export const ru = {
   health: { asterisk: 'Asterisk', database: 'База данных', asteriskDown: 'Процесс Asterisk не отвечает', dbDown: 'Нет соединения с PostgreSQL' },
   systemName: 'Innova PBX',
   asteriskNotRunning: 'Asterisk не работает',
+  uptimeUnits: { d: 'д', h: 'ч', m: 'мин' },
   brandWord: 'innova',
   brandSuffix: 'PBX',
   shortcutCtrl: 'Ctrl',
+  navMode: { collapse: 'Свернуть меню', pin: 'Закрепить меню', hint: '{{label}} (Ctrl+B)' },
+  navActiveGroup: 'текущая страница в этом разделе',
 };
 
 export const en = {
@@ -115,7 +121,10 @@ export const en = {
   health: { asterisk: 'Asterisk', database: 'Database', asteriskDown: 'The Asterisk process is not responding', dbDown: 'Could not connect to PostgreSQL' },
   systemName: 'Innova PBX',
   asteriskNotRunning: 'Asterisk is not running',
+  uptimeUnits: { d: 'd', h: 'h', m: 'min' },
   brandWord: 'innova',
   brandSuffix: 'PBX',
   shortcutCtrl: 'Ctrl',
+  navMode: { collapse: 'Collapse menu', pin: 'Pin menu', hint: '{{label}} (Ctrl+B)' },
+  navActiveGroup: 'current page is in this section',
 };

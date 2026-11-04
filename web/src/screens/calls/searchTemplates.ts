@@ -1,6 +1,6 @@
 // CDR kengaytirilgan qidiruv shablonlari — nom bilan saqlab, keyin bir bosishda qo'llash.
 // Ro'yxat ustidagi amallar (`addSearchTemplate`/`removeSearchTemplate`) sof funksiyalar — `localStorage`
-// faqat `loadSearchTemplates`/`saveSearchTemplates` ichida (naqsh: `shell/navCollapse.ts`).
+// faqat `loadSearchTemplates`/`saveSearchTemplates` ichida (naqsh: `shell/navMode.ts`).
 import { newId } from '@/lib/browser';
 import type { AdvancedSearchForm } from './advancedSearch';
 

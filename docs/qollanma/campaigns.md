@@ -15,7 +15,7 @@ qoʻngʻiroq qilib, audio xabar eshittiradi va "1" tugmasini bosganlarni operato
 
 ## Qayerda
 
-Menyu: **Qoʻshimcha → Kampaniyalar**. Kim koʻradi: `apps` ruxsatiga ega foydalanuvchilar tahrirlaydi,
+Menyu: **Ilovalar → Kampaniyalar**. Kim koʻradi: `apps` ruxsatiga ega foydalanuvchilar tahrirlaydi,
 qolganlar faqat koʻradi (**"Sizda kampaniyalarni boshqarish ruxsati yoʻq"** ogohlantirishi bilan).
 
 ## Asosiy tushunchalar

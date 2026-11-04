@@ -16,7 +16,7 @@ tanlanadi.
 
 ## Qayerda
 
-Menyu: **Qoʻshimcha → Audio kutubxona**. Kim koʻradi: `apps` ruxsatiga ega foydalanuvchilar tahrirlaydi,
+Menyu: **Ilovalar → Audio kutubxona**. Kim koʻradi: `apps` ruxsatiga ega foydalanuvchilar tahrirlaydi,
 qolganlar faqat koʻradi.
 
 ## Asosiy tushunchalar

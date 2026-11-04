@@ -36,14 +36,16 @@ export function formatDurationSec(sec: number): string {
   return `${m}:${String(s).padStart(2, '0')}`;
 }
 
-/** Asterisk ish vaqti: 90061 → «1 kun 1 soat», 300 → «5 daq». */
-export function formatUptime(sec: number): string {
+export type UptimeUnits = { d: string; h: string; m: string };
+
+/** Asterisk ish vaqti: 90061 → «1 kun 1 soat», 300 → «5 daq». Birliklar — interfeys tilidan (`shell:uptimeUnits`). */
+export function formatUptime(sec: number, u: UptimeUnits = { d: 'kun', h: 'soat', m: 'daq' }): string {
   const d = Math.floor(sec / 86400);
   const h = Math.floor((sec % 86400) / 3600);
   const m = Math.floor((sec % 3600) / 60);
-  if (d > 0) return h > 0 ? `${d} kun ${h} soat` : `${d} kun`;
-  if (h > 0) return `${h} soat ${m} daq`;
-  return `${m} daq`;
+  if (d > 0) return h > 0 ? `${d} ${u.d} ${h} ${u.h}` : `${d} ${u.d}`;
+  if (h > 0) return `${h} ${u.h} ${m} ${u.m}`;
+  return `${m} ${u.m}`;
 }
 
 /** Sana filtri input'lari uchun "YYYY-MM-DD" (mahalliy kalendar kuni). Qoʻngʻiroqlar/Audit filtrlarida ishlatiladi. */

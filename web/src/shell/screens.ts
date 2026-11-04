@@ -1,7 +1,7 @@
 import { createElement, type ReactNode } from 'react';
 import { hasPermission } from '@/auth/permissions';
 import {
-  Activity, ArrowRightLeft, AudioLines, BadgeCheck, BellRing, BookUser, CalendarClock, ChartNoAxesColumn, CircleUserRound,
+  Activity, ArrowRightLeft, AudioLines, Blocks, Cable, ChartNoAxesCombined, Gauge, Route, Settings2, UsersRound, BadgeCheck, BellRing, BookUser, CalendarClock, ChartNoAxesColumn, CircleUserRound,
   ClipboardCheck, Clock, DatabaseBackup, EthernetPort, Flame, Grid3x3, Hash, History, IdCard, KeyRound, LayoutDashboard, ListOrdered,
   Lock, Megaphone, Mic2, Network, ParkingSquare, PhoneIncoming, PhoneMissed, PhoneOutgoing, Plug, RadioTower, RefreshCw, ScrollText,
   ServerCog, Shuffle, ShieldCheck, ShieldOff, Smartphone, SunMoon, UserCog, Users, Voicemail, Waypoints,
@@ -27,6 +27,20 @@ export type ScreenDef = {
 };
 
 const icon = (I: typeof Activity) => createElement(I);
+
+/**
+ * Har asosiy guruhning belgisi va aksent rangi (token nomi, qiymati `replica/design/tokens.json` → `nav-*`).
+ * `Record` — yangi guruh qo'shilsa, rangsiz qolib ketmaydi (kompilyator talab qiladi).
+ */
+export const GROUP_META: Record<ScreenGroupId, { icon: ReactNode; accent: `nav-${ScreenGroupId}` }> = {
+  overview: { icon: icon(Gauge), accent: 'nav-overview' },
+  users: { icon: icon(UsersRound), accent: 'nav-users' },
+  connect: { icon: icon(Cable), accent: 'nav-connect' },
+  routing: { icon: icon(Route), accent: 'nav-routing' },
+  apps: { icon: icon(Blocks), accent: 'nav-apps' },
+  reports: { icon: icon(ChartNoAxesCombined), accent: 'nav-reports' },
+  system: { icon: icon(Settings2), accent: 'nav-system' },
+};
 
 export const SCREENS: ScreenDef[] = [
   { id: 'dashboard', reconId: 'S03', path: '/dashboard', icon: icon(LayoutDashboard), group: 'overview' },

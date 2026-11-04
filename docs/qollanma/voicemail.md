@@ -15,7 +15,7 @@ Masalan: "Ofis yopiq boʻlganda qoʻngʻiroq ovozli pochtaga tushsin" — [Ish v
 
 ## Qayerda
 
-Menyu: **Qoʻshimcha → Ovozli pochta**. Kim koʻradi: `extensions` ruxsatiga ega foydalanuvchilar tahrirlaydi,
+Menyu: **Ilovalar → Ovozli pochta**. Kim koʻradi: `extensions` ruxsatiga ega foydalanuvchilar tahrirlaydi,
 qolganlar faqat koʻradi. Egasi oʻz xabarlarini [Mening kabinetim](/docs/portal) sahifasida tinglaydi.
 
 ## Asosiy tushunchalar

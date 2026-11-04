@@ -7,10 +7,16 @@ import { ArrowLeft, ArrowRight, Search, X } from 'lucide-react';
 import { cn } from '@/lib/cn';
 import { AppShellPage } from '@/shell/AppShellPage';
 import { Input } from '@/ui/Field';
-import { CATALOG } from '@/docs/content';
+import { catalogFor } from '@/docs/content';
 import { neighbours, searchDocs, type Doc, type DocGroup } from '@/docs/catalog';
 import { parseMarkdown, plainText, type Block } from '@/docs/markdown';
 import { Blocks } from '@/docs/Markdown';
+
+/** Interfeys tilidagi qo'llanma (tarjimasi yo'q bo'lim — uzbekcha). Til almashsa darhol qayta chiziladi. */
+function useCatalog() {
+  const { i18n } = useTranslation();
+  return catalogFor(i18n.resolvedLanguage ?? i18n.language);
+}
 
 function useGroupLabel() {
   const { t } = useTranslation(['docs', 'shell']);
@@ -20,9 +26,10 @@ function useGroupLabel() {
 function Toc({ activeId }: { activeId?: string }) {
   const { t } = useTranslation('docs');
   const groupLabel = useGroupLabel();
+  const catalog = useCatalog();
   return (
     <nav aria-label={t('tocLabel')} className="flex flex-col gap-4">
-      {CATALOG.groups.map((g) => (
+      {catalog.groups.map((g) => (
         <div key={g.id}>
           <p className="px-2 pb-1 text-2xs uppercase text-muted">{groupLabel(g.id)}</p>
           <ul>
@@ -49,7 +56,8 @@ function Toc({ activeId }: { activeId?: string }) {
 
 function SearchResults({ query }: { query: string }) {
   const { t } = useTranslation('docs');
-  const hits = useMemo(() => searchDocs(CATALOG, query), [query]);
+  const catalog = useCatalog();
+  const hits = useMemo(() => searchDocs(catalog, query), [catalog, query]);
   if (hits.length === 0) return <p className="px-2 text-sm text-muted">{t('noResults')}</p>;
   return (
     <div>
@@ -111,7 +119,7 @@ function OnThisPage({ blocks }: { blocks: Block[] }) {
 
 function PrevNext({ id }: { id: string }) {
   const { t } = useTranslation('docs');
-  const { prev, next } = neighbours(CATALOG, id);
+  const { prev, next } = neighbours(useCatalog(), id);
   const card = 'flex flex-1 flex-col gap-0.5 rounded-md border border-line px-4 py-3 hover:border-line-strong hover:bg-surface-2';
   return (
     <div className="mt-10 flex flex-col gap-3 border-t border-line pt-6 sm:flex-row">
@@ -152,11 +160,12 @@ function Article({ doc, blocks }: { doc: Doc; blocks: Block[] }) {
 function Index() {
   const { t } = useTranslation('docs');
   const groupLabel = useGroupLabel();
+  const catalog = useCatalog();
   return (
     <div className="min-w-0">
       <p className="max-w-[46rem] text-base leading-relaxed text-fg/90">{t('indexLead')}</p>
       <div className="mt-6 flex flex-col gap-7">
-        {CATALOG.groups.map((g) => (
+        {catalog.groups.map((g) => (
           <section key={g.id} aria-labelledby={`docs-g-${g.id}`}>
             <h2 id={`docs-g-${g.id}`} className="mb-2 font-display text-lg text-fg">{groupLabel(g.id)}</h2>
             <ul className="grid gap-2 sm:grid-cols-2 2xl:grid-cols-3">
@@ -193,7 +202,8 @@ function useScrollOnNavigate(key: string | undefined) {
 
 /** Ochilgan bo'lim va uning bloklari. Bo'lim sarlavhasi (`# ...`) sahifa sarlavhasiga ko'chadi — maqola ichida takrorlanmaydi. */
 function useDoc(id: string | undefined): { doc?: Doc; body: Block[] } {
-  const doc = id ? CATALOG.byId.get(id) : undefined;
+  const catalog = useCatalog();
+  const doc = id ? catalog.byId.get(id) : undefined;
   const blocks = useMemo(() => (doc ? parseMarkdown(doc.body) : []), [doc]);
   const first = blocks[0];
   return { doc, body: first?.t === 'heading' && first.level === 1 ? blocks.slice(1) : blocks };
@@ -201,10 +211,8 @@ function useDoc(id: string | undefined): { doc?: Doc; body: Block[] } {
 
 function Banners({ notFound }: { notFound: boolean }) {
   const { t } = useTranslation('docs');
-  const note = t('langNote');
   return (
     <>
-      {note && <p className="mb-4 rounded-md border border-info/30 bg-info-soft px-3 py-2 text-sm text-on-info-soft">{note}</p>}
       {notFound && <p role="alert" className="mb-4 rounded-md border border-warning/30 bg-warning-soft px-3 py-2 text-sm text-on-warning-soft">{t('notFound')}</p>}
     </>
   );

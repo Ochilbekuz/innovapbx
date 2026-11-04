@@ -16,9 +16,9 @@ mumkin.
 
 ## Qayerda
 
-Menyu: **Qoʻshimcha → Paging / Intercom**. Kim koʻradi: `routing` ruxsatiga ega foydalanuvchilar
+Menyu: **Ilovalar → Paging / Intercom**. Kim koʻradi: `routing` ruxsatiga ega foydalanuvchilar
 tahrirlaydi, qolganlar faqat koʻradi (**"Sizda paging guruhlarini boshqarish ruxsati yoʻq"**
-ogohlantirishi bilan) — garchi ekran menyuda "Qoʻshimcha" boʻlimida koʻrsatilsa ham.
+ogohlantirishi bilan) — garchi ekran menyuda "Ilovalar" boʻlimida koʻrsatilsa ham.
 
 ## Asosiy tushunchalar
 

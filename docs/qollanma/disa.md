@@ -16,7 +16,7 @@ keyin istalgan tashqi raqamni terib, ofis trunki orqali gaplashadi.
 
 ## Qayerda
 
-Menyu: **Qoʻshimcha → DISA**. Kim koʻradi: `apps` ruxsatiga ega foydalanuvchilar tahrirlaydi, qolganlar
+Menyu: **Ilovalar → DISA**. Kim koʻradi: `apps` ruxsatiga ega foydalanuvchilar tahrirlaydi, qolganlar
 faqat koʻradi.
 
 ## Asosiy tushunchalar

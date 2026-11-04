@@ -47,6 +47,13 @@
   --c-sidebar-border: 58 54 52;
   --c-sidebar-text: 236 232 226;
   --c-sidebar-muted: 163 158 150;
+  --c-nav-overview: 244 139 32;
+  --c-nav-users: 237 190 76;
+  --c-nav-connect: 77 182 162;
+  --c-nav-routing: 116 166 222;
+  --c-nav-apps: 228 140 149;
+  --c-nav-reports: 163 192 106;
+  --c-nav-system: 180 173 163;
   --c-chart-1: 215 98 29;
   --c-chart-2: 85 94 89;
   --c-chart-3: 244 139 32;

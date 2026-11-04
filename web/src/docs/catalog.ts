@@ -35,13 +35,15 @@ function readFields(block: string): Record<string, string> {
 
 const isDocGroup = (g: string | undefined): g is DocGroup => g !== undefined && (DOC_GROUPS as readonly string[]).includes(g);
 
+const baseName = (path: string) => path.replace(/^.*\//, '');
+
 /** Bitta faylni tekshiradi; xato bo'lsa — fayl nomi bilan otadi (test/qurishda ushlanadi, jimgina tushib qolmaydi). */
 export function parseDoc(fileName: string, raw: string): Doc {
   const src = raw.replace(/\r\n?/g, '\n');
   const m = FRONT_RE.exec(src);
   if (!m) throw new Error(`${fileName}: sarlavha bloki (---) yo'q`);
   const f = readFields(m[1] ?? '');
-  const fileId = fileName.replace(/^.*\//, '').replace(/\.md$/, '');
+  const fileId = baseName(fileName).replace(/\.md$/, '');
   const order = Number(f.order);
   if (f.id !== fileId) throw new Error(`${fileName}: id "${f.id}" fayl nomiga mos emas`);
   if (!f.title) throw new Error(`${fileName}: title yo'q`);
@@ -53,6 +55,12 @@ export function parseDoc(fileName: string, raw: string): Doc {
     summary: f.summary ?? '',
     body: src.slice(m[0].length),
   };
+}
+
+/** Tarjima fayllarini asl fayllar ustiga nomi bo'yicha qo'yadi: tarjimasi yo'q bo'lim asl tilda qoladi (yo'qolmaydi). */
+export function overlayByName(base: Record<string, string>, over: Record<string, string>): Record<string, string> {
+  const byName = (files: Record<string, string>) => Object.entries(files).map(([path, raw]) => [baseName(path), raw] as const);
+  return Object.fromEntries([...byName(base), ...byName(over)]);
 }
 
 export function buildCatalog(files: Record<string, string>): Catalog {

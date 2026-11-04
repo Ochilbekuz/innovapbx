@@ -1,5 +1,17 @@
 # O'zgarishlar tarixi
 
+## 1.0.19 — 2026-11-04
+- **Yangi yon menyu**: bir vaqtda faqat bitta bo'lim ochiq (akkordeon) — boshqasini ochsangiz oldingisi yig'iladi;
+  boshqa bo'limdagi sahifaga o'tilsa o'sha bo'lim o'zi ochiladi.
+- Menyuni **yig'ish/yoyish va qotirish**: qotirilgan (to'liq) yoki ixcham (faqat ikonalar) rejim; ixcham rejimda
+  sichqoncha olib borilsa menyu sahifa ustida vaqtincha ochiladi. Tugma yoki **Ctrl+B** (⌘B); tanlov brauzerda saqlanadi.
+- Asosiy bo'limlar **rang bilan ajratildi** (har bo'limga o'z rangi va ikonasi, ochiq bo'lim chizig'i, faol sahifa
+  belgisi, ichidagi sahifalar soni); yopiq bo'limda turgan bo'lsangiz ham sarlavhada belgi qoladi.
+- **Qo'llanma endi rus va ingliz tillarida ham** (54 bo'lim) — panel tilini almashtirsangiz qo'llanma ham, qidiruv ham
+  o'sha tilga o'tadi. «Ilovalar» bo'limi nomi qo'llanmada menyu bilan bir xil qilindi.
+- Pastki paneldagi Asterisk ish vaqti va holat yozuvlari endi tanlangan tilda (ilgari doim uzbekcha edi).
+- Veb-server statik fayllarni gzip bilan siqib beradi — panel birinchi marta ~3 barobar tezroq yuklanadi.
+
 ## 1.0.18 — 2026-11-04
 - **Tuzatish — «Sana va vaqt» sahifasi uzoq yuklanib, ochilmasdi**: server tizim buyrug'i (`timedatectl`) qotib qolsa
   netd uni timeout'da faqat «ustidan» to'xtatardi — `nsenter` ichidagi asl buyruq tirik qolib javobni 25–30 s ushlab

@@ -71,3 +71,13 @@ Menyu: **<Guruh> → <Ekran nomi>** · Kim ko'radi: <rol/ruxsat>.
   qalin bilan: **Saqlash**. (Manba: `web/src/i18n/<ns>.ts` faylidagi `uz` bloki.)
 - Faqat kodda haqiqatda bor narsani yozing. Taxmin qilmang; ishonchingiz komil bo'lmasa — yozmang.
 - Raqamlar/sukut qiymatlar/cheklovlar — koddan (API sxemasi `api/app/...`, forma validatsiyasi) tekshiring.
+
+## 5. Tarjimalar (ru/en)
+
+- Har bo'limning tarjimasi — `docs/qollanma/ru/<id>.md` va `docs/qollanma/en/<id>.md` (fayl nomi asl bilan bir xil).
+  Panel foydalanuvchi tanlagan tilda ko'rsatadi; tarjimasi yo'q bo'lim uzbekcha chiqadi.
+- `id`, `group`, `order`, `path` — asl bilan AYNAN bir xil; `title`, `summary` va matn tarjima qilinadi.
+  Sarlavhalar, kod bloklari, eslatma bloklari va havola manzillari soni/tartibi o'zgarmaydi.
+- Tugma/menyu nomlari — `web/src/i18n/<ns>.ts` dagi `ru`/`en` bloklaridan AYNAN.
+- Uz bo'limini o'zgartirsangiz — ru/en ni ham yangilang. Tekshiruv: `python3 docs/qollanma/_tarjima_tekshir.py ru`
+  (va `en`); `web/src/docs/content.test.ts` ham uchala tilni tekshiradi.

@@ -23,6 +23,11 @@ describe('time', () => {
     expect(formatUptime(sec)).toBe(want);
   });
 
+  it('formatUptime — interfeys tili birliklari bilan', () => {
+    expect(formatUptime(90061, { d: 'д', h: 'ч', m: 'мин' })).toBe('1 д 1 ч');
+    expect(formatUptime(3660, { d: 'd', h: 'h', m: 'min' })).toBe('1 h 1 min');
+  });
+
   it('tenantDate — Toshkent kalendari kuni (UTC 19:00 dan keyin ertangi kun)', () => {
     expect(tenantDate(new Date('2026-11-02T18:59:00Z'))).toBe('2026-11-02');
     expect(tenantDate(new Date('2026-11-02T19:00:00Z'))).toBe('2026-11-03');

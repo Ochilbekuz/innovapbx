@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildCatalog, neighbours, parseDoc, searchDocs } from './catalog';
+import { buildCatalog, neighbours, overlayByName, parseDoc, searchDocs } from './catalog';
 
 const doc = (id: string, group: string, order: number, body = '', extra = '') =>
   `---\nid: ${id}\ntitle: ${id.toUpperCase()}\ngroup: ${group}\norder: ${order}\nsummary: ${id} haqida\n${extra}---\n# ${id.toUpperCase()}\n\n${body}\n`;
@@ -65,5 +65,19 @@ describe('searchDocs', () => {
 
   it('bir nechta so\'z — hammasi bo\'lishi kerak', () => {
     expect(searchDocs(cat, 'kampaniya navbat').map((r) => r.doc.id)).toEqual(['a']);
+  });
+});
+
+describe('overlayByName', () => {
+  it('tarjima fayli asl faylni nomi bo\'yicha almashtiradi, tarjimasizi asl tilda qoladi', () => {
+    const merged = overlayByName(
+      { '../docs/qollanma/ivr.md': 'uz-ivr', '../docs/qollanma/cdr.md': 'uz-cdr' },
+      { '../docs/qollanma/ru/ivr.md': 'ru-ivr' },
+    );
+    expect(merged).toEqual({ 'ivr.md': 'ru-ivr', 'cdr.md': 'uz-cdr' });
+  });
+
+  it('asl tilda yo\'q tarjima fayli ham kiradi (buildCatalog uni tekshiradi)', () => {
+    expect(overlayByName({}, { 'en/x.md': 'en-x' })).toEqual({ 'x.md': 'en-x' });
   });
 });

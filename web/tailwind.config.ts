@@ -1,4 +1,5 @@
 import type { Config } from 'tailwindcss';
+import plugin from 'tailwindcss/plugin';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
@@ -54,7 +55,8 @@ export default {
     screens: Object.fromEntries(
       Object.entries(tokens.layout.breakpoints).map(([k, v]) => [k, `${v}px`]),
     ),
-    colors: { transparent: 'transparent', current: 'currentColor', ...colors },
+    // `nav` — joriy menyu guruhining aksenti: guruh o'ralmasi `--nav-accent`ga `nav-*` tokenini beradi.
+    colors: { transparent: 'transparent', current: 'currentColor', ...colors, nav: 'rgb(var(--nav-accent) / <alpha-value>)' },
     fontFamily: {
       sans: 'var(--font-sans)',
       display: 'var(--font-display)',
@@ -107,5 +109,11 @@ export default {
       },
     },
   },
-  plugins: [],
+  plugins: [
+    // `rail:` — desktop'da yig'ilgan (faqat ikonali) yon menyu ichida: `<aside data-compact="true">` avlodlari.
+    // Mobil drawer'ga ta'sir qilmaydi (u doim to'liq).
+    plugin(({ addVariant }) => {
+      addVariant('rail', `@media (min-width: ${tokens.layout.breakpoints.lg}px) { [data-compact="true"] & }`);
+    }),
+  ],
 } satisfies Config;

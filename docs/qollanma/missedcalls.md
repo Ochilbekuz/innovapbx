@@ -15,7 +15,7 @@ Telegram chatiga xabar yuborilsin — deb qoida yaratish mumkin.
 
 ## Qayerda
 
-Menyu: **Qoʻshimcha → Javobsiz qoʻngʻiroq xabari**. Kim koʻradi: `apps` ruxsatiga ega foydalanuvchilar
+Menyu: **Ilovalar → Javobsiz qoʻngʻiroq xabari**. Kim koʻradi: `apps` ruxsatiga ega foydalanuvchilar
 tahrirlaydi, qolganlar faqat koʻradi.
 
 ## Asosiy tushunchalar

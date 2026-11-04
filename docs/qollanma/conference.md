@@ -14,7 +14,7 @@ haftalik yigʻilish uchun xodimlar bir raqamni terib, PIN kiritib xonaga qoʻshi
 
 ## Qayerda
 
-Menyu: **Qoʻshimcha → Konferensiya xonalari**. Kim koʻradi: `apps` ruxsatiga ega foydalanuvchilar
+Menyu: **Ilovalar → Konferensiya xonalari**. Kim koʻradi: `apps` ruxsatiga ega foydalanuvchilar
 tahrirlaydi, qolganlar faqat koʻradi.
 
 ## Asosiy tushunchalar

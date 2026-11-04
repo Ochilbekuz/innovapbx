@@ -15,7 +15,7 @@ xodimga "701-joyni koʻtar" deb aytadi — xodim oʻz telefonidan `701`ni terib 
 
 ## Qayerda
 
-Menyu: **Qoʻshimcha → Parkovka va chaqiruv**. Kim koʻradi: `apps` ruxsatiga ega foydalanuvchilar
+Menyu: **Ilovalar → Parkovka va chaqiruv**. Kim koʻradi: `apps` ruxsatiga ega foydalanuvchilar
 tahrirlaydi, qolganlar faqat koʻradi. Sozlama — tenant uchun **yagona** (yangi "parkovka" yaratib
 boʻlmaydi, faqat mavjud sozlamalar tahrirlanadi).
 

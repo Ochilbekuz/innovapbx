@@ -1,5 +1,5 @@
 // "docs" namespace — «Qo'llanma» sahifasi (`screens/docs/DocsPage.tsx`). Bo'limlar matni — `docs/qollanma/*.md`
-// (o'zbek tilida); bu yerda faqat sahifa qobig'i. Guruh nomlari menyu bilan bir xil (`shell:groups`), qo'shimcha
+// (uz) va `docs/qollanma/{ru,en}/*.md`; bu yerda faqat sahifa qobig'i. Guruh nomlari menyu bilan bir xil (`shell:groups`), qo'shimcha
 // ikkitasi (`start`, `appendix`) shu yerda.
 
 export const uz = {
@@ -17,7 +17,6 @@ export const uz = {
   openScreen: 'Ekranni ochish',
   notFound: 'Bunday boʻlim topilmadi — mundarijadan tanlang.',
   indexLead: 'Innova PBX ning har bir boʻlimi: nima uchun kerak, qayerda joylashgan va qanday sozlanadi. Yangi boʻlsangiz — «Boshlash» guruhidan boshlang.',
-  langNote: '',
   groups: { start: 'Boshlash', appendix: 'Qoʻshimcha' },
   callout: { note: 'Eslatma', tip: 'Maslahat', warning: 'Diqqat', caution: 'Xavfli' },
 };
@@ -37,7 +36,6 @@ export const ru = {
   openScreen: 'Открыть экран',
   notFound: 'Раздел не найден — выберите из содержания.',
   indexLead: 'Каждый раздел Innova PBX: зачем он нужен, где находится и как настраивается. Если вы впервые — начните с группы «Начало работы».',
-  langNote: 'Текст руководства пока доступен только на узбекском языке.',
   groups: { start: 'Начало работы', appendix: 'Приложения' },
   callout: { note: 'Примечание', tip: 'Совет', warning: 'Внимание', caution: 'Опасно' },
 };
@@ -57,7 +55,6 @@ export const en = {
   openScreen: 'Open screen',
   notFound: 'Section not found — pick one from the contents.',
   indexLead: 'Every part of Innova PBX: what it is for, where it lives and how to set it up. New here? Start with the “Getting started” group.',
-  langNote: 'The guide text is currently available in Uzbek only.',
   groups: { start: 'Getting started', appendix: 'Appendix' },
   callout: { note: 'Note', tip: 'Tip', warning: 'Warning', caution: 'Danger' },
 };

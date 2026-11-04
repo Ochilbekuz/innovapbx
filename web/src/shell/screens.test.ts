@@ -1,7 +1,10 @@
 // Xatti-harakat testi — `isScreenVisible`/`byGroup` ekranlarni `permissions`ga ko'ra filtrlaydi
 // (M7 kontrakti §1/§4). Qarang ../../replica/m7-roles-contract.md.
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { byGroup, isScreenVisible, OPERATOR_VISIBLE_IDS, SCREENS } from './screens';
+import { contrast } from '@/lib/contrast';
+import { byGroup, GROUP_META, GROUP_ORDER, isScreenVisible, OPERATOR_VISIBLE_IDS, SCREENS } from './screens';
 import * as shellLocales from '@/i18n/shell';
 
 const OPERATOR_PERMISSIONS = ['calls:read:own'];
@@ -55,5 +58,23 @@ describe('menyu nomlari — har ekranning har tilda tarjimasi bor', () => {
     const nav = locale.nav as Record<string, string>;
     const missing = SCREENS.map((s) => s.id).filter((id) => !nav[id]);
     expect(missing).toEqual([]);
+  });
+});
+
+describe('guruh aksent ranglari — har guruhga oʻz rangi, qorongʻi sidebarda AA', () => {
+  const read = (f: string) => JSON.parse(readFileSync(resolve(process.cwd(), '../replica/design', f), 'utf8')) as { color: Record<string, string> };
+  const light = read('tokens.json').color;
+  const dark = { ...light, ...read('tokens.dark.json').color };
+
+  it.each(GROUP_ORDER)('%s: token bor va sidebar fonida kontrast ≥ 4.5 (ikkala mavzu)', (g) => {
+    const token = GROUP_META[g].accent;
+    expect(light[token]).toMatch(/^#[0-9A-F]{6}$/i);
+    expect(contrast(light[token]!, light['sidebar-bg']!)).toBeGreaterThanOrEqual(4.5);
+    expect(contrast(dark[token]!, dark['sidebar-bg']!)).toBeGreaterThanOrEqual(4.5);
+  });
+
+  it('ranglar takrorlanmaydi', () => {
+    const hexes = GROUP_ORDER.map((g) => light[GROUP_META[g].accent]);
+    expect(new Set(hexes).size).toBe(GROUP_ORDER.length);
   });
 });
