@@ -115,6 +115,19 @@ describe('update — parseMarkdownLite', () => {
   });
 });
 
+describe('update — parseMarkdownLite: koʻp qatorli roʻyxat bandi', () => {
+  it('surilgan davom qatori oldingi bandga qoʻshiladi (CHANGELOG uslubi)', () => {
+    const blocks = parseMarkdownLite('- **Birinchi** band\n  davomi shu bandda\n- ikkinchi\nOddiy matn');
+    expect(blocks).toEqual([
+      { type: 'list', items: ['**Birinchi** band davomi shu bandda', 'ikkinchi'] },
+      { type: 'paragraph', text: 'Oddiy matn' },
+    ]);
+  });
+  it('roʻyxatdan tashqaridagi surilgan qator — oddiy paragraf', () => {
+    expect(parseMarkdownLite('  surilgan matn')).toEqual([{ type: 'paragraph', text: 'surilgan matn' }]);
+  });
+});
+
 describe('update — classifyMdLine', () => {
   it('h2/h3 sarlavhani taniydi', () => {
     expect(classifyMdLine('## sarlavha')).toEqual({ kind: 'heading', level: 2, text: 'sarlavha' });
@@ -128,7 +141,7 @@ describe('update — classifyMdLine', () => {
     expect(classifyMdLine('   ')).toEqual({ kind: 'blank' });
   });
   it('oddiy matnni taniydi', () => {
-    expect(classifyMdLine('  oddiy matn  ')).toEqual({ kind: 'text', text: 'oddiy matn' });
+    expect(classifyMdLine('  oddiy matn  ')).toEqual({ kind: 'text', text: 'oddiy matn', indented: true });
   });
 });
 

@@ -75,7 +75,7 @@ type ClassifiedLine =
   | { kind: 'heading'; level: 2 | 3; text: string }
   | { kind: 'list'; text: string }
   | { kind: 'blank' }
-  | { kind: 'text'; text: string };
+  | { kind: 'text'; text: string; indented: boolean };
 
 /** Bitta qatorni turkumlaydi (sarlavha/roʻyxat/boʻsh/matn) — `parseMarkdownLite`dan CC ni ajratish uchun. */
 export function classifyMdLine(raw: string): ClassifiedLine {
@@ -85,7 +85,7 @@ export function classifyMdLine(raw: string): ClassifiedLine {
   const listItem = /^[-*]\s+(.*)$/.exec(line);
   if (listItem) return { kind: 'list', text: listItem[1] ?? '' };
   if (line === '') return { kind: 'blank' };
-  return { kind: 'text', text: line };
+  return { kind: 'text', text: line, indented: /^\s/.test(raw) };
 }
 
 /** Markdown satrlarini sarlavha/ro'yxat/paragraf bloklariga ajratadi — HTML teglari oddiy matn sifatida qoladi. */
@@ -107,6 +107,9 @@ export function parseMarkdownLite(md: string): MdBlock[] {
       listBuf.push(c.text);
     } else if (c.kind === 'blank') {
       flush();
+    } else if (c.indented && listBuf.length > 0) {
+      // ko'p qatorli band: surilgan davom qatori oldingi bandga qo'shiladi
+      listBuf[listBuf.length - 1] += ` ${c.text}`;
     } else {
       listBuf = flushBuffer(listBuf, (items) => ({ type: 'list', items }), blocks);
       paraBuf.push(c.text);
