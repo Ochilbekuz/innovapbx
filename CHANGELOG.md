@@ -1,5 +1,19 @@
 # O'zgarishlar tarixi
 
+## 1.0.13 — 2026-11-04
+- **Paneldan yangilash** — yangi sahifa **Sozlamalar → Yangilanish** (`/settings/update`, faqat administrator):
+  joriy va yangi versiya, o'zgarishlar ro'yxati, «Tekshirish» va «Yangilash» tugmalari. Yangilash tasdiq oynasida
+  versiya raqamini yozib tasdiqlanadi; jarayon bosqichlari (zaxira → kod → o'rnatish → qayta ishga tushish) va jurnal
+  jonli ko'rinadi. API konteyneri qayta ishga tushsa ham jarayon uzilmaydi — ishni hostdagi agent bajaradi.
+- Har yangilashdan oldin bazaning avtomatik zaxirasi (`backups/pre-update-*.sql.gz`); xato bo'lsa sahifada sabab
+  (masalan, hostda qo'lda o'zgartirilgan fayllar) va zaxira fayl nomi ko'rsatiladi. Yangilanishlar tarixi saqlanadi.
+- Yangi versiya har 12 soatda avtomatik tekshiriladi (`innova-update-check.timer`).
+- Mustahkamlik: bir vaqtda faqat bitta yangilash/tekshiruv; parallel so'rov 409 bilan rad etiladi; to'xtab qolgan
+  jarayon (masalan, reboot) «uzilgan» deb belgilanadi; ketma-ket xatolar agentni o'chirib qo'ymaydi.
+- Menyu: «Javobsiz qo'ng'iroqlar» bandi uchala tilda to'g'ri nomlanadi (ilgari xom `nav.missedcalls` chiqardi).
+- Eslatma: ISO'dan o'rnatilgan tizimlarda git manbasi yo'q — sahifa «manba topilmadi» deb ko'rsatadi (paneldan yangilash
+  git orqali o'rnatilgan serverlar uchun).
+
 ## 1.0.12 — 2026-11-03
 To'liq xavfsizlik auditi va tuzatishlar:
 - **KRITIK — tarmoq sozlamalari orqali root buyruq bajarish yopildi.** IPv6 scope-id (`fe80::1%eth0\n...`) ichiga
