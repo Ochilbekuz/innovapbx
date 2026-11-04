@@ -18,7 +18,7 @@ _OPS = frozenset({
     "state", "validate", "apply", "confirm", "rollback",
     # M12 B1 (sana/vaqt) / B2 (quvvat) / B3 (firewall) — tarmoqdan MUSTAQIL amallar,
     # lekin bitta soket/protokol qatlamidan o'tadi (m12-contract.md B1-B3).
-    "time_state", "time_apply", "power_state", "power_execute",
+    "time_state", "time_apply", "time_sync", "power_state", "power_execute",
     "firewall_state", "firewall_validate", "firewall_apply", "firewall_confirm", "firewall_rollback",
 })
 
@@ -50,6 +50,7 @@ _DISPATCH_TABLE: dict[str, Any] = {
     "rollback": lambda service, request: service.rollback(_pending_id_of(request)),
     "time_state": lambda service, request: service.time_state(),
     "time_apply": lambda service, request: service.time_apply(_config_of(request)),
+    "time_sync": lambda service, request: service.time_sync(),
     "power_state": lambda service, request: service.power_state(),
     "power_execute": lambda service, request: service.power_execute(_action_of(request)),
     "firewall_state": lambda service, request: service.firewall_state(),

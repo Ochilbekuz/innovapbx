@@ -18,9 +18,13 @@ STATE_RESULT = {"now_utc": "2026-01-01T00:00:00+00:00", "timezone": "UTC", "ntp_
 
 
 class _Session:
-    def __init__(self):
+    def __init__(self, tenant_tz="Asia/Tashkent"):
         self.added: list = []
         self.commits = 0
+        self.tenant = SimpleNamespace(id="t1", timezone=tenant_tz)
+
+    async def get(self, _model, _id):
+        return self.tenant
 
     def add(self, obj):
         self.added.append(obj)
@@ -46,6 +50,25 @@ class _FakeClient:
 
     async def time_apply(self, **kw):
         return await self._dispatch("time_apply", **kw)
+
+    async def time_sync(self, **kw):
+        return await self._dispatch("time_sync", **kw)
+
+
+class _ApplySpy:
+    def __init__(self):
+        self.calls = []
+
+    async def __call__(self, session, *, tenant_id, user_id, ami):
+        self.calls.append(tenant_id)
+        return SimpleNamespace(to_dict=lambda: {"status": "applied", "revision": 7, "message": None})
+
+
+@pytest.fixture
+def apply_spy(monkeypatch):
+    spy = _ApplySpy()
+    monkeypatch.setattr(st, "apply_config", spy)
+    return spy
 
 
 def _ok(result):
@@ -79,10 +102,10 @@ async def test_get_system_time_helper_unreachable_raises_503():
 
 
 @pytest.mark.asyncio
-async def test_put_system_time_records_audit_and_commits():
+async def test_put_system_time_records_audit_and_commits(apply_spy):
     session = _Session()
     client = _FakeClient(time_apply=_ok({**STATE_RESULT, "timezone": "Asia/Tashkent"}))
-    result = await st.put_system_time(_config(), session=session, client=client, user=USER)
+    result = await st.put_system_time(_config(), session=session, client=client, user=USER, ami=None)
     assert result["timezone"] == "Asia/Tashkent"
     assert session.commits == 1
     assert session.added[0].action == "update"  # "system.time.apply" -> normalize_action -> update
@@ -92,7 +115,7 @@ async def test_put_system_time_records_audit_and_commits():
 async def test_put_system_time_readonly_raises_409():
     client = _FakeClient(time_apply=_err("readonly", "Faqat ko'rish"))
     with pytest.raises(ApiError) as exc:
-        await st.put_system_time(_config(), session=_Session(), client=client, user=USER)
+        await st.put_system_time(_config(), session=_Session(), client=client, user=USER, ami=None)
     assert exc.value.status_code == 409
     assert exc.value.code == "readonly"
 
@@ -101,7 +124,7 @@ async def test_put_system_time_readonly_raises_409():
 async def test_put_system_time_invalid_config_raises_422_with_fields():
     client = _FakeClient(time_apply=_err("invalid_config", "Yaroqsiz", [{"field": "timezone", "message": "xato"}]))
     with pytest.raises(ApiError) as exc:
-        await st.put_system_time(_config(), session=_Session(), client=client, user=USER)
+        await st.put_system_time(_config(), session=_Session(), client=client, user=USER, ami=None)
     assert exc.value.status_code == 422
     assert exc.value.details["fields"][0]["field"] == "timezone"
 
@@ -114,3 +137,58 @@ def test_time_config_in_rejects_unknown_timezone():
 def test_time_config_in_rejects_invalid_ntp_server():
     with pytest.raises(ValueError):
         _config(ntp_servers=["not a host\n"])
+
+
+# ------------------------------------------------------------------ PBX vaqt zonasi = server vaqt zonasi
+
+@pytest.mark.asyncio
+async def test_put_new_timezone_moves_pbx_timezone_and_recompiles_dialplan(apply_spy):
+    session = _Session(tenant_tz="Asia/Tashkent")
+    client = _FakeClient(time_apply=_ok({**STATE_RESULT, "timezone": "Europe/Moscow"}))
+    result = await st.put_system_time(_config(timezone="Europe/Moscow"), session=session, client=client,
+                                      user=USER, ami=None)
+    assert session.tenant.timezone == "Europe/Moscow"
+    assert apply_spy.calls == ["t1"]
+    assert result["apply"] == {"status": "applied", "revision": 7, "message": None}
+
+
+@pytest.mark.asyncio
+async def test_put_same_timezone_does_not_recompile(apply_spy):
+    session = _Session(tenant_tz="Asia/Tashkent")
+    client = _FakeClient(time_apply=_ok({**STATE_RESULT, "timezone": "Asia/Tashkent"}))
+    result = await st.put_system_time(_config(), session=session, client=client, user=USER, ami=None)
+    assert apply_spy.calls == []
+    assert result["apply"] is None
+
+
+@pytest.mark.asyncio
+async def test_put_failed_netd_keeps_pbx_timezone(apply_spy):
+    session = _Session(tenant_tz="Asia/Tashkent")
+    client = _FakeClient(time_apply=_err("command_failed", "timedatectl xato"))
+    with pytest.raises(ApiError) as exc:
+        await st.put_system_time(_config(timezone="Europe/Moscow"), session=session, client=client,
+                                 user=USER, ami=None)
+    assert exc.value.status_code == 502
+    assert session.tenant.timezone == "Asia/Tashkent"
+    assert apply_spy.calls == []
+
+
+# ------------------------------------------------------------------ «Hozir sinxronlash»
+
+@pytest.mark.asyncio
+async def test_sync_system_time_returns_state_and_audits():
+    session = _Session()
+    client = _FakeClient(time_sync=_ok({**STATE_RESULT, "sync_server": "0.asia.pool.ntp.org"}))
+    result = await st.sync_system_time(session=session, client=client, user=USER)
+    assert result["sync_server"] == "0.asia.pool.ntp.org"
+    assert session.commits == 1
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("code,status", [("sync_failed", 502), ("ntp_disabled", 409), ("unsupported", 409)])
+async def test_sync_system_time_error_statuses(code, status):
+    client = _FakeClient(time_sync=_err(code))
+    with pytest.raises(ApiError) as exc:
+        await st.sync_system_time(session=_Session(), client=client, user=USER)
+    assert exc.value.status_code == status
+    assert exc.value.code == code

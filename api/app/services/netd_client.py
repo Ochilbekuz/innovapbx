@@ -10,6 +10,8 @@ import asyncio
 import json
 from typing import Any
 
+from app.netd.systemtime import SYNC_WAIT_SECONDS
+
 
 class NetdUnavailableError(Exception):
     """Soket yo'q/ulanmadi/javob bermadi — chaqiruvchi buni `helper.available
@@ -22,10 +24,10 @@ class NetdClient:
         self.socket_path = socket_path
         self.timeout = timeout
 
-    async def call(self, op: str, **fields: Any) -> dict[str, Any]:
+    async def call(self, op: str, *, timeout_s: float | None = None, **fields: Any) -> dict[str, Any]:
         payload = {"op": op, **{k: v for k, v in fields.items() if v is not None}}
         try:
-            return await asyncio.wait_for(self._request(payload), timeout=self.timeout)
+            return await asyncio.wait_for(self._request(payload), timeout=timeout_s or self.timeout)
         except (TimeoutError, OSError) as exc:
             raise NetdUnavailableError(f"netd bilan aloqa yo'q: {exc}") from exc
 
@@ -63,6 +65,10 @@ class NetdClient:
 
     async def time_apply(self, config: dict[str, Any]) -> dict[str, Any]:
         return await self.call("time_apply", config=config)
+
+    async def time_sync(self) -> dict[str, Any]:
+        # netd NTP javobini `SYNC_WAIT_SECONDS`gacha kutadi — mijoz undan uzoqroq kutsin.
+        return await self.call("time_sync", timeout_s=self.timeout + SYNC_WAIT_SECONDS)
 
     # ----------------------------------------------------------- M12 B2 (quvvat)
     async def power_state(self) -> dict[str, Any]:

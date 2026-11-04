@@ -12,6 +12,7 @@ from app.netd.service import NetdError
 from app.netd.systemtime import (
     TIMESYNCD_CONF_PATH,
     TimeService,
+    default_ntp_servers,
     detect_backend,
     is_valid_ntp_server,
     is_valid_timezone,
@@ -22,10 +23,18 @@ from app.netd.systemtime import (
 )
 
 
+TIMESYNCD_UNIT = "/lib/systemd/system/systemd-timesyncd.service"
+SHOW_TIMESYNC = ["timedatectl", "show-timesync"]
+TIMESYNC_REPLY = "ServerName=0.asia.pool.ntp.org\nServerAddress=1.2.3.4\nNTPMessage={ Leap=0, Stratum=2 }\n"
+
+
 class FakeExecutor:
-    def __init__(self, files: dict[str, str] | None = None, run_ok: bool = True):
+    def __init__(self, files: dict[str, str] | None = None, run_ok: bool = True,
+                 outputs: dict[tuple, str] | None = None, failing: tuple = ()):
         self.files = dict(files or {})
         self.run_ok = run_ok
+        self.outputs = dict(outputs or {})
+        self.failing = set(failing)
         self.commands: list[list[str]] = []
 
     def read_text(self, path: str) -> str | None:
@@ -39,10 +48,10 @@ class FakeExecutor:
 
     async def run(self, argv: list[str], *, timeout: float = 10.0) -> CommandResult:
         self.commands.append(argv)
-        if not self.run_ok:
+        if not self.run_ok or tuple(argv) in self.failing:
             return CommandResult(1, "", "xato")
-        stdout = "Timezone=Europe/London\nNTP=yes\nNTPSynchronized=yes\n" if argv == ["timedatectl", "show"] else ""
-        return CommandResult(0, stdout, "")
+        default = "Timezone=Europe/London\nNTP=yes\nNTPSynchronized=yes\n" if argv == ["timedatectl", "show"] else ""
+        return CommandResult(0, self.outputs.get(tuple(argv), default), "")
 
 
 def _config(timezone_="Asia/Tashkent", ntp_servers=(), ntp_enabled=True):
@@ -106,8 +115,27 @@ def test_validate_time_config_ok_for_valid_input():
 # ------------------------------------------------------------------ render/parse
 
 def test_render_and_parse_timesyncd_conf_roundtrip():
-    rendered = render_timesyncd_conf(["1.1.1.1", "ntp.local"])
+    rendered = render_timesyncd_conf(["1.1.1.1", "ntp.local"], ["0.asia.pool.ntp.org"])
     assert parse_timesyncd_conf(rendered) == ["1.1.1.1", "ntp.local"]
+
+
+def test_render_timesyncd_conf_puts_regional_pool_into_fallback():
+    assert render_timesyncd_conf([], ["0.asia.pool.ntp.org", "1.asia.pool.ntp.org"]) == (
+        "[Time]\nNTP=\nFallbackNTP=0.asia.pool.ntp.org 1.asia.pool.ntp.org\n")
+
+
+@pytest.mark.parametrize("tz,zone", [
+    ("Asia/Tashkent", "asia"), ("Europe/Moscow", "europe"), ("Africa/Cairo", "africa"),
+    ("Australia/Sydney", "oceania"), ("Pacific/Auckland", "oceania"), ("America/New_York", "north-america"),
+    ("America/Sao_Paulo", "south-america"), ("America/Argentina/Buenos_Aires", "south-america"),
+])
+def test_default_ntp_servers_follow_timezone_region(tz, zone):
+    assert default_ntp_servers(tz) == [f"{i}.{zone}.pool.ntp.org" for i in range(4)]
+
+
+@pytest.mark.parametrize("tz", ["UTC", "Etc/GMT+5", "Atlantic/Reykjavik"])
+def test_default_ntp_servers_global_pool_when_region_unknown(tz):
+    assert default_ntp_servers(tz) == [f"{i}.pool.ntp.org" for i in range(4)]
 
 
 def test_parse_timedatectl_show_extracts_key_values():
@@ -172,5 +200,110 @@ async def test_apply_writes_conf_and_calls_timedatectl_set_commands():
         ["timedatectl", "set-ntp", "false"],
         ["timedatectl", "show"],  # apply() oxirida state() chaqiradi
     ]
-    assert executor.files[TIMESYNCD_CONF_PATH] == "[Time]\nNTP=1.1.1.1\n"
+    assert executor.files[TIMESYNCD_CONF_PATH] == (
+        "[Time]\nNTP=1.1.1.1\nFallbackNTP=" + " ".join(default_ntp_servers("Asia/Tashkent")) + "\n")
     assert result["timezone"] == "Europe/London"  # state() dan o'qilgan (soxta timedatectl show)
+
+
+@pytest.mark.asyncio
+async def test_apply_with_ntp_restarts_timesyncd_to_pick_new_servers():
+    executor = FakeExecutor(files={TIMESYNCD_UNIT: ""})
+    service = TimeService(executor, readonly=False, now_fn=_clock())
+    await service.apply(_config(ntp_enabled=True))
+    assert ["systemctl", "restart", "systemd-timesyncd"] in executor.commands
+
+
+@pytest.mark.asyncio
+async def test_apply_failed_set_timezone_raises_and_stops():
+    executor = FakeExecutor(failing=(("timedatectl", "set-timezone", "Asia/Tashkent"),))
+    service = TimeService(executor, readonly=False, now_fn=_clock())
+    with pytest.raises(NetdError) as exc:
+        await service.apply(_config())
+    assert exc.value.code == "command_failed"
+    assert executor.commands == [["timedatectl", "set-timezone", "Asia/Tashkent"]]
+
+
+@pytest.mark.asyncio
+async def test_state_reports_regional_defaults_and_current_sync_server():
+    executor = FakeExecutor(files={TIMESYNCD_UNIT: ""}, outputs={tuple(SHOW_TIMESYNC): TIMESYNC_REPLY})
+    state = await TimeService(executor, readonly=False, now_fn=_clock()).state()
+    assert state["default_ntp_servers"] == default_ntp_servers("Europe/London")
+    assert state["sync_server"] == "0.asia.pool.ntp.org"
+
+
+@pytest.mark.asyncio
+async def test_state_sync_server_none_without_timesyncd():
+    executor = FakeExecutor(outputs={tuple(SHOW_TIMESYNC): TIMESYNC_REPLY})
+    state = await TimeService(executor, readonly=False, now_fn=_clock()).state()
+    assert state["sync_server"] is None
+    assert SHOW_TIMESYNC not in executor.commands
+
+
+# ------------------------------------------------------------------ sync_now («Hozir sinxronlash»)
+
+async def _no_sleep(_seconds):
+    return None
+
+
+def _sync_service(executor, readonly=False):
+    return TimeService(executor, readonly=readonly, now_fn=_clock(), sleep_fn=_no_sleep)
+
+
+@pytest.mark.asyncio
+async def test_sync_now_restarts_timesyncd_and_waits_for_ntp_reply():
+    executor = FakeExecutor(files={TIMESYNCD_UNIT: ""}, outputs={tuple(SHOW_TIMESYNC): TIMESYNC_REPLY})
+    state = await _sync_service(executor).sync_now()
+    restart = executor.commands.index(["systemctl", "restart", "systemd-timesyncd"])
+    assert SHOW_TIMESYNC in executor.commands[restart + 1:]  # javob qayta ishga tushgandan KEYIN kutiladi
+    assert state["sync_server"] == "0.asia.pool.ntp.org"
+
+
+@pytest.mark.asyncio
+async def test_sync_now_without_ntp_reply_raises_sync_failed():
+    executor = FakeExecutor(files={TIMESYNCD_UNIT: ""},
+                            outputs={tuple(SHOW_TIMESYNC): "ServerName=x\nNTPMessage=\n"})
+    with pytest.raises(NetdError) as exc:
+        await _sync_service(executor).sync_now()
+    assert exc.value.code == "sync_failed"
+    assert executor.commands.count(SHOW_TIMESYNC) > 1  # bir necha marta kutdi
+
+
+@pytest.mark.asyncio
+async def test_sync_now_requires_ntp_enabled():
+    executor = FakeExecutor(files={TIMESYNCD_UNIT: ""},
+                            outputs={("timedatectl", "show"): "Timezone=UTC\nNTP=no\n"})
+    with pytest.raises(NetdError) as exc:
+        await _sync_service(executor).sync_now()
+    assert exc.value.code == "ntp_disabled"
+    assert ["systemctl", "restart", "systemd-timesyncd"] not in executor.commands
+
+
+@pytest.mark.asyncio
+async def test_sync_now_readonly_raises_without_commands():
+    executor = FakeExecutor(files={TIMESYNCD_UNIT: ""})
+    with pytest.raises(NetdError) as exc:
+        await _sync_service(executor, readonly=True).sync_now()
+    assert exc.value.code == "readonly"
+    assert executor.commands == []
+
+
+@pytest.mark.asyncio
+async def test_sync_now_chrony_restarts_chrony():
+    executor = FakeExecutor(files={"/etc/chrony/chrony.conf": ""})
+    await _sync_service(executor).sync_now()
+    assert ["systemctl", "restart", "chrony"] in executor.commands
+
+
+@pytest.mark.asyncio
+async def test_sync_now_without_sync_service_unsupported():
+    with pytest.raises(NetdError) as exc:
+        await _sync_service(FakeExecutor()).sync_now()
+    assert exc.value.code == "unsupported"
+
+
+@pytest.mark.asyncio
+async def test_sync_now_failed_restart_raises_command_failed():
+    executor = FakeExecutor(files={TIMESYNCD_UNIT: ""}, failing=(("systemctl", "restart", "systemd-timesyncd"),))
+    with pytest.raises(NetdError) as exc:
+        await _sync_service(executor).sync_now()
+    assert exc.value.code == "command_failed"

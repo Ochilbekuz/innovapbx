@@ -295,6 +295,17 @@ async def test_time_apply_delegates_to_time_service():
 
 
 @pytest.mark.asyncio
+async def test_time_sync_delegates_to_time_service():
+    # Soxta `timedatectl show` bo'sh (NTP=yes emas) -> TimeService.sync_now `ntp_disabled`.
+    executor = _ifupdown_executor()
+    service = NetdService(executor, _settings(), now_fn=_clock())
+    with pytest.raises(NetdError) as exc:
+        await service.time_sync()
+    assert exc.value.code == "ntp_disabled"
+    assert ["timedatectl", "show"] in executor.commands
+
+
+@pytest.mark.asyncio
 async def test_power_state_delegates_to_power_service():
     service = NetdService(_ifupdown_executor(), _settings(), now_fn=_clock())
     state = await service.power_state()

@@ -1857,9 +1857,15 @@ class TimeStateOut(BaseModel):
     timezone: str
     ntp_enabled: bool
     ntp_servers: list[str]
+    # Admin ro'yxati bo'sh/javobsiz bo'lsa ishlatiladigan mintaqa pool'i (`FallbackNTP=`).
+    default_ntp_servers: list[str] = Field(default_factory=list)
     synced: bool
+    # NTP javobi kelgan server (timesyncd); javob yo'q / chrony — None.
+    sync_server: str | None = None
     backend: str
     readonly_reason: str | None
+    # PUT: vaqt zonasi o'zgarib dialplan qayta qo'llangan bo'lsa — natija.
+    apply: ApplyResult | None = None
 
 
 # ============================================================ M12 B2: qayta yuklash/o'chirish

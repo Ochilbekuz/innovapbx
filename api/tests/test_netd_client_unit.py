@@ -78,6 +78,27 @@ async def test_none_fields_are_omitted_from_payload(tmp_path):
 
 
 @pytest.mark.asyncio
+async def test_time_sync_waits_longer_than_default_timeout(tmp_path):
+    sock = str(tmp_path / "netd.sock")
+    received = {}
+
+    async def handle(reader, writer):
+        received.update(json.loads(await reader.readline()))
+        await asyncio.sleep(0.3)  # oddiy timeout (0.1) dan uzoq — NTP javobini kutish
+        writer.write(json.dumps({"ok": True, "result": {"sync_server": "x"}}).encode() + b"\n")
+        await writer.drain()
+        writer.close()
+
+    server = await asyncio.start_unix_server(handle, path=sock)
+    try:
+        response = await NetdClient(sock, timeout=0.1).time_sync()
+        assert received == {"op": "time_sync"}
+        assert response["result"] == {"sync_server": "x"}
+    finally:
+        server.close()
+
+
+@pytest.mark.asyncio
 async def test_time_apply_sends_time_apply_op_and_config(tmp_path):
     sock = str(tmp_path / "netd.sock")
     received = {}

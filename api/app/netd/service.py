@@ -156,6 +156,9 @@ class NetdService:
     async def time_apply(self, config: Any) -> dict[str, Any]:
         return await self.time.apply(config)
 
+    async def time_sync(self) -> dict[str, Any]:
+        return await self.time.sync_now()
+
     async def power_state(self) -> dict[str, Any]:
         return await self.power.state()
 

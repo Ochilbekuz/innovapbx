@@ -27,7 +27,7 @@ _TIMEZONE_RE = re.compile(r"^[A-Za-z0-9_+\-/]{1,64}$")
 
 def _timedatectl_argv_ok(args: list[str]) -> bool:
     """M12 B1 — faqat holat o'qish va vaqt/NTP sozlash; boshqa hech narsa."""
-    if args == ["show"]:
+    if args in (["show"], ["show-timesync"]):
         return True
     if args in (["set-ntp", "true"], ["set-ntp", "false"]):
         return True
@@ -35,9 +35,10 @@ def _timedatectl_argv_ok(args: list[str]) -> bool:
 
 
 def _systemctl_argv_ok(args: list[str]) -> bool:
-    """M12 B2 — FAQAT `reboot`/`poweroff`, boshqa argument (masalan `stop
-    <xizmat>`) RAD ETILADI — bu yagona maqsadli allowlist."""
-    return args in (["reboot"], ["poweroff"])
+    """M12 B2 — FAQAT `reboot`/`poweroff` + vaqt sinxron xizmatini qayta ishga
+    tushirish (B1 «Hozir sinxronlash»); boshqa argument (masalan `stop <xizmat>`,
+    `restart sshd`) RAD ETILADI — bu yagona maqsadli allowlist."""
+    return args in (["reboot"], ["poweroff"], ["restart", "systemd-timesyncd"], ["restart", "chrony"])
 
 
 def _nft_argv_ok(args: list[str]) -> bool:

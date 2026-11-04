@@ -36,6 +36,9 @@ class _FakeService:
     async def time_apply(self, config):
         return {"timezone": config.timezone}
 
+    async def time_sync(self):
+        return {"sync_server": "0.asia.pool.ntp.org"}
+
     async def power_state(self):
         return {"readonly_reason": None}
 
@@ -118,6 +121,12 @@ async def test_rollback_dispatch():
 async def test_time_state_dispatch():
     response = await dispatch(_FakeService(), {"op": "time_state"})
     assert response == {"ok": True, "result": {"timezone": "UTC"}}
+
+
+@pytest.mark.asyncio
+async def test_time_sync_dispatch():
+    response = await dispatch(_FakeService(), {"op": "time_sync"})
+    assert response == {"ok": True, "result": {"sync_server": "0.asia.pool.ntp.org"}}
 
 
 @pytest.mark.asyncio

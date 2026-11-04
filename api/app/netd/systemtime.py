@@ -6,14 +6,15 @@ belgilar emas, ANIQ IANA nomi), NTP server — mezbon nomi (`validate.py`dagi
 BIR XIL `is_valid_hostname`, `\\n`/in'eksiya himoyasi bilan) yoki IPv4."""
 from __future__ import annotations
 
+import asyncio
 import ipaddress
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Any, Callable
+from typing import Any, Awaitable, Callable
 from zoneinfo import available_timezones
 
 from app.netd.errors import NetdError
-from app.netd.executor import Executor
+from app.netd.executor import CommandResult, Executor
 from app.netd.validate import is_valid_hostname
 
 TIMESYNCD_CONF_PATH = "/etc/systemd/timesyncd.conf.d/innova.conf"
@@ -27,6 +28,21 @@ _TIMESYNCD_UNIT_PATHS = (
 # MARTA hisoblanadi (har so'rovda emas), chunki ro'yxat jarayon davomida
 # o'zgarmaydi (tzdata paketi runtime'da yangilanmaydi).
 _AVAILABLE_TIMEZONES = frozenset(available_timezones())
+
+# Vaqt zonasi mintaqasi -> pool.ntp.org mintaqa zonasi (`FallbackNTP=`): admin
+# server kiritmasa ham mashina zonasiga YAQIN internet NTP'dan sinxronlanadi.
+_POOL_ZONE_BY_REGION = {"Asia": "asia", "Europe": "europe", "Africa": "africa",
+                        "Australia": "oceania", "Pacific": "oceania", "America": "north-america"}
+_SOUTH_AMERICA = frozenset({
+    "Argentina", "Asuncion", "Bogota", "Caracas", "Cayenne", "Guayaquil", "La_Paz", "Lima",
+    "Montevideo", "Paramaribo", "Punta_Arenas", "Santiago", "Sao_Paulo", "Recife", "Fortaleza",
+    "Belem", "Manaus", "Cuiaba", "Campo_Grande", "Porto_Velho", "Boa_Vista", "Rio_Branco",
+    "Maceio", "Araguaina", "Bahia", "Santarem", "Noronha", "Eirunepe",
+})
+_POOL_SIZE = 4
+SYNC_WAIT_SECONDS = 10.0
+_SYNC_POLL_SECONDS = 0.5
+_SYNC_UNITS = {"timesyncd": "systemd-timesyncd", "chrony": "chrony"}
 
 
 @dataclass(frozen=True)
@@ -77,8 +93,34 @@ def validate_time_config(cfg: Any) -> TimeValidationResult:
     return TimeValidationResult(errors)
 
 
-def render_timesyncd_conf(servers: list[str]) -> str:
-    return "[Time]\nNTP=" + " ".join(servers) + "\n"
+def _pool_zone(tz: str) -> str | None:
+    region, _, rest = tz.partition("/")
+    if region == "America" and rest.split("/", 1)[0] in _SOUTH_AMERICA:
+        return "south-america"
+    return _POOL_ZONE_BY_REGION.get(region)
+
+
+def default_ntp_servers(tz: str) -> list[str]:
+    """Vaqt zonasi mintaqasidagi pool.ntp.org serverlari (`0..3.<zona>.pool.ntp.org`);
+    mintaqa noma'lum (UTC, Etc/*, Atlantic/*) — global `pool.ntp.org`."""
+    zone = _pool_zone(tz)
+    suffix = f"{zone}.pool.ntp.org" if zone else "pool.ntp.org"
+    return [f"{i}.{suffix}" for i in range(_POOL_SIZE)]
+
+
+def render_timesyncd_conf(servers: list[str], fallback: list[str]) -> str:
+    """`NTP=` — admin serverlari (bo'sh bo'lishi mumkin), `FallbackNTP=` — mintaqa
+    pool'i: admin ro'yxati bo'sh/javobsiz bo'lsa timesyncd shularga o'tadi."""
+    return "[Time]\nNTP=" + " ".join(servers) + "\nFallbackNTP=" + " ".join(fallback) + "\n"
+
+
+def ntp_reply_server(text: str) -> str | None:
+    """`timedatectl show-timesync` — NTP serverdan JAVOB kelgan bo'lsa (`NTPMessage`
+    to'la) uning nomi, aks holda None."""
+    props = parse_timedatectl_show(text)
+    if not props.get("NTPMessage"):
+        return None
+    return props.get("ServerName") or props.get("ServerAddress") or None
 
 
 def parse_timesyncd_conf(text: str) -> list[str]:
@@ -112,39 +154,88 @@ class TimeService:
     vaqt o'zgarishi commit-confirm talab qilmaydi (kontraktda ko'rsatilmagan,
     xavfi tarmoq/firewall'dan past: noto'g'ri TZ admin'ni qulflamaydi)."""
 
-    def __init__(self, executor: Executor, *, readonly: bool, now_fn: Callable[[], datetime]) -> None:
+    def __init__(self, executor: Executor, *, readonly: bool, now_fn: Callable[[], datetime],
+                 sleep_fn: Callable[[float], Awaitable[None]] = asyncio.sleep) -> None:
         self.executor = executor
         self.readonly = readonly
         self._now = now_fn
+        self._sleep = sleep_fn
 
     def _readonly_reason(self) -> str | None:
         if self.readonly:
             return "Bu serverda sana/vaqtni tahrirlash o'chirilgan (NETD_READONLY)"
         return None
 
-    async def state(self) -> dict[str, Any]:
+    async def _props(self) -> dict[str, str]:
         result = await self.executor.run(["timedatectl", "show"], timeout=5.0)
-        props = parse_timedatectl_show(result.stdout) if result.ok else {}
-        ntp_servers = parse_timesyncd_conf(self.executor.read_text(TIMESYNCD_CONF_PATH) or "")
+        return parse_timedatectl_show(result.stdout) if result.ok else {}
+
+    async def _timesync_server(self) -> str | None:
+        result = await self.executor.run(["timedatectl", "show-timesync"], timeout=5.0)
+        return ntp_reply_server(result.stdout) if result.ok else None
+
+    async def state(self) -> dict[str, Any]:
+        props = await self._props()
+        tz = props.get("Timezone") or "UTC"
+        backend = detect_backend(self.executor)
         return {
             "now_utc": self._now().astimezone(timezone.utc).isoformat(),
-            "timezone": props.get("Timezone") or "UTC",
+            "timezone": tz,
             "ntp_enabled": props.get("NTP") == "yes",
-            "ntp_servers": ntp_servers,
+            "ntp_servers": parse_timesyncd_conf(self.executor.read_text(TIMESYNCD_CONF_PATH) or ""),
+            "default_ntp_servers": default_ntp_servers(tz),
             "synced": props.get("NTPSynchronized") == "yes",
-            "backend": detect_backend(self.executor),
+            "sync_server": await self._timesync_server() if backend == "timesyncd" else None,
+            "backend": backend,
             "readonly_reason": self._readonly_reason(),
         }
 
-    async def apply(self, config: Any) -> dict[str, Any]:
+    def _ensure_writable(self) -> None:
         if self.readonly:
             # `self.readonly` True bo'lganda `_readonly_reason()` doim xabar qaytaradi.
             raise NetdError("readonly", self._readonly_reason())
+
+    async def _must_run(self, argv: list[str]) -> CommandResult:
+        result = await self.executor.run(argv, timeout=10.0)
+        if not result.ok:
+            raise NetdError("command_failed", f"{' '.join(argv)}: {result.stderr.strip() or 'xato'}")
+        return result
+
+    async def _restart_sync_unit(self) -> None:
+        unit = _SYNC_UNITS.get(detect_backend(self.executor))
+        if unit is None:
+            raise NetdError("unsupported", "Serverda vaqt sinxronlash xizmati (timesyncd/chrony) topilmadi")
+        await self._must_run(["systemctl", "restart", unit])
+
+    async def apply(self, config: Any) -> dict[str, Any]:
+        self._ensure_writable()
         result = validate_time_config(config)
         if not result.ok:
             raise NetdError("invalid_config", "Sana/vaqt sozlamasi yaroqsiz",
                              [{"field": e.field, "message": e.message} for e in result.errors])
-        await self.executor.run(["timedatectl", "set-timezone", config.timezone], timeout=5.0)
-        self.executor.write_text_atomic(TIMESYNCD_CONF_PATH, render_timesyncd_conf(list(config.ntp_servers or [])))
-        await self.executor.run(["timedatectl", "set-ntp", "true" if config.ntp_enabled else "false"], timeout=5.0)
+        await self._must_run(["timedatectl", "set-timezone", config.timezone])
+        self.executor.write_text_atomic(TIMESYNCD_CONF_PATH, render_timesyncd_conf(
+            list(config.ntp_servers or []), default_ntp_servers(config.timezone)))
+        await self._must_run(["timedatectl", "set-ntp", "true" if config.ntp_enabled else "false"])
+        if config.ntp_enabled and detect_backend(self.executor) in _SYNC_UNITS:
+            # Yangi server ro'yxati faqat qayta ishga tushganda o'qiladi.
+            await self._restart_sync_unit()
         return await self.state()
+
+    async def sync_now(self) -> dict[str, Any]:
+        """«Hozir sinxronlash»: xizmatni qayta ishga tushirib, timesyncd'da NTP
+        serverdan haqiqiy JAVOB kelguncha (`SYNC_WAIT_SECONDS`) kutadi."""
+        self._ensure_writable()
+        if (await self._props()).get("NTP") != "yes":
+            raise NetdError("ntp_disabled", "Avval NTP sinxronlashni yoqing va saqlang")
+        await self._restart_sync_unit()
+        if detect_backend(self.executor) == "timesyncd" and not await self._wait_ntp_reply():
+            raise NetdError("sync_failed", "NTP serverdan javob kelmadi — internet va UDP 123 portini tekshiring")
+        return await self.state()
+
+    async def _wait_ntp_reply(self) -> bool:
+        for _ in range(int(SYNC_WAIT_SECONDS / _SYNC_POLL_SECONDS)):
+            if await self._timesync_server():
+                return True
+            await self._sleep(_SYNC_POLL_SECONDS)
+        return False
