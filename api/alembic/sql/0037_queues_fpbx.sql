@@ -49,14 +49,29 @@ alter table queues
   add column if not exists agent_announcement_audio_file_id uuid references audio_files(id) on delete set null,
   add column if not exists breakout_target_id uuid references call_targets(id) on delete set null;
 
-alter table queues alter column join_empty drop default;
-alter table queues
-  alter column join_empty type text using (case when join_empty then 'yes' else 'no' end);
-alter table queues alter column join_empty set default 'no';
+-- `asterisk_queues` view `join_empty`/`announce_position`ga bog'langan — PG view
+-- ishlatayotgan ustun turini o'zgartirishga yo'l qo'ymaydi (1.0.21 yangilanishi shu
+-- xato bilan yiqilgan). View pastda qayta yaratiladi (0007 bilan bir xil qolip).
+-- Tur o'zgarishi faqat ustun hali boolean bo'lsa — qayta ishga tushirish xavfsiz
+-- (`run_sql_file` tranzaksiyasiz: yarim qolgan urinishdan keyin ham o'tadi).
+drop view if exists asterisk_queues;
 
-alter table queues alter column announce_position drop default;
-alter table queues
-  alter column announce_position type text using (case when announce_position then 'yes' else 'no' end);
+do $$
+begin
+  if (select data_type from information_schema.columns
+      where table_schema = current_schema() and table_name = 'queues' and column_name = 'join_empty') = 'boolean' then
+    alter table queues alter column join_empty drop default;
+    alter table queues
+      alter column join_empty type text using (case when join_empty then 'yes' else 'no' end);
+  end if;
+  if (select data_type from information_schema.columns
+      where table_schema = current_schema() and table_name = 'queues' and column_name = 'announce_position') = 'boolean' then
+    alter table queues alter column announce_position drop default;
+    alter table queues
+      alter column announce_position type text using (case when announce_position then 'yes' else 'no' end);
+  end if;
+end $$;
+alter table queues alter column join_empty set default 'no';
 alter table queues alter column announce_position set default 'yes';
 
 -- `asterisk_queues` — faqat USTUN QO'SHISH (oxiriga) + mavjud ustunlarning
@@ -64,7 +79,7 @@ alter table queues alter column announce_position set default 'yes';
 -- tartib o'zgarmaydi — 0007's izohiga qarang). `ringinuse`/`joinempty`/
 -- `announce_position` ENDI sozlanadigan ustunlardan hisoblanadi (ilgari
 -- qattiq 'no'/bool-case edi) — qiymatlari HOZIRGI sukut bilan bir xil.
-create or replace view asterisk_queues as   -- res_config: queues => pgsql,innova,asterisk_queues
+create view asterisk_queues as   -- res_config: queues => pgsql,innova,asterisk_queues
   select t.code || '-q-' || q.id::text as name, q.strategy,
          case when q.moh_class_id is null then 'default'
               else t.code || '-moh-' || q.moh_class_id::text end as musicclass,

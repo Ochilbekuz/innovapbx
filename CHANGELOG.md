@@ -1,5 +1,11 @@
 # O'zgarishlar tarixi
 
+## 1.0.21.1 — 2026-11-05
+- **Tuzatish: 1.0.21 ga yangilash yiqilardi** (`migrate` exit 1, veb ishga tushmasdi): 0037 migratsiyasi navbat
+  ustunlari turini `asterisk_queues` view'i bog'langan holda o'zgartirmoqchi bo'lgan (PostgreSQL rad etadi). Endi
+  view avval o'chirilib, keyin qayta yaratiladi; migratsiya qayta ishga tushirilsa ham xavfsiz (yarim qolgan
+  urinishdan keyin ham o'tadi). Ma'lumot yo'qolmaydi — mavjud navbat sozlamalari saqlanadi.
+
 ## 1.0.21 — 2026-11-05
 - **Kutish musiqasi → «Asosiy qilish»**: istalgan sinfni asosiy qilish mumkin (ilgari faqat «default» nomli sinf
   edi va u Asterisk'ga ulanmagan edi). Asosiy sinf endi haqiqatda ishlaydi: MOH sinfi tanlanmagan navbatlar, park

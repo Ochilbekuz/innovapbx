@@ -31,6 +31,7 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     run_sql_text(
+        "drop view if exists asterisk_queues;"
         "alter table queues alter column join_empty drop default;"
         "alter table queues alter column join_empty type boolean using (join_empty = 'yes');"
         "alter table queues alter column join_empty set default false;"
