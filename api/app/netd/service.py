@@ -9,11 +9,13 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import Any, Callable
 
+from app.netd import access as access_mod
 from app.netd import backend as backend_mod
 from app.netd import dns as dns_mod
 from app.netd import firewall as firewall_mod
 from app.netd import hostname as hostname_mod
 from app.netd import live as live_mod
+from app.netd import ping as ping_mod
 from app.netd import power as power_mod
 from app.netd import systemtime as systemtime_mod
 from app.netd import warnings as warnings_mod
@@ -59,8 +61,18 @@ class NetdService:
         self.last_result: LastResult | None = None
         self.time = systemtime_mod.TimeService(executor, readonly=settings.readonly, now_fn=now_fn)
         self.power = power_mod.PowerService(executor, readonly=settings.readonly)
+        # Kirish (access) va firewall — bir-birining `pending`siga 409 bilan
+        # to'qnashadi (`other_pending`), firewall esa ssh/web portlarini
+        # access'dan JORIY holatda oladi (`ports_provider`) — ikkisi ham
+        # lambda orqali (kechiktirilgan bog'lanish, qurilish tartibidan
+        # mustaqil, chunki chaqirilishi ikkisi ham tayyor bo'lgandan keyin).
+        self.access = access_mod.AccessService(
+            executor, readonly=settings.readonly, pending_path=settings.access_pending_path, now_fn=now_fn,
+            other_pending=lambda: self.firewall.pending is not None,
+        )
         self.firewall = firewall_mod.FirewallService(
             executor, readonly=settings.readonly, pending_path=settings.firewall_pending_path, now_fn=now_fn,
+            other_pending=lambda: self.access.pending is not None, ports_provider=self.access.current_ports,
         )
 
     # --------------------------------------------------------------- reads
@@ -148,6 +160,7 @@ class NetdService:
         if self.pending is not None:
             await self._do_rollback(reason="restart")
         await self.firewall.startup_recover()
+        await self.access.startup_recover()
 
     # --------------------------------------------------------------- M12 B1 (vaqt)/B2 (quvvat)/B3 (firewall)
     async def time_state(self) -> dict[str, Any]:
@@ -179,6 +192,27 @@ class NetdService:
 
     async def firewall_rollback(self, pending_id: str) -> dict[str, Any]:
         return await self.firewall.rollback(pending_id)
+
+    # --------------------------------------------------------------- kirish (access: SSH/Veb)
+    async def access_state(self) -> dict[str, Any]:
+        return await self.access.state()
+
+    async def access_ssh_apply(self, port: int, *, timeout_s: int | None = None) -> dict[str, Any]:
+        return await self.access.ssh_apply(port, timeout_s=timeout_s)
+
+    async def access_web_apply(self, http_port: int, https_port: int, *, timeout_s: int | None = None) -> dict[str, Any]:
+        return await self.access.web_apply(http_port, https_port, timeout_s=timeout_s)
+
+    async def access_confirm(self, pending_id: str, *, kind: str | None = None) -> dict[str, Any]:
+        return await self.access.confirm(pending_id, kind=kind)
+
+    async def access_rollback(self, pending_id: str) -> dict[str, Any]:
+        return await self.access.rollback(pending_id)
+
+    # --------------------------------------------------------------- diagnostika («Ping» tabi)
+    async def net_ping(self, host: str, count: int) -> dict[str, Any]:
+        """Faqat o'qish — `readonly`/`pending` holatidan mustaqil."""
+        return await ping_mod.run_ping(self.executor, host, count)
 
     # --------------------------------------------------------------- guards
     def _readonly_reason(self, backend: backend_mod.BackendInfo) -> str | None:

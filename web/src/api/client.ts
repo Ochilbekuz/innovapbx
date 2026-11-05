@@ -7,7 +7,7 @@ import type {
   Extension, FlowResult, Holiday, ImportUzHolidaysPayload, ImportUzHolidaysResult, InboundRoute, Ivr, ListAuditParams,
   ListBlacklistParams,
   ListCallsParams, ListExtensionsParams, ListTargetsParams, ListVoicemailBoxesParams, MohClass, NetworkConfigIn,
-  NetworkStateOut, NetworkValidateResult, NotifySettings,
+  NetworkStateOut, NetworkValidateResult, NotifySettings, PingIn, PingResult,
   NotifyTestPayload, NotifyTestResult, NumbersFreeParams, OutboundOrderPayload,
   OutboundRoute, OutboundSimulateParams, OutboundSimulateResult, OverrideTimeConditionPayload, Paged, Parking, Queue,
   QueueMember,
@@ -81,6 +81,8 @@ import type {
   // M12 B1/B2/B3 — qarang ../../replica/m12-contract.md
   TimeConfigIn, TimeStateOut, PowerActionIn, PowerActionOut, PowerStatusOut,
   FirewallConfigIn, FirewallStateOut, FirewallValidateOut,
+  // M12 B4 — Kirish (SSH va veb-panel)
+  AccessStateOut, AccessSshApplyIn, AccessWebApplyIn, AccessConfirmPublicResult,
   // M12 A1/A2 — qarang ../../replica/m12-contract.md §A1/§A2
   DayNight, CreateDayNightPayload, UpdateDayNightPayload, Disa, CreateDisaPayload, UpdateDisaPayload,
 } from './types';
@@ -414,6 +416,7 @@ export interface ApiClient {
   applyNetwork(payload: NetworkConfigIn): Promise<NetworkStateOut>;
   confirmNetwork(pendingId: string): Promise<NetworkStateOut>;
   rollbackNetwork(pendingId: string): Promise<NetworkStateOut>;
+  pingHost(payload: PingIn): Promise<PingResult>;
 
   // M11 — qarang ../../replica/m11-update-contract.md §4, S45 «Yangilanish»
   systemUpdate(): Promise<SystemUpdateOut>;
@@ -437,6 +440,14 @@ export interface ApiClient {
   applyFirewall(payload: FirewallConfigIn): Promise<FirewallStateOut>;
   confirmFirewall(pendingId: string): Promise<FirewallStateOut>;
   rollbackFirewall(pendingId: string): Promise<FirewallStateOut>;
+
+  // M12 B4 — Kirish (SSH va veb-panel)
+  accessState(): Promise<AccessStateOut>;
+  applySsh(payload: AccessSshApplyIn): Promise<AccessStateOut>;
+  applyWeb(payload: AccessWebApplyIn): Promise<AccessStateOut>;
+  confirmAccess(pendingId: string): Promise<AccessStateOut>;
+  rollbackAccess(pendingId: string): Promise<AccessStateOut>;
+  confirmAccessWebPublic(pendingId: string): Promise<AccessConfirmPublicResult>;
 
   // M9 A1 — qarang ../../replica/m9-freepbx-gaps-contract.md §A1 («E'lon»)
   listAnnouncements(): Promise<Paged<Announcement>>;

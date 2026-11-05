@@ -200,3 +200,24 @@ async def test_empty_response_raises_unavailable(tmp_path):
             await client.state()
     finally:
         server.close()
+
+
+@pytest.mark.asyncio
+async def test_net_ping_sends_host_count_and_waits_for_whole_ping(tmp_path):
+    sock = str(tmp_path / "netd.sock")
+    received = {}
+
+    async def handle(reader, writer):
+        received.update(json.loads(await reader.readline()))
+        await asyncio.sleep(0.3)  # oddiy timeout (0.1) dan uzoq — ping count*W s davom etadi
+        writer.write(json.dumps({"ok": True, "result": {"ok": True}}).encode() + b"\n")
+        await writer.drain()
+        writer.close()
+
+    server = await asyncio.start_unix_server(handle, path=sock)
+    try:
+        response = await NetdClient(sock, timeout=0.1).net_ping("1.1.1.1", 1)
+        assert received == {"op": "net_ping", "host": "1.1.1.1", "count": 1}
+        assert response["result"] == {"ok": True}
+    finally:
+        server.close()

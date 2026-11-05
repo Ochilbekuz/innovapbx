@@ -21,6 +21,13 @@ _SYSTEM_ONLY_PREFIXES = (
     "/users", "/roles", "/settings", "/security", "/backups", "/migration",
     "/audit", "/system", "/feature-codes", "/integrations", "/config", "/network",
     "/firewall",  # M12 B3 — firewall GUI, fail-closed admin-only (app/api/v1/firewall.py)
+    # M12 B4 — kirish (SSH/Veb portlari), fail-closed admin-only (app/api/v1/access.py).
+    # ISTISNO: `/access/web/confirm-public` ATAYLAB autentifikatsiyasiz (`require_access`
+    # ISHLATILMAYDI) — veb konteyner YANGI portda ochilgach, ESKI origin'dagi token YANGI
+    # origin'da yo'q; shu sabab shartnoma bo'yicha aniq `/api/v1/access/...` ostida qolishi
+    # KERAK (frontend shu yo'l bilan ishlaydi), lekin IP bo'yicha chastota cheklash +
+    # faqat kind=web pending + 128-bitlik tasodifiy pending_id bilan himoyalangan.
+    "/access",
 )
 
 # `/settings/provisioning` — ataylab `/settings`dan AJRATILGAN (eng uzun
@@ -121,3 +128,11 @@ def test_picker_get_paths_all_correspond_to_real_get_routes():
 def test_secret_revealing_extension_routes_are_not_pickers():
     assert not is_picker_path("/extensions/{ext_id}/rotate-secret")
     assert not is_picker_path("/extensions/{ext_id}/secret")
+
+
+def test_network_ping_is_admin_only_system_route():
+    """«Ping» tabi — serverdan ixtiyoriy hostga ICMP yuboradi: hudud/tanlagich
+    EMAS, faqat `*` (admin) — `/network` tizim prefiksi ostida."""
+    assert ("POST", "/network/ping") in _v1_routes()
+    assert region_for_path("/network/ping") is None
+    assert _matches_system_prefix("/network/ping")

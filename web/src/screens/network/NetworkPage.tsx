@@ -14,6 +14,7 @@ import { ConfirmApplyModal } from './ConfirmApplyModal';
 import { GeneralTab } from './GeneralTab';
 import { InterfacesTab } from './InterfacesTab';
 import { PendingBanner } from './PendingBanner';
+import { PingTab } from './PingTab';
 import { RoutesTab } from './RoutesTab';
 import { DEFAULT_TIMEOUT_S, draftToConfig, normalizeServerErrors, stateToDraft } from './networkDraft';
 import type { NetworkDraft } from './networkDraft';
@@ -133,6 +134,8 @@ function buildNetworkTabs({
       value: 'routes', label: t('tabs.routes'), invalid: errors.some((e) => e.field.startsWith('routes')),
       content: <RoutesTab routes={draft.routes} liveRoutes={state.routes.live} interfaces={state.interfaces} errors={errors} locked={locked} onChange={onChangeRoutes} />,
     },
+    // Diagnostika — `locked`ga bog'liq emas (konfiguratsiyani o'zgartirmaydi).
+    { value: 'ping', label: t('tabs.ping'), content: <PingTab gateway={state.default_gateway.address} helperAvailable={state.helper.available} /> },
   ];
 }
 

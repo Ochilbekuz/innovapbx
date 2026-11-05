@@ -14,7 +14,7 @@ static routes. If a change isn't confirmed after taking effect, it is **automati
 previous state — a safeguard against completely losing connectivity to the server.
 
 ## Where to find it
-Menu: **System → Network**, three tabs: **General**, **Interfaces**, **Static routes**. Who sees it:
+Menu: **System → Network**, four tabs: **General**, **Interfaces**, **Static routes**, **Ping**. Who sees it:
 only a user with the `*` (full administrator) permission.
 
 ## Core concepts
@@ -83,6 +83,16 @@ only a user with the `*` (full administrator) permission.
 ### Cancel the draft
 1. You can discard changes that haven't been applied yet by clicking **Cancel** — the draft reverts to
    the server's current state.
+
+### Check connectivity (Ping)
+1. Open the **Ping** tab. Quick-pick buttons: **Gateway** (default gateway), each **SIP** trunk host,
+   **Internet** (`1.1.1.1`, `8.8.8.8`) and **DNS name** (`google.com` — also checks that DNS works).
+2. Or type an IP address (IPv4/IPv6) or domain name into **Host**; **Packet count** is 1 to 10 (default 4).
+3. Click **Ping**. The result shows reachable/no reply, loss percentage, packets sent/received,
+   latency min/avg/max (ms) and the full command output.
+- Ping changes no settings — it works even when the network is view-only. If the network service (netd)
+  is not running, the tab says so and the button is disabled.
+- If a domain name gets no reply but an IP does, the problem is DNS (check the DNS servers on the General tab).
 
 ## Tips and limitations
 

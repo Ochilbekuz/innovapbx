@@ -11,7 +11,9 @@ import asyncio
 
 import pytest
 
-_HOSTNI_OZGARTIRADI = frozenset({"systemctl", "timedatectl", "nft", "ifup", "ifdown", "reboot", "poweroff", "shutdown"})
+# `ping` host holatini o'zgartirmaydi, lekin testda tashqi tarmoqqa chiqmasin (soxta executor bilan sinaladi).
+_HOSTNI_OZGARTIRADI = frozenset(
+    {"systemctl", "timedatectl", "nft", "ifup", "ifdown", "reboot", "poweroff", "shutdown", "ping"})
 
 
 @pytest.fixture(autouse=True)

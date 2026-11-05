@@ -25,6 +25,16 @@ export async function copyText(text: string): Promise<boolean> {
   return copyViaTextarea(text);
 }
 
+/** Joriy sahifa manzili — `buildWebConfirmUrl` kabi sof funksiyalarga uzatish uchun (test qilinadigan qiladi). */
+export function currentLocation(): { protocol: string; hostname: string } {
+  return { protocol: window.location.protocol, hostname: window.location.hostname };
+}
+
+/** Brauzerni boshqa manzilga yo'naltiradi — `window.location` ishlatiladigan yagona joy. */
+export function navigateTo(url: string): void {
+  window.location.href = url;
+}
+
 function copyViaTextarea(text: string): boolean {
   const ta = document.createElement('textarea');
   ta.value = text;

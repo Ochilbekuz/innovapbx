@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import ipaddress
 import os
 import signal
 import re
@@ -21,7 +22,25 @@ from typing import Callable
 # hook ustida faqat qo'shimcha `drop` qatlami, m12-contract.md B3).
 FIREWALL_CONF_PATH = "/etc/innova/firewall.nft"
 
-ALLOWED_BINARIES = frozenset({"ip", "ifup", "ifdown", "hostname", "timedatectl", "systemctl", "nft"})
+# Kirish (SSH/Veb) — host firewall (asosiy `table inet innova`,
+# `/etc/nftables.conf`). netd faqat shu ANIQ fayl bilan `-c -f`/`-f` orqali
+# ishlaydi (`access.py` SSH portini `include "/etc/innova/ports.nft"` orqali
+# yozadi, `/etc/nftables.conf`ning qolgan qismiga TEGMAYDI).
+NFTABLES_CONF_PATH = "/etc/nftables.conf"
+
+# Veb konteynerini QAYTA YARATISH (faqat `web`, chaqiruvlarga tegmasdan) —
+# yagona qattiq kodlangan argv, boshqa hech qanday compose amali (down/pull/
+# boshqa xizmat) ishlatilmaydi.
+COMPOSE_WEB_ARGV = [
+    "docker", "compose",
+    "-f", "/opt/innova/deploy/docker-compose.yml",
+    "-f", "/opt/innova/deploy/docker-compose.appliance.yml",
+    "--env-file", "/opt/innova/deploy/.env",
+    "up", "-d", "--no-deps", "web",
+]
+
+ALLOWED_BINARIES = frozenset(
+    {"ip", "ifup", "ifdown", "hostname", "timedatectl", "systemctl", "nft", "sshd", "ss", "docker", "ping"})
 
 _TIMEZONE_RE = re.compile(r"^[A-Za-z0-9_+\-/]{1,64}$")
 
@@ -35,29 +54,116 @@ def _timedatectl_argv_ok(args: list[str]) -> bool:
     return len(args) == 2 and args[0] == "set-timezone" and bool(_TIMEZONE_RE.match(args[1]))
 
 
+_SYSTEMCTL_ALLOWED_ARGS = (
+    ["reboot"], ["poweroff"], ["restart", "systemd-timesyncd"], ["restart", "chrony"],
+    # Kirish (SSH): holat, qayta yuklash (drop-in'dan keyin) va Debian 13
+    # `ssh.socket` soket-aktivatsiyasi uchun `daemon-reload`/`restart ssh.socket`.
+    ["is-active", "ssh"], ["is-active", "ssh.socket"], ["reload", "ssh"],
+    ["restart", "ssh.socket"], ["daemon-reload"],
+)
+_SSHD_ALLOWED_ARGS = (["-t"], ["-T"])
+_SS_ALLOWED_ARGS = (["-Hltn"],)
+
+
 def _systemctl_argv_ok(args: list[str]) -> bool:
-    """M12 B2 — FAQAT `reboot`/`poweroff` + vaqt sinxron xizmatini qayta ishga
-    tushirish (B1 «Hozir sinxronlash»); boshqa argument (masalan `stop <xizmat>`,
-    `restart sshd`) RAD ETILADI — bu yagona maqsadli allowlist."""
-    return args in (["reboot"], ["poweroff"], ["restart", "systemd-timesyncd"], ["restart", "chrony"])
+    """M12 B2 + kirish (access) — FAQAT `reboot`/`poweroff`, vaqt sinxron
+    xizmatini qayta ishga tushirish (B1) va SSH holati/qayta yuklash; boshqa
+    argument (masalan `stop <xizmat>`, `restart sshd`) RAD ETILADI — bu
+    yagona maqsadli allowlist."""
+    return args in _SYSTEMCTL_ALLOWED_ARGS
 
 
 def _nft_argv_ok(args: list[str]) -> bool:
-    """M12 B3 — FAQAT FIREWALL_CONF_PATH'ni tekshirish (`-c -f`) va qo'llash
-    (`-f`); boshqa fayl/amal (masalan `list ruleset`, `flush ruleset`, `-f
-    /etc/nftables.conf`) RAD ETILADI — bu bilan panel hech qachon asosiy
-    jadval/sip_guard'ga tegolmaydi, faqat OʻZ faylini yuklay oladi."""
-    return args in (["-c", "-f", FIREWALL_CONF_PATH], ["-f", FIREWALL_CONF_PATH])
+    """M12 B3 + kirish (access) — FAQAT FIREWALL_CONF_PATH yoki
+    NFTABLES_CONF_PATH'ni tekshirish (`-c -f`) va qo'llash (`-f`); boshqa
+    fayl/amal (masalan `list ruleset`, `flush ruleset`) RAD ETILADI — bu
+    bilan panel hech qachon sip_guard'ga tegolmaydi, faqat shu ikki aniq
+    faylni yuklay oladi."""
+    return args in (
+        ["-c", "-f", FIREWALL_CONF_PATH], ["-f", FIREWALL_CONF_PATH],
+        ["-c", "-f", NFTABLES_CONF_PATH], ["-f", NFTABLES_CONF_PATH],
+    )
+
+
+def _sshd_argv_ok(args: list[str]) -> bool:
+    """Kirish (access) — FAQAT sintaksis tekshirish (`-t`) va samarali
+    konfiguratsiyani o'qish (`-T`); hech qachon haqiqiy ishga tushirish/
+    konfiguratsiyasiz chaqiruv emas."""
+    return args in _SSHD_ALLOWED_ARGS
+
+
+def _ss_argv_ok(args: list[str]) -> bool:
+    """Kirish (access) — FAQAT tinglovchi TCP portlarini sanash (`-Hltn`)."""
+    return args in _SS_ALLOWED_ARGS
+
+
+def _docker_argv_ok(args: list[str]) -> bool:
+    """Kirish (access) — FAQAT `web` konteynerini qayta yaratish
+    (COMPOSE_WEB_ARGV, asterisk/api/postgres'ga HECH QACHON tegmaydi)."""
+    return args == COMPOSE_WEB_ARGV[1:]
+
+
+# Tarmoq «Ping» tabi — `ping -c N -W S [-4|-6] <host>` (shell yo'q, argv).
+# Host `-` bilan boshlana olmaydi (argument in'eksiyasi yo'q): faqat IPv4/IPv6
+# literal (scope-id `%` siz) yoki RFC1123 uslubidagi nom.
+PING_COUNTS = range(1, 11)
+PING_WAITS = range(1, 6)
+_PING_NAME_RE = re.compile(r"^[A-Za-z0-9]([A-Za-z0-9-]{0,62})(\.[A-Za-z0-9-]{1,63})*$")
+_PING_FAMILY_FLAG = {"ipv4": ["-4"], "ipv6": ["-6"], "name": []}
+
+
+def _ip_version(host: str) -> int | None:
+    try:
+        return ipaddress.ip_address(host).version
+    except ValueError:
+        return None
+
+
+def ping_host_kind(host: str) -> str | None:
+    """`"ipv4"`/`"ipv6"`/`"name"` yoki yaroqsiz bo'lsa `None` — API chegarasi,
+    netd va argv guard UCHALASI shu bitta qarorni ishlatadi."""
+    if "%" in host:  # IPv6 scope-id (`fe80::1%eth0`) — ruxsat yo'q
+        return None
+    version = _ip_version(host)
+    if version is not None:
+        return f"ipv{version}"
+    return "name" if len(host) <= 253 and _PING_NAME_RE.fullmatch(host) else None
+
+
+def ping_argv(host: str, count: int, wait_s: int) -> list[str]:
+    """Kanonik argv — oila bayrog'i faqat IP literal uchun (nom — tizim tanlaydi)."""
+    return ["ping", "-c", str(count), "-W", str(wait_s), *_PING_FAMILY_FLAG[ping_host_kind(host) or "name"], host]
+
+
+def _int_in(value: str, allowed: range) -> int | None:
+    """ASCII raqamlar va diapazon ichida bo'lsa son, aks holda `None`."""
+    return int(value) if value.isascii() and value.isdigit() and int(value) in allowed else None
+
+
+def _ping_argv_ok(args: list[str]) -> bool:
+    """FAQAT `ping_argv` hosil qiladigan aniq shakl: N 1..10, S 1..5, host
+    `ping_host_kind`dan o'tgan — argv qayta qurilib, so'zma-so'z solishtiriladi
+    (`04`, ortiqcha bayroq, tartib almashishi — hammasi rad)."""
+    if len(args) < 5:
+        return False
+    count, wait_s, host = _int_in(args[1], PING_COUNTS), _int_in(args[3], PING_WAITS), args[-1]
+    if count is None or wait_s is None or ping_host_kind(host) is None:
+        return False
+    return args == ping_argv(host, count, wait_s)[1:]
 
 
 # Binar nomi -> argumentlar (argv[1:]) tekshiruvchisi. Ro'yxatda yo'q binar
 # (masalan `ip`/`ifup`/`ifdown`/`hostname`) argumentlarsiz ham ishlayveradi —
 # ularning xavfsizligi allaqachon yuqori darajada (`ifupdown.py`/`hostname.py`)
-# ta'minlangan, bu yerda FAQAT yangi (M12) binarlar uchun qo'shimcha chiziq.
+# ta'minlangan, bu yerda FAQAT yangi (M12+) binarlar uchun qo'shimcha chiziq.
 _ARGV_GUARDS: dict[str, Callable[[list[str]], bool]] = {
     "timedatectl": _timedatectl_argv_ok,
     "systemctl": _systemctl_argv_ok,
     "nft": _nft_argv_ok,
+    "sshd": _sshd_argv_ok,
+    "ss": _ss_argv_ok,
+    "docker": _docker_argv_ok,
+    "ping": _ping_argv_ok,
 }
 
 

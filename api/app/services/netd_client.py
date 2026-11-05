@@ -10,6 +10,7 @@ import asyncio
 import json
 from typing import Any
 
+from app.netd.ping import ping_timeout_s
 from app.netd.systemtime import SYNC_WAIT_SECONDS
 
 
@@ -92,3 +93,24 @@ class NetdClient:
 
     async def firewall_rollback(self, pending_id: str) -> dict[str, Any]:
         return await self.call("firewall_rollback", pending_id=pending_id)
+
+    # ----------------------------------------------------------- kirish (access: SSH/Veb)
+    async def access_state(self) -> dict[str, Any]:
+        return await self.call("access_state")
+
+    async def access_ssh_apply(self, port: int, *, timeout_s: int | None = None) -> dict[str, Any]:
+        return await self.call("access_ssh_apply", port=port, timeout_s=timeout_s)
+
+    async def access_web_apply(self, http_port: int, https_port: int, *, timeout_s: int | None = None) -> dict[str, Any]:
+        return await self.call("access_web_apply", http_port=http_port, https_port=https_port, timeout_s=timeout_s)
+
+    async def access_confirm(self, pending_id: str, *, kind: str | None = None) -> dict[str, Any]:
+        return await self.call("access_confirm", pending_id=pending_id, kind=kind)
+
+    async def access_rollback(self, pending_id: str) -> dict[str, Any]:
+        return await self.call("access_rollback", pending_id=pending_id)
+
+    # ----------------------------------------------------------- diagnostika («Ping» tabi)
+    async def net_ping(self, host: str, count: int) -> dict[str, Any]:
+        # netd ping'ni `ping_timeout_s(count)`gacha kutadi — mijoz undan uzoqroq kutsin.
+        return await self.call("net_ping", host=host, count=count, timeout_s=self.timeout + ping_timeout_s(count))

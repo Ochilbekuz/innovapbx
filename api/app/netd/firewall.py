@@ -258,7 +258,38 @@ def _format_ports(portspec: tuple[int, ...] | str) -> str:
     return "{ " + ", ".join(str(p) for p in portspec) + " }"
 
 
-def render_nft(cfg: Any) -> str:
+def _effective_ports(name: str, ports: dict[str, list[int]] | None) -> tuple[tuple[str, tuple[int, ...] | str], ...]:
+    """`ssh`/`web` portlari `access.py`dagi JORIY (PENDING paytida ikkalasi
+    ham) qiymatdan olinadi; `sip`/`rtp` doim statik (`access` ularni
+    boshqarmaydi)."""
+    if ports is not None and name in ports:
+        return (("tcp", tuple(sorted(set(ports[name])))),)
+    return _SERVICE_PORTS[name]
+
+
+def _render_forward_chain(web_svc: Any, blocked: list[str], web_ports: tuple) -> list[str]:
+    """Docker'ning `web` portlarini (80/443) NAT/DNAT qilib forward qilishi
+    — paket host'ning `input` emas, `forward` ilmog'idan o'tadi (manzil
+    DNAT'dan keyin KONTEYNER IP'si, mahalliy emas). Shu sabab `input`
+    zanjiridagi veb qoida Docker-published portlarga ta'sir qilmaydi — DALIL
+    uchun hisobotga qarang. Tuzatish: `ct original proto-dst` (DNAT'DAN
+    OLDINGI so'ralgan port) bo'yicha mos keladigan alohida `forward` ilmog'i."""
+    web_portspec = web_ports[0][1]
+    lines = []
+    if blocked:
+        lines.append(f"        ip saddr {_format_cidr_set(blocked)} "
+                      f"ct original proto-dst {_format_ports(web_portspec)} drop")
+    if web_svc is not None and web_svc.mode == "allowlist":
+        allow = list(web_svc.allow or [])
+        lines.append(f"        ip saddr != {_format_cidr_set(allow)} "
+                      f"ct original proto-dst {_format_ports(web_portspec)} drop")
+    if not lines:
+        return []
+    return ["    chain forward {", "        type filter hook forward priority filter - 5; policy accept;",
+            *lines, "    }"]
+
+
+def render_nft(cfg: Any, *, ports: dict[str, list[int]] | None = None) -> str:
     svc_by_name = {s.name: s for s in cfg.services}
     lines = [
         "table inet innova_fw {",
@@ -273,9 +304,10 @@ def render_nft(cfg: Any) -> str:
         if svc is None or svc.mode != "allowlist":
             continue
         allow = list(svc.allow or [])
-        for proto, portspec in _SERVICE_PORTS[name]:
+        for proto, portspec in _effective_ports(name, ports):
             lines.append(f"        ip saddr != {_format_cidr_set(allow)} {proto} dport {_format_ports(portspec)} drop")
     lines.append("    }")
+    lines.extend(_render_forward_chain(svc_by_name.get("web"), blocked, _effective_ports("web", ports)))
     lines.append("}")
     return "\n".join(lines) + "\n"
 
@@ -318,11 +350,17 @@ class FirewallService:
     `STATE_PATH`) — tarmoq rollback/pending'iga HECH QANDAY bog'liqligi yo'q."""
 
     def __init__(self, executor: Executor, *, readonly: bool, pending_path: str,
-                 now_fn: Callable[[], datetime]) -> None:
+                 now_fn: Callable[[], datetime], other_pending: Callable[[], bool] = lambda: False,
+                 ports_provider: Callable[[], Any] | None = None) -> None:
         self.executor = executor
         self.readonly = readonly
         self.pending_path = pending_path
         self._now = now_fn
+        self._other_pending = other_pending
+        # Kirish (access) moduli — `ssh`/`web` JORIY portlarini beradi
+        # (`AccessService.current_ports`, async); `None` bo'lsa statik
+        # `_SERVICE_PORTS` ishlatiladi (test/standalone ishlatish uchun).
+        self._ports_provider = ports_provider
         self.pending: _PendingRecord | None = _load_pending(executor, pending_path)
         self.last_result: LastResult | None = None
 
@@ -358,7 +396,7 @@ class FirewallService:
         summary = diff_summary(self._load_state_dict(), config)
         old_conf = self.executor.read_text(FIREWALL_CONF_PATH)
         old_state_json = self.executor.read_text(STATE_PATH)
-        await self._write_and_apply(render_nft(config))
+        await self._write_and_apply(render_nft(config, ports=await self._current_ports()))
         self.executor.write_text_atomic(STATE_PATH, json.dumps(config_to_dict(config)) + "\n", mode=0o600)
         self._open_pending(timeout, summary, _Snapshot(old_conf, old_state_json))
         return await self.state()
@@ -419,6 +457,13 @@ class FirewallService:
             raise NetdError("readonly", self._readonly_reason())
         if self.pending is not None:
             raise NetdError("pending_exists", "Tasdiqlanmagan firewall o'zgarishi allaqachon mavjud (409)")
+        if self._other_pending():
+            raise NetdError("pending_exists", "Kirish (SSH/Veb) o'zgarishi kutilmoqda — avval uni yakunlang (409)")
+
+    async def _current_ports(self) -> dict[str, list[int]] | None:
+        if self._ports_provider is None:
+            return None
+        return await self._ports_provider()
 
     def _require_pending(self, pending_id: str) -> None:
         if self.pending is None or self.pending.id != pending_id:

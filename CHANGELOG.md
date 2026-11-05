@@ -1,5 +1,20 @@
 # O'zgarishlar tarixi
 
+## 1.0.22 — 2026-11-05
+- **Yuqori panelda jonli soat**: sana, vaqt (soniyasi bilan) va zona siljishi (masalan `05.11.2026 14:03:21 UTC+5`)
+  har soniya yangilanadi — tizim vaqt zonasida («Sana va vaqt» sozlamasi), brauzer zonasida emas. Hamma
+  foydalanuvchiga ko'rinadi. Dialplan reviziyasi qo'llangan vaqt endi belgining tooltip'ida.
+- **Yangi «Kirish (SSH va veb-portlar)» sahifasi** (Sozlamalar → Tizim): SSH portini va veb-panel HTTP/HTTPS
+  portlarini almashtirish. Xavfsiz tartib: yangi port qo'shiladi, eski port ham ochiq turadi; yangi port orqali
+  ulanib «Tasdiqlash» bosilmasa — vaqt tugagach avtomatik orqaga qaytariladi. Sahifa sshd holatini, tinglanayotgan
+  portlarni va root kirishi yopiqligini ko'rsatadi, nusxa olinadigan `ssh -p PORT innova@HOST` buyrug'i bilan.
+  (ISO o'rnatmada root orqali SSH yopiq — `innova` foydalanuvchisi bilan kirib, `sudo -i`.)
+- **Firewall**: veb-portlar allowlist'i endi haqiqatda ishlaydi (Docker DNAT tufayli `input` zanjiriga tushmas edi —
+  qoida `forward` zanjiriga `ct original proto-dst` bilan ko'chirildi). Xost firewall'i SSH portini
+  `/etc/innova/ports.nft` dan oladi (o'rnatuvchi mavjud xostlarni xavfsiz ko'chiradi).
+- **Tarmoq → Ping**: «Statik marshrutlar» dan keyin yangi tab — shlyuz, SIP trunk serverlari, internet
+  (1.1.1.1 / 8.8.8.8) yoki istalgan hostga ping; yo'qotish % va RTT min/o'rta/maks, xom chiqish bilan.
+
 ## 1.0.21.1 — 2026-11-05
 - **Tuzatish: 1.0.21 ga yangilash yiqilardi** (`migrate` exit 1, veb ishga tushmasdi): 0037 migratsiyasi navbat
   ustunlari turini `asterisk_queues` view'i bog'langan holda o'zgartirmoqchi bo'lgan (PostgreSQL rad etadi). Endi

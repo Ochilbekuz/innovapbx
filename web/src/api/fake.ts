@@ -9,6 +9,8 @@ import { buildBitrixSyncPlan, parseBitrixPortalHost } from '@/domain/crm';
 import { defaultFollowMe, sameFollowMe } from '@/domain/followMe';
 import { generateSipPassword, validateSipPassword, type SipPasswordIssue } from '@/domain/sipPassword';
 import { normalizeFollowMe } from './fakeFollowMe';
+import { fakePingResult } from './fakePing';
+import { isValidPingHost, PING_COUNT_DEFAULT, PING_COUNT_MAX, PING_COUNT_MIN } from '@/domain/ping';
 import { createCampaignStore, csvCell } from './fakeCampaigns';
 import { callsToCsv, matchesCallFilters } from './fakeCalls';
 import { splitCsvRow } from '../domain/campaigns';
@@ -55,6 +57,7 @@ import { unifiedDiff } from '../domain/diff';
 import { buildNetworkDiff, buildNetworkWarnings, validateNetworkConfig } from '../domain/network';
 import { defaultNtpServers, validateTimeConfig } from '../domain/systemTime';
 import { buildFirewallDiff, checkFirewallSelfLockout, validateFirewallConfig } from '../domain/firewall';
+import { ACCESS_DEFAULT_TIMEOUT_S, validateSshApply, validateWebApply } from '../domain/access';
 import { computeScorePct, type QaCriterionLike } from '../domain/qaScore';
 import { generateRecoveryCodes, generateTotpSecret, otpauthUri, verifyTotp } from '../domain/totp';
 import { jobStep, validatedLocalTarget, validatedS3Target, validatedSftpTarget } from './fakeBackup';
@@ -122,7 +125,7 @@ import type {
   CleanupIn, CleanupResult, DiskCategory, SystemDisk, SystemStatus,
   // M8 — qarang ../../replica/m8-network-contract.md
   NetworkConfigIn, NetworkInterface, NetworkLastResult, NetworkPending, NetworkStateOut, NetworkStaticRoute,
-  NetworkValidateResult,
+  NetworkValidateResult, PingIn, PingResult,
   // M9 — qarang ../../replica/m9-freepbx-gaps-contract.md
   AddPinsPayload, Announcement, CidSource, CidSourceTestResult, Contact, CreateAnnouncementPayload,
   CreateCidSourcePayload, CreateContactPayload, CreateMiscApplicationPayload, CreateMiscDestinationPayload,
@@ -148,6 +151,8 @@ import type {
   // M12 B1/B2/B3 — qarang ../../replica/m12-contract.md
   TimeConfigIn, TimeStateOut, PowerActionIn, PowerActionOut, PowerStatusOut,
   FirewallConfigIn, FirewallLastResult, FirewallPending, FirewallServiceOut, FirewallStateOut, FirewallValidateOut,
+  // M12 B4 — Kirish (SSH va veb-panel)
+  AccessStateOut, AccessSshApplyIn, AccessWebApplyIn, AccessConfirmPublicResult, AccessPending,
 } from './types';
 import { API_KEY_SCOPES, DEVICE_VENDORS, EXTENSIONS_CSV_COLUMNS, WEBHOOK_EVENTS, WEBRTC_CODECS } from './types';
 
@@ -533,6 +538,14 @@ export function createFakeClient(
   let fwPending: FirewallPending | null = null;
   let fwPendingSnapshot: { services: FirewallServiceOut[]; blockedCidrs: string[] } | null = null;
   let fwLastResult: FirewallLastResult | null = null;
+
+  // ─────────────────────── Kirish: SSH va veb-panel (M12 B4) ───────────────────────
+  let accSshPort = 22;
+  let accWebHttpPort = 80;
+  let accWebHttpsPort = 443;
+  let accPending: AccessPending | null = null;
+  let accPendingSnapshot: { sshPort: number; webHttpPort: number; webHttpsPort: number } | null = null;
+  let accLastResult: AccessStateOut['last_result'] = null;
 
   // ─────────────────────── Paneldan yangilash (update) — M11 (../../replica/m11-update-contract.md) ───────────────────────
   // Vaqtga asoslangan simulyatsiya — `FakeBackupJob` bilan bir xil naqsh (setTimeout zanjiri yo'q, `Date.now()` farqidan hisoblanadi).
@@ -1773,6 +1786,49 @@ export function createFakeClient(
   function applyFirewallConfigToState(payload: FirewallConfigIn): void {
     fwServices = payload.services.map((s) => ({ name: s.name, mode: s.mode, allow: s.allow }));
     fwBlockedCidrs = payload.blocked_cidrs;
+  }
+
+  // ─────────────────────── Kirish: SSH va veb-panel (M12 B4) ───────────────────────
+
+  /** Pending muddati o'tgan bo'lsa — jim o'zi avtomatik qaytaradi (`checkFirewallPendingExpiry` bilan bir xil naqsh). */
+  function checkAccessPendingExpiry(): void {
+    if (!accPending || Date.now() <= Date.parse(accPending.expires_at)) return;
+    if (accPendingSnapshot) {
+      accSshPort = accPendingSnapshot.sshPort;
+      accWebHttpPort = accPendingSnapshot.webHttpPort;
+      accWebHttpsPort = accPendingSnapshot.webHttpsPort;
+    }
+    accLastResult = { status: 'rolled_back', at: new Date().toISOString(), message: 'Muddat tugadi — avtomatik qaytarildi.' };
+    accPending = null;
+    accPendingSnapshot = null;
+  }
+
+  function buildAccessState(): AccessStateOut {
+    checkAccessPendingExpiry();
+    return {
+      ssh: {
+        port: accSshPort, active: true, listening_ports: [accSshPort],
+        password_auth: true, root_login: 'prohibit-password', login_users: ['innova'], host_firewall: 'innova',
+      },
+      web: { http_port: accWebHttpPort, https_port: accWebHttpsPort },
+      readonly_reason: null,
+      pending: accPending,
+      last_result: accLastResult,
+    };
+  }
+
+  function snapshotAccessPorts() {
+    return { sshPort: accSshPort, webHttpPort: accWebHttpPort, webHttpsPort: accWebHttpsPort };
+  }
+
+  function startAccessPending(kind: 'ssh' | 'web', oldPorts: number[], newPorts: number[], timeoutS: number): void {
+    const appliedAt = new Date();
+    accPending = {
+      id: randomId('accpending'), kind,
+      expires_at: new Date(appliedAt.getTime() + clamp(timeoutS, 30, 600) * 1000).toISOString(),
+      old_ports: oldPorts, new_ports: newPorts,
+    };
+    accLastResult = null;
   }
 
   // ─────────────────────── M4a — qarang ../../replica/m4a-contract.md ───────────────────────
@@ -3102,6 +3158,17 @@ export function createFakeClient(
       return buildNetworkState();
     },
 
+    // «Ping» tabi — diagnostika, holatni o'zgartirmaydi (pending/locked'da ham ishlaydi).
+    async pingHost(payload: PingIn): Promise<PingResult> {
+      requireManage('*');
+      const host = payload.host.trim();
+      const count = payload.count ?? PING_COUNT_DEFAULT;
+      if (!isValidPingHost(host)) err(422, 'validation_failed', 'Yaroqsiz host.', { field: 'host' });
+      if (count < PING_COUNT_MIN || count > PING_COUNT_MAX) err(422, 'validation_failed', 'Paketlar soni 1–10.', { field: 'count' });
+      await delay(300);
+      return fakePingResult(host, count);
+    },
+
     // M12 B1 — qarang ../../replica/m12-contract.md §B1 (pending/confirm yo'q, to'g'ridan-to'g'ri qo'llanadi)
     async systemTime(): Promise<TimeStateOut> {
       requireManage('*');
@@ -3217,6 +3284,87 @@ export function createFakeClient(
       fwPendingSnapshot = null;
       auditAdd('update', 'firewall', pendingId, 'Firewall sozlamalari qaytarildi', {});
       return buildFirewallState();
+    },
+
+    // M12 B4 — Kirish (SSH va veb-panel)
+    async accessState(): Promise<AccessStateOut> {
+      requireManage('*');
+      await delay(150);
+      return buildAccessState();
+    },
+
+    async applySsh(payload: AccessSshApplyIn): Promise<AccessStateOut> {
+      requireManage('*');
+      await delay(250);
+      checkAccessPendingExpiry();
+      if (accPending) err(409, 'pending_exists', 'Boshqa oʻzgarish hali tasdiqlanishini kutmoqda.');
+      const errors = validateSshApply(payload);
+      if (errors.length > 0) err(422, 'validation_failed', 'Tekshiruvdan oʻtmadi.', { details: { fields: errors } });
+      accPendingSnapshot = snapshotAccessPorts();
+      const oldPort = accSshPort;
+      accSshPort = payload.port;
+      startAccessPending('ssh', [oldPort], [payload.port], payload.timeout_s ?? ACCESS_DEFAULT_TIMEOUT_S);
+      auditAdd('update', 'access', accPending!.id, 'SSH porti oʻzgartirildi', {});
+      return buildAccessState();
+    },
+
+    async applyWeb(payload: AccessWebApplyIn): Promise<AccessStateOut> {
+      requireManage('*');
+      await delay(250);
+      checkAccessPendingExpiry();
+      if (accPending) err(409, 'pending_exists', 'Boshqa oʻzgarish hali tasdiqlanishini kutmoqda.');
+      const errors = validateWebApply(payload);
+      if (errors.length > 0) err(422, 'validation_failed', 'Tekshiruvdan oʻtmadi.', { details: { fields: errors } });
+      accPendingSnapshot = snapshotAccessPorts();
+      const oldPorts = [accWebHttpPort, accWebHttpsPort];
+      accWebHttpPort = payload.http_port;
+      accWebHttpsPort = payload.https_port;
+      startAccessPending('web', oldPorts, [payload.http_port, payload.https_port], payload.timeout_s ?? ACCESS_DEFAULT_TIMEOUT_S);
+      auditAdd('update', 'access', accPending!.id, 'Veb-panel portlari oʻzgartirildi', {});
+      return buildAccessState();
+    },
+
+    async confirmAccess(pendingId: string): Promise<AccessStateOut> {
+      requireManage('*');
+      await delay(200);
+      checkAccessPendingExpiry();
+      if (!accPending || accPending.id !== pendingId) err(404, 'not_found', 'Kutilayotgan oʻzgarish topilmadi (muddati oʻtgan boʻlishi mumkin).');
+      accLastResult = { status: 'confirmed', at: new Date().toISOString(), message: 'Tasdiqlandi.' };
+      accPending = null;
+      accPendingSnapshot = null;
+      auditAdd('update', 'access', pendingId, 'Kirish sozlamalari tasdiqlandi', {});
+      return buildAccessState();
+    },
+
+    async rollbackAccess(pendingId: string): Promise<AccessStateOut> {
+      requireManage('*');
+      await delay(200);
+      checkAccessPendingExpiry();
+      if (!accPending || accPending.id !== pendingId) err(404, 'not_found', 'Kutilayotgan oʻzgarish topilmadi (muddati oʻtgan boʻlishi mumkin).');
+      if (accPendingSnapshot) {
+        accSshPort = accPendingSnapshot.sshPort;
+        accWebHttpPort = accPendingSnapshot.webHttpPort;
+        accWebHttpsPort = accPendingSnapshot.webHttpsPort;
+      }
+      accLastResult = { status: 'rolled_back', at: new Date().toISOString(), message: 'Qaytarildi.' };
+      accPending = null;
+      accPendingSnapshot = null;
+      auditAdd('update', 'access', pendingId, 'Kirish sozlamalari qaytarildi', {});
+      return buildAccessState();
+    },
+
+    /** Autentifikatsiyasiz (veb-panel portini oʻzgartirgandan keyin yangi manzildan kiritiladi). */
+    async confirmAccessWebPublic(pendingId: string): Promise<AccessConfirmPublicResult> {
+      await delay(200);
+      checkAccessPendingExpiry();
+      if (!accPending || accPending.id !== pendingId || accPending.kind !== 'web') {
+        err(404, 'not_found', 'Kutilayotgan oʻzgarish topilmadi (muddati oʻtgan boʻlishi mumkin).');
+      }
+      accLastResult = { status: 'confirmed', at: new Date().toISOString(), message: 'Tasdiqlandi.' };
+      accPending = null;
+      accPendingSnapshot = null;
+      auditAdd('update', 'access', pendingId, 'Veb-panel portlari tasdiqlandi', {});
+      return { status: 'confirmed' };
     },
 
     // M11 — qarang ../../replica/m11-update-contract.md

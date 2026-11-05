@@ -10,7 +10,7 @@ Javob shakli (xato):         {"ok": false, "error": {"code", "message", "fields"
 from __future__ import annotations
 
 from types import SimpleNamespace
-from typing import Any
+from typing import Any, Callable
 
 from app.netd.service import NetdError, NetdService
 
@@ -20,6 +20,11 @@ _OPS = frozenset({
     # lekin bitta soket/protokol qatlamidan o'tadi (m12-contract.md B1-B3).
     "time_state", "time_apply", "time_sync", "power_state", "power_execute",
     "firewall_state", "firewall_validate", "firewall_apply", "firewall_confirm", "firewall_rollback",
+    # Kirish (SSH/Veb portlari) — m12-contract.mddan tashqari kengaytma,
+    # lekin bir xil soket/protokol qatlami.
+    "access_state", "access_ssh_apply", "access_web_apply", "access_confirm", "access_rollback",
+    # Tarmoq diagnostikasi («Ping» tabi) — faqat o'qish, hech narsa o'zgarmaydi.
+    "net_ping",
 })
 
 
@@ -62,6 +67,17 @@ _DISPATCH_TABLE: dict[str, Any] = {
         _config_of(request), request_host=request.get("request_host")),
     "firewall_confirm": lambda service, request: service.firewall_confirm(_pending_id_of(request)),
     "firewall_rollback": lambda service, request: service.firewall_rollback(_pending_id_of(request)),
+    "access_state": lambda service, request: service.access_state(),
+    "access_ssh_apply": lambda service, request: service.access_ssh_apply(
+        _int_field_of(request, "port"), timeout_s=request.get("timeout_s")),
+    "access_web_apply": lambda service, request: service.access_web_apply(
+        _int_field_of(request, "http_port"), _int_field_of(request, "https_port"),
+        timeout_s=request.get("timeout_s")),
+    "access_confirm": lambda service, request: service.access_confirm(
+        _pending_id_of(request), kind=request.get("kind")),
+    "access_rollback": lambda service, request: service.access_rollback(_pending_id_of(request)),
+    "net_ping": lambda service, request: service.net_ping(
+        _str_field_of(request, "host"), _int_field_of(request, "count")),
 }
 
 
@@ -84,18 +100,28 @@ def _to_namespace(value: Any) -> Any:
     return value
 
 
+def _field_of(request: dict[str, Any], name: str, valid: Callable[[Any], bool], message: str) -> Any:
+    value = request.get(name)
+    if not valid(value):
+        raise ProtocolError(message)
+    return value
+
+
+def _str_field_of(request: dict[str, Any], name: str) -> str:
+    return _field_of(request, name, lambda v: isinstance(v, str) and v != "", f"`{name}` maydoni majburiy")
+
+
 def _pending_id_of(request: dict[str, Any]) -> str:
-    pending_id = request.get("pending_id")
-    if not isinstance(pending_id, str) or not pending_id:
-        raise ProtocolError("`pending_id` maydoni majburiy")
-    return pending_id
+    return _str_field_of(request, "pending_id")
+
+
+def _int_field_of(request: dict[str, Any], name: str) -> int:
+    return _field_of(request, name, lambda v: isinstance(v, int) and not isinstance(v, bool),
+                     f"`{name}` maydoni butun son bo'lishi kerak")
 
 
 def _action_of(request: dict[str, Any]) -> str:
-    action = request.get("action")
-    if not isinstance(action, str) or not action:
-        raise ProtocolError("`action` maydoni majburiy")
-    return action
+    return _str_field_of(request, "action")
 
 
 def _error(code: str, message: str, fields: list[dict] | None = None) -> dict[str, Any]:

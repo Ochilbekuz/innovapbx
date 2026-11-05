@@ -36,6 +36,17 @@ describe('NetworkPage', () => {
     expect(screen.getAllByText('192.168.10.254').length).toBeGreaterThan(0);
   }, 10_000);
 
+  it('«Ping» tabi marshrutlardan keyin — shlyuz preseti va host maydoni bor', async () => {
+    await loginAs(client, 'admin');
+    renderPage(<NetworkPage />);
+
+    const tabs = await screen.findAllByRole('tab');
+    expect(tabs.map((tab) => tab.textContent)).toEqual(['Umumiy', 'Interfeyslar', 'Statik marshrutlar', 'Ping']);
+    await userEvent.setup().click(screen.getByRole('tab', { name: 'Ping' }));
+    expect(screen.getByRole('button', { name: /^Shlyuz · / })).toBeTruthy();
+    expect(screen.getByLabelText('Host')).toBeTruthy();
+  });
+
   it(
     'host nomini oʻzgartirib qoʻllash — pending banner chiqadi, tasdiqlagandan keyin yoʻqoladi',
     async () => {

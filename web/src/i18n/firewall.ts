@@ -15,7 +15,11 @@ export const uz = {
     mode: { all: 'Hammaga ochiq', allowlist: 'Faqat roʻyxatdagilarga' },
     allowHint: 'Vergul yoki qator bilan ajratilgan IPv4 CIDR (masalan 192.168.1.0/24).',
     allowEmpty: 'Hech kim yoʻq — allowlist rejimida kamida bitta CIDR kerak.',
+    portLabel: 'Port: {{port}}',
+    webPortsLabel: 'HTTP: {{http}}, HTTPS: {{https}}',
   },
+
+  accessLink: 'SSH va veb-panelga kirish sozlamalari',
 
   blocked: {
     title: 'Bloklangan manzillar',
@@ -69,7 +73,11 @@ export const ru = {
     mode: { all: 'Открыто для всех', allowlist: 'Только из списка' },
     allowHint: 'IPv4 CIDR через запятую или с новой строки (например 192.168.1.0/24).',
     allowEmpty: 'Пусто — в режиме allowlist нужен хотя бы один CIDR.',
+    portLabel: 'Порт: {{port}}',
+    webPortsLabel: 'HTTP: {{http}}, HTTPS: {{https}}',
   },
+
+  accessLink: 'Настройки доступа по SSH и веб-панели',
 
   blocked: {
     title: 'Блокированные адреса',
@@ -123,7 +131,11 @@ export const en = {
     mode: { all: 'Open to all', allowlist: 'Allowlist only' },
     allowHint: 'Comma or newline separated IPv4 CIDRs (e.g. 192.168.1.0/24).',
     allowEmpty: 'Empty — allowlist mode needs at least one CIDR.',
+    portLabel: 'Port: {{port}}',
+    webPortsLabel: 'HTTP: {{http}}, HTTPS: {{https}}',
   },
+
+  accessLink: 'SSH and web panel access settings',
 
   blocked: {
     title: 'Blocked addresses',

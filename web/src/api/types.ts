@@ -739,6 +739,21 @@ export type NetworkConfigIn = {
 export type NetworkFieldError = { field: string; message: string };
 export type NetworkValidateResult = { ok: boolean; errors: NetworkFieldError[]; warnings: string[]; diff: string[] };
 
+/** «Ping» tabi — `POST /network/ping` (faqat diagnostika, konfiguratsiyani o'zgartirmaydi). */
+export type PingIn = { host: string; count?: number };
+export type PingResult = {
+  host: string;
+  ok: boolean;
+  transmitted: number;
+  received: number;
+  loss_pct: number;
+  rtt_min_ms: number | null;
+  rtt_avg_ms: number | null;
+  rtt_max_ms: number | null;
+  /** `ping` chiqishi (≈4 KB gacha qisqartirilgan). */
+  output: string;
+};
+
 // ─────────────────────── Paneldan yangilash (M11) — ../../replica/m11-update-contract.md ───────────────────────
 
 export type UpdateState = 'idle' | 'checking' | 'updating' | 'done' | 'failed';
@@ -817,6 +832,39 @@ export type FirewallStateOut = {
 
 export type FirewallFieldError = { field: string; message: string };
 export type FirewallValidateOut = { ok: boolean; errors: FirewallFieldError[]; warnings: string[]; diff: string[] };
+
+// ─────────────────────── Kirish: SSH va veb-panel (M12 B4) ───────────────────────
+
+export type AccessRootLogin = 'yes' | 'no' | 'prohibit-password' | 'without-password' | 'forced-commands-only';
+export type AccessHostFirewall = 'innova' | 'external';
+export type AccessPendingKind = 'ssh' | 'web';
+
+export type AccessSshOut = {
+  port: number;
+  active: boolean;
+  listening_ports: number[];
+  password_auth: boolean | null;
+  root_login: AccessRootLogin | null;
+  login_users: string[];
+  host_firewall: AccessHostFirewall;
+};
+export type AccessWebOut = { http_port: number; https_port: number };
+
+export type AccessPending = { id: string; kind: AccessPendingKind; expires_at: string; old_ports: number[]; new_ports: number[] };
+export type AccessLastResult = { status: 'confirmed' | 'rolled_back'; message: string; at: string };
+
+export type AccessStateOut = {
+  ssh: AccessSshOut;
+  web: AccessWebOut;
+  readonly_reason: string | null;
+  pending: AccessPending | null;
+  last_result: AccessLastResult | null;
+};
+
+export type AccessFieldError = FirewallFieldError;
+export type AccessSshApplyIn = { port: number; timeout_s?: number };
+export type AccessWebApplyIn = { http_port: number; https_port: number; timeout_s?: number };
+export type AccessConfirmPublicResult = { status: 'confirmed' };
 
 export type AuditAction = 'create' | 'update' | 'delete' | 'login' | 'login_failed' | 'restore' | 'restart' | 'override' | 'spy';
 export type AuditDiff = Record<string, [unknown, unknown]>;

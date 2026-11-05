@@ -92,6 +92,74 @@ ok contains "$(cat "$SYSTEMCTL_LOG")" "enable --now innova-update-agent.path inn
 ok test -d "$TMPD/update/req"
 rm -rf "$TMPD"
 
+# migrate_host_firewall_access_ports: ESKI ISO nftables.conf -> ports.nft include (M12 B4)
+old_conf() {
+  cat <<'EOF'
+#!/usr/sbin/nft -f
+# Innova PBX host firewall. flush ruleset YO'Q.
+table inet innova
+delete table inet innova
+
+table inet innova {
+  chain input {
+    type filter hook input priority filter; policy drop;
+
+    tcp dport 22 accept
+    tcp dport { 5060, 5061 } accept
+  }
+}
+EOF
+}
+TMPD=$(mktemp -d)
+old_conf > "$TMPD/nftables.conf"
+NFT_LOG=$TMPD/nft.log
+run_migrate() { (NFTABLES_CONF=$TMPD/nftables.conf PORTS_NFT=$TMPD/ports.nft
+  nft() { echo "nft $*" >> "$NFT_LOG"; [ "$NFT_RC" = 0 ]; }
+  systemctl() { echo "systemctl $*" >> "$SYSTEMCTL_LOG"; }
+  NFT_RC=${1:-0} migrate_host_firewall_access_ports >/dev/null 2>&1); }
+SYSTEMCTL_LOG=$TMPD/systemctl2.log
+run_migrate 0
+ok test -f "$TMPD/ports.nft"
+ok contains "$(cat "$TMPD/ports.nft")" "INNOVA_SSH_PORTS = { 22 }"
+ok contains "$(cat "$TMPD/nftables.conf")" 'include "/etc/innova/ports.nft"'
+ok contains "$(cat "$TMPD/nftables.conf")" 'tcp dport $INNOVA_SSH_PORTS accept'
+ok not contains "$(cat "$TMPD/nftables.conf")" 'tcp dport 22 accept'
+ok eq "$(ls "$TMPD"/nftables.conf.bak-* 2>/dev/null | wc -l)" 1
+ok contains "$(cat "$SYSTEMCTL_LOG")" "reload-or-restart nftables.service"
+# Idempotent: ikkinchi marta chaqirilsa — o'zgarish yo'q, zaxira ko'paymaydi
+rm -f "$SYSTEMCTL_LOG"
+run_migrate 0
+ok eq "$(ls "$TMPD"/nftables.conf.bak-* 2>/dev/null | wc -l)" 1
+ok eq "$(cat "$SYSTEMCTL_LOG" 2>/dev/null)" ""
+rm -rf "$TMPD"
+
+# Imzosiz (skript o'rnatish) — tegilmaydi
+TMPD=$(mktemp -d)
+printf 'table inet filter {}\n' > "$TMPD/nftables.conf"
+SYSTEMCTL_LOG=$TMPD/systemctl2.log
+run_migrate 0
+ok eq "$(cat "$TMPD/nftables.conf")" "table inet filter {}"
+ok not test -f "$TMPD/ports.nft"
+rm -rf "$TMPD"
+
+# nft -c -f muvaffaqiyatsiz bo'lsa — asl fayl o'zgarmaydi, zaxira yo'q
+TMPD=$(mktemp -d)
+old_conf > "$TMPD/nftables.conf"
+SYSTEMCTL_LOG=$TMPD/systemctl2.log
+run_migrate 1
+ok eq "$(cat "$TMPD/nftables.conf")" "$(old_conf)"
+ok eq "$(ls "$TMPD"/nftables.conf.bak-* 2>/dev/null | wc -l)" 0
+rm -rf "$TMPD"
+
+# Mavjud ports.nft saqlanadi (foydalanuvchi qo'shimcha port qo'shgan bo'lishi mumkin)
+TMPD=$(mktemp -d)
+old_conf > "$TMPD/nftables.conf"
+printf 'define INNOVA_SSH_PORTS = { 22, 2222 }\n' > "$TMPD/ports.nft"
+SYSTEMCTL_LOG=$TMPD/systemctl2.log
+run_migrate 0
+ok eq "$(cat "$TMPD/ports.nft")" "define INNOVA_SSH_PORTS = { 22, 2222 }"
+rm -rf "$TMPD"
+
 # detect_os: os-release dagi VERSION bizning VERSION'ni bosib ketmasin (VM'da topilgan xato)
 TMPD=$(mktemp -d)
 printf 'PRETTY_NAME="Debian 13"\nID=debian\nVERSION="13 (trixie)"\nVERSION_CODENAME=trixie\n' > "$TMPD/os"

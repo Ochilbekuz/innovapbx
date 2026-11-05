@@ -104,6 +104,7 @@ Menu: **System → Firewall**. Who can see it: only a user with `*` (full admini
 
 ## Related sections
 
+- [Access (SSH and web panel)](/docs/access)
 - [Network](/docs/network)
 - [Security](/docs/security)
 - [System status](/docs/status)

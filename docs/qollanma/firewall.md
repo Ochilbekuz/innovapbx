@@ -101,6 +101,7 @@ Menyu: **Tizim → Firewall**. Kim koʻradi: faqat `*` (toʻliq administrator) r
 
 ## Bog'liq bo'limlar
 
+- [Kirish (SSH va veb-panel)](/docs/access)
 - [Tarmoq](/docs/network)
 - [Xavfsizlik](/docs/security)
 - [Tizim holati](/docs/status)

@@ -42,6 +42,11 @@ cat > /target/etc/docker/daemon.json <<'EOF'
 EOF
 
 cp "$SRC/files/nftables.conf" /target/etc/nftables.conf
+mkdir -p /target/etc/innova
+cat > /target/etc/innova/ports.nft <<'EOF'
+# Innova PBX — netd avtomatik yaratadi, qo'lda tahrir qilinmasin.
+define INNOVA_SSH_PORTS = { 22 }
+EOF
 cp "$SRC/files/issue" /target/etc/issue
 cp "$SRC/files/innova-pbx.service" /target/etc/systemd/system/innova-pbx.service
 

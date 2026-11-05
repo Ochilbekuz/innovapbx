@@ -55,6 +55,8 @@ import { DayNightPage } from '@/screens/daynight/DayNightPage';
 import { DisaPage } from '@/screens/disa/DisaPage';
 import { TimeSettingsPage } from '@/screens/time/TimeSettingsPage';
 import { FirewallPage } from '@/screens/firewall/FirewallPage';
+import { AccessPage } from '@/screens/access/AccessPage';
+import { AccessConfirmPage } from '@/screens/access/AccessConfirmPage';
 
 // Qo'llanma matnlari (~300 KB) asosiy bundle'ga kirmasin — alohida chunk, birinchi ochilganda yuklanadi.
 const DocsPage = lazy(() => import('@/screens/docs/DocsPage').then((m) => ({ default: m.DocsPage })));
@@ -105,6 +107,7 @@ const FULL_PAGES: Record<string, ComponentType> = {
   disa: DisaPage,
   time: TimeSettingsPage,
   firewall: FirewallPage,
+  access: AccessPage,
 };
 
 /** `/` va noma'lum yo'llar uchun ruxsatga mos boshlang'ich sahifa (M7 §4 — qarang `homeFor`). */
@@ -120,6 +123,8 @@ export function AppRouter() {
 
       <Route path="/setup" element={<RedirectIfSetupDone><SetupPage /></RedirectIfSetupDone>} />
       <Route path="/login" element={<RedirectIfAuthed><LoginPage /></RedirectIfAuthed>} />
+      {/* Autentifikatsiyasiz — veb-panel porti o'zgargandan keyin brauzer shu yerga keladi (M12 B4 §3). */}
+      <Route path="/access-confirm" element={<AccessConfirmPage />} />
 
       {SCREENS.map((s) => {
         const Page = FULL_PAGES[s.id];

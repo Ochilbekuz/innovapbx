@@ -55,6 +55,7 @@ import * as daynight from '@/i18n/daynight';
 import * as disa from '@/i18n/disa';
 import * as time from '@/i18n/time';
 import * as firewall from '@/i18n/firewall';
+import * as access from '@/i18n/access';
 import * as docs from '@/i18n/docs';
 import { apiClient } from '@/api';
 
@@ -70,7 +71,7 @@ const NAMESPACES = {
   announcements, misc, parking, paging, phonebook, pinsets, cidsources, quality, callback, missedcalls,
   update,
   daynight, disa,
-  time, firewall,
+  time, firewall, access,
   docs,
 } as const;
 

@@ -38,13 +38,20 @@ describe('AppShellPage', () => {
     expect(screen.queryByRole('button', { name: /softfon|softphone|telefon/i })).toBeNull();
   });
 
-  it('reviziya belgisi sana, vaqt va vaqt zonasini koʻrsatadi', async () => {
+  it('reviziya qoʻllangan vaqt — faqat tooltipda; panelda jonli soat', async () => {
     await loginAs(client, 'admin');
     const createdAt = (await client.configRevisions(1)).items[0]!.created_at;
     renderPage(<AppShellPage title="Test">x</AppShellPage>);
 
-    const zone = await screen.findByText('UTC+5');
-    expect(zone).toHaveAttribute('title', 'Asia/Tashkent');
-    expect(zone.closest('a')).toHaveTextContent(`${formatDateTimeShort(createdAt)} UTC+5`);
+    const badge = (await screen.findByText(/Dialplan/)).closest('a')!;
+    await vi.waitFor(() => expect(badge.getAttribute('title')).toContain(formatDateTimeShort(createdAt)));
+    expect(badge).not.toHaveTextContent(formatDateTimeShort(createdAt));
+    expect(screen.getByRole('timer')).toHaveTextContent('UTC+5');
+  });
+
+  it('operator ham jonli soatni koʻradi', async () => {
+    await loginAs(client, 'operator');
+    renderPage(<AppShellPage title="Test">x</AppShellPage>);
+    expect(await screen.findByRole('timer')).toBeTruthy();
   });
 });

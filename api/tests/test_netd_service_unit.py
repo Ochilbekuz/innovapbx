@@ -349,3 +349,15 @@ async def test_firewall_pending_is_fully_independent_from_network_pending():
     assert confirmed["pending"] is None
     firewall_state = await service.firewall_state()
     assert firewall_state["pending"] is not None  # tarmoq tasdiqlangani firewall'ga ta'sir qilmadi
+
+
+# --------------------------------------------------------------------- tarmoq «Ping»
+
+@pytest.mark.asyncio
+async def test_net_ping_runs_even_when_readonly():
+    # Diagnostika konfiguratsiyani o'zgartirmaydi — NETD_READONLY uni to'smaydi.
+    executor = _ifupdown_executor()
+    service = NetdService(executor, _settings(readonly=True), now_fn=_clock())
+    result = await service.net_ping("10.0.0.1", 2)
+    assert executor.commands == [["ping", "-c", "2", "-W", "2", "-4", "10.0.0.1"]]
+    assert result["host"] == "10.0.0.1" and result["ok"] is False

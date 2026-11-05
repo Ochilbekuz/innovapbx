@@ -19,6 +19,10 @@ SBIN=/usr/local/sbin
 # `iso/files/innova-update.sh` bilan BIR XIL env (INNOVA_UPDATE_DIR) — testda
 # haqiqiy /var/lib/innova'ga tegmasdan almashtirish uchun (H1c).
 UPDATE_DIR=${INNOVA_UPDATE_DIR:-/var/lib/innova/update}
+# M12 B4 (kirish/access) — ESKI ISO o'rnatishlarni migratsiya qilish uchun;
+# testda haqiqiy /etc'ga tegmasdan almashtirish (yuqoridagilar bilan BIR XIL qolip).
+NFTABLES_CONF=${INNOVA_NFTABLES_CONF:-/etc/nftables.conf}
+PORTS_NFT=${INNOVA_PORTS_NFT:-/etc/innova/ports.nft}
 SERVICES="api asterisk web"
 MIN_COMPOSE=2.24 # deploy/docker-compose.appliance.yml dagi `!reset` shuni talab qiladi
 
@@ -184,6 +188,39 @@ install_files() {
   systemctl daemon-reload
 }
 
+# M12 B4 (kirish/access) — ESKI ISO o'rnatishlar: ularning /etc/nftables.conf
+# fayli hali `/etc/innova/ports.nft`ni include qilmaydi (bitta qattiq yozilgan
+# `tcp dport 22 accept`). Faqat BIZNING imzomiz bo'lgan faylga tegamiz — skript
+# bilan o'rnatilgan serverlarda host firewall BIZNIKI EMAS (tegilmaydi).
+# Idempotent: include allaqachon bo'lsa hech narsa qilmaydi — har bir
+# yangilashda (`innova-update` -> `run_install` -> shu skript) xavfsiz chaqiriladi.
+migrate_host_firewall_access_ports() {
+  local conf=$NFTABLES_CONF
+  [ -f "$conf" ] || return 0
+  grep -q "Innova PBX host firewall" "$conf" || return 0
+  grep -q 'include "/etc/innova/ports.nft"' "$conf" && return 0
+  log "host firewall: SSH porti endi /etc/innova/ports.nft orqali (M12 B4)"
+  install -d -m 0755 "$(dirname "$PORTS_NFT")"
+  [ -f "$PORTS_NFT" ] || cat > "$PORTS_NFT" <<'EOF'
+# Innova PBX — netd avtomatik yaratadi, qo'lda tahrir qilinmasin.
+define INNOVA_SSH_PORTS = { 22 }
+EOF
+  local tmp
+  tmp=$(mktemp)
+  # shellcheck disable=SC2016 # $INNOVA_SSH_PORTS ATAYLAB kengaymaydi — faylga shu matn yoziladi (nft o'z o'zgaruvchisi)
+  sed -e '0,/^table inet innova {$/{s#^table inet innova {$#include "/etc/innova/ports.nft"\n\ntable inet innova {#}' \
+      -e 's/^\( *\)tcp dport 22 accept$/\1tcp dport $INNOVA_SSH_PORTS accept/' \
+      "$conf" > "$tmp"
+  if nft -c -f "$tmp" 2>/dev/null; then
+    cp "$conf" "$conf.bak-$(date +%Y%m%d-%H%M%S)"
+    mv "$tmp" "$conf"
+    systemctl reload-or-restart nftables.service 2>/dev/null || true
+  else
+    log "OGOHLANTIRISH: $conf migratsiyasi tasdiqlanmadi (nft -c -f) — qo'lda tekshiring"
+    rm -f "$tmp"
+  fi
+}
+
 build_images() {
   log "obrazlar yig'ilmoqda ($VERSION) — 5–15 daqiqa"
   docker compose -f "$ROOT/deploy/docker-compose.yml" build migrate api asterisk web
@@ -247,6 +284,7 @@ main() {
   install_packages
   install_docker
   install_files
+  migrate_host_firewall_access_ports
   provide_images
   start_stack
   reload_cdr_module

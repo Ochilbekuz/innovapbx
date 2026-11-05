@@ -10,7 +10,7 @@ from __future__ import annotations
 import pytest
 from pydantic import ValidationError
 
-from app.schemas import NetworkConfigIn, NetworkDnsIn, NetworkInterfaceIn, NetworkRouteIn
+from app.schemas import NetworkConfigIn, NetworkDnsIn, NetworkInterfaceIn, NetworkPingIn, NetworkRouteIn
 
 SCOPE_ID_INJECTION = "fe80::1%eth0\n    pre-up touch /tmp/pwned #/64"
 
@@ -90,3 +90,22 @@ def test_valid_dns_is_canonicalized():
 def test_valid_hostname_accepted():
     cfg = NetworkConfigIn(hostname="innova-pbx", interfaces=[])
     assert cfg.hostname == "innova-pbx"
+
+
+# --------------------------------------------------------------------- «Ping» tabi
+
+def test_ping_in_defaults_count_to_four_and_strips_host():
+    payload = NetworkPingIn(host="  google.com ")
+    assert (payload.host, payload.count) == ("google.com", 4)
+
+
+@pytest.mark.parametrize("host", ["-oProxy", "a b", "$(id)", "fe80::1%eth0", "", "x;y"])
+def test_ping_in_rejects_unsafe_host(host):
+    with pytest.raises(ValidationError):
+        NetworkPingIn(host=host)
+
+
+@pytest.mark.parametrize("count", [0, 11])
+def test_ping_in_rejects_count_out_of_range(count):
+    with pytest.raises(ValidationError):
+        NetworkPingIn(host="1.1.1.1", count=count)

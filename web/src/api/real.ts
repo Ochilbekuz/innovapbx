@@ -56,7 +56,7 @@ import type {
   // Tizim holati (status) — pbx-klon vazifa (2026-11-02)
   CleanupIn, CleanupResult, SystemStatus,
   // M8 — qarang ../../replica/m8-network-contract.md
-  NetworkConfigIn, NetworkStateOut, NetworkValidateResult,
+  NetworkConfigIn, NetworkStateOut, NetworkValidateResult, PingIn, PingResult,
   // M9 — qarang ../../replica/m9-freepbx-gaps-contract.md
   AddPinsPayload, Announcement, CidSource, CidSourceTestResult, Contact, CreateAnnouncementPayload,
   CreateCidSourcePayload, CreateContactPayload, CreateMiscApplicationPayload, CreateMiscDestinationPayload,
@@ -81,6 +81,8 @@ import type {
   // M12 B1/B2/B3 — qarang ../../replica/m12-contract.md
   TimeConfigIn, TimeStateOut, PowerActionIn, PowerActionOut, PowerStatusOut,
   FirewallConfigIn, FirewallStateOut, FirewallValidateOut,
+  // M12 B4 — Kirish (SSH va veb-panel)
+  AccessStateOut, AccessSshApplyIn, AccessWebApplyIn, AccessConfirmPublicResult,
   // M12 A1/A2 — qarang §A1/§A2
   DayNight, CreateDayNightPayload, UpdateDayNightPayload, Disa, CreateDisaPayload, UpdateDisaPayload,
 } from './types';
@@ -452,6 +454,7 @@ export const realClient: ApiClient = {
   applyNetwork: (payload: NetworkConfigIn) => request<NetworkStateOut>('/network/apply', { method: 'POST', body: payload }),
   confirmNetwork: (pendingId: string) => request<NetworkStateOut>('/network/confirm', { method: 'POST', body: { pending_id: pendingId } }),
   rollbackNetwork: (pendingId: string) => request<NetworkStateOut>('/network/rollback', { method: 'POST', body: { pending_id: pendingId } }),
+  pingHost: (payload: PingIn) => request<PingResult>('/network/ping', { method: 'POST', body: payload }),
 
   // M11 — qarang ../../replica/m11-update-contract.md §4, S45 «Yangilanish»
   systemUpdate: () => request<SystemUpdateOut>('/system/update'),
@@ -474,6 +477,14 @@ export const realClient: ApiClient = {
   applyFirewall: (payload: FirewallConfigIn) => request<FirewallStateOut>('/firewall/apply', { method: 'POST', body: payload }),
   confirmFirewall: (pendingId: string) => request<FirewallStateOut>('/firewall/confirm', { method: 'POST', body: { pending_id: pendingId } }),
   rollbackFirewall: (pendingId: string) => request<FirewallStateOut>('/firewall/rollback', { method: 'POST', body: { pending_id: pendingId } }),
+
+  accessState: () => request<AccessStateOut>('/access/state'),
+  applySsh: (payload: AccessSshApplyIn) => request<AccessStateOut>('/access/ssh/apply', { method: 'POST', body: payload }),
+  applyWeb: (payload: AccessWebApplyIn) => request<AccessStateOut>('/access/web/apply', { method: 'POST', body: payload }),
+  confirmAccess: (pendingId: string) => request<AccessStateOut>('/access/confirm', { method: 'POST', body: { pending_id: pendingId } }),
+  rollbackAccess: (pendingId: string) => request<AccessStateOut>('/access/rollback', { method: 'POST', body: { pending_id: pendingId } }),
+  confirmAccessWebPublic: (pendingId: string) =>
+    request<AccessConfirmPublicResult>('/access/web/confirm-public', { method: 'POST', body: { pending_id: pendingId }, auth: false }),
 
   // M9 A1 — qarang ../../replica/m9-freepbx-gaps-contract.md §A1 («E'lon»)
   listAnnouncements: () => request<Paged<Announcement>>('/announcements'),

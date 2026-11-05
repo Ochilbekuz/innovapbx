@@ -43,6 +43,7 @@ import type {
   CleanupIn,
   // M8 — qarang ../../replica/m8-network-contract.md
   NetworkConfigIn,
+  PingIn,
   // M9 — qarang ../../replica/m9-freepbx-gaps-contract.md
   AddPinsPayload, CreateAnnouncementPayload, CreateCidSourcePayload, CreateContactPayload,
   CreateMiscApplicationPayload, CreateMiscDestinationPayload, CreatePageGroupPayload, CreatePinSetPayload,
@@ -61,6 +62,7 @@ import type {
   CreateDayNightPayload, CreateDisaPayload, UpdateDayNightPayload, UpdateDisaPayload,
   // M12 B1/B2/B3 — qarang ../../replica/m12-contract.md §B1/§B2/§B3
   FirewallConfigIn, PowerActionIn, TimeConfigIn,
+  AccessSshApplyIn, AccessWebApplyIn,
 } from './types';
 import { updateStatePollMs } from '@/domain/update';
 
@@ -190,6 +192,7 @@ export const qk = {
   systemTime: ['system-time'] as const,
   systemPower: ['system-power'] as const,
   firewallState: ['firewall-state'] as const,
+  accessState: ['access-state'] as const,
 };
 
 export function useSetupState() {
@@ -1441,6 +1444,10 @@ export function useRollbackNetwork() {
     onSuccess: () => invalidate([qk.networkState]),
   });
 }
+/** «Ping» tabi — faqat diagnostika: keshni yangilamaydi. */
+export function usePingHost() {
+  return useMutation({ mutationFn: (payload: PingIn) => apiClient.pingHost(payload) });
+}
 
 // ─────────────────────── M12 B1 — Sana va vaqt (../../replica/m12-contract.md §B1) ───────────────────────
 // Pending/confirm yo'q — `applyTime` muvaffaqiyatli bo'lsa darhol keshni yangilaydi.
@@ -1505,6 +1512,49 @@ export function useRollbackFirewall() {
     mutationFn: (pendingId: string) => apiClient.rollbackFirewall(pendingId),
     onSuccess: () => invalidate([qk.firewallState]),
   });
+}
+
+// ─────────────────────── M12 B4 — Kirish: SSH va veb-panel ───────────────────────
+// Firewall'dagi bilan bir xil naqsh — `pending` bor ekan tezroq pollanadi.
+
+export function useAccessState() {
+  return useQuery({
+    queryKey: qk.accessState,
+    queryFn: () => apiClient.accessState(),
+    refetchInterval: (query) => (query.state.data?.pending ? 3_000 : 30_000),
+  });
+}
+export function useApplySsh() {
+  const invalidate = useInvalidate();
+  return useMutation({
+    mutationFn: (payload: AccessSshApplyIn) => apiClient.applySsh(payload),
+    onSuccess: () => invalidate([qk.accessState]),
+  });
+}
+export function useApplyWeb() {
+  const invalidate = useInvalidate();
+  return useMutation({
+    mutationFn: (payload: AccessWebApplyIn) => apiClient.applyWeb(payload),
+    onSuccess: () => invalidate([qk.accessState]),
+  });
+}
+export function useConfirmAccess() {
+  const invalidate = useInvalidate();
+  return useMutation({
+    mutationFn: (pendingId: string) => apiClient.confirmAccess(pendingId),
+    onSuccess: () => invalidate([qk.accessState]),
+  });
+}
+export function useRollbackAccess() {
+  const invalidate = useInvalidate();
+  return useMutation({
+    mutationFn: (pendingId: string) => apiClient.rollbackAccess(pendingId),
+    onSuccess: () => invalidate([qk.accessState]),
+  });
+}
+/** Autentifikatsiyasiz — `/access-confirm` ommaviy sahifasi ishlatadi, `accessState`ni invalidatsiya qilmaydi (login qilinmagan). */
+export function useConfirmAccessWebPublic() {
+  return useMutation({ mutationFn: (pendingId: string) => apiClient.confirmAccessWebPublic(pendingId) });
 }
 
 // ─────────────────────── M11 — Paneldan yangilash (../../replica/m11-update-contract.md) ───────────────────────

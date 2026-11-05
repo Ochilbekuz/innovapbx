@@ -14,7 +14,7 @@ statik marshrutlar. Oʻzgarish darhol kuchga kirgandan keyin tasdiqlanmasa, **av
 holatga qaytadi** — bu serverga ulanishni butunlay yoʻqotib qoʻymaslik uchun himoya.
 
 ## Qayerda
-Menyu: **Tizim → Tarmoq**, uch tab: **Umumiy**, **Interfeyslar**, **Statik marshrutlar**. Kim koʻradi:
+Menyu: **Tizim → Tarmoq**, toʻrt tab: **Umumiy**, **Interfeyslar**, **Statik marshrutlar**, **Ping**. Kim koʻradi:
 faqat `*` (toʻliq administrator) ruxsati bor foydalanuvchi.
 
 ## Asosiy tushunchalar
@@ -84,6 +84,17 @@ faqat `*` (toʻliq administrator) ruxsati bor foydalanuvchi.
 ### Qoralamani bekor qilish
 1. Hali qoʻllanmagan oʻzgarishlarni **Bekor qilish**ni bosib tashlab yuborishingiz mumkin — qoralama
    serverdagi joriy holatga qaytadi.
+
+### Ulanishni tekshirish (Ping)
+1. **Ping** tabini oching. Tez tanlash tugmalari: **Shlyuz** (standart shlyuz), har bir **SIP** trunk hosti,
+   **Internet** (`1.1.1.1`, `8.8.8.8`) va **DNS nomi** (`google.com` — DNS ishlashini ham tekshiradi).
+2. Yoki **Host** maydoniga IP manzil (IPv4/IPv6) yoki domen nomini yozing; **Paketlar soni** — 1 dan 10 gacha
+   (standart 4).
+3. **Ping**ni bosing. Natijada: javob bor/yoʻq belgisi, yoʻqotish foizi, yuborilgan/qaytgan paketlar,
+   kechikish min/oʻrtacha/maks (ms) va buyruqning toʻliq chiqishi.
+- Ping sozlamalarni oʻzgartirmaydi — tarmoq faqat koʻrish rejimida boʻlsa ham ishlaydi. Tarmoq xizmati
+  (netd) ishlamasa, tab buni ogohlantiradi va tugma oʻchiq boʻladi.
+- Domen nomi javob bermasa, IP esa javob bersa — muammo DNSda (Umumiy tabdagi DNS serverlarni tekshiring).
 
 ## Maslahatlar va cheklovlar
 

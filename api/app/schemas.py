@@ -9,6 +9,7 @@ from typing import Any, Literal
 
 from pydantic import AliasChoices, BaseModel, Field, field_validator, model_validator
 
+from app.netd.executor import ping_host_kind
 from app.netd.firewall import SERVICE_NAMES, is_valid_cidr
 from app.netd.systemtime import is_valid_ntp_server, is_valid_timezone
 from app.netd.validate import is_valid_hostname
@@ -1705,6 +1706,33 @@ class NetworkPendingActionIn(BaseModel):
     pending_id: str = Field(min_length=1, max_length=64)
 
 
+class NetworkPingIn(BaseModel):
+    """«Ping» tabi — host qoidasi netd argv guard bilan BITTA
+    (`executor.py::ping_host_kind`): `-` bilan boshlanuvchi argument yo'q."""
+    host: str = Field(max_length=253)
+    count: int = Field(default=4, ge=1, le=10)
+
+    @field_validator("host")
+    @classmethod
+    def _check_host(cls, value: str) -> str:
+        value = value.strip()
+        if ping_host_kind(value) is None:
+            raise ValueError("IPv4/IPv6 manzil yoki domen nomi bo'lishi kerak")
+        return value
+
+
+class NetworkPingOut(BaseModel):
+    host: str
+    ok: bool
+    transmitted: int
+    received: int
+    loss_pct: float
+    rtt_min_ms: float | None
+    rtt_avg_ms: float | None
+    rtt_max_ms: float | None
+    output: str
+
+
 class NetworkInterfaceConfigOut(BaseModel):
     mode: str
     address: str | None
@@ -2096,6 +2124,69 @@ class FirewallValidateOut(BaseModel):
     errors: list[NetworkFieldErrorOut]
     warnings: list[str]
     diff: list[str]
+
+
+# ============================================================ Kirish (SSH/Veb portlari)
+class AccessSshStateOut(BaseModel):
+    port: int
+    active: bool
+    listening_ports: list[int]
+    password_auth: bool | None
+    root_login: str | None
+    login_users: list[str]
+    host_firewall: Literal["innova", "external"]
+
+
+class AccessWebStateOut(BaseModel):
+    http_port: int
+    https_port: int
+
+
+class AccessPendingOut(BaseModel):
+    id: str
+    kind: Literal["ssh", "web"]
+    expires_at: datetime
+    old_ports: list[int]
+    new_ports: list[int]
+
+
+class AccessLastResultOut(BaseModel):
+    status: Literal["confirmed", "rolled_back"]
+    message: str | None
+    at: datetime
+
+
+class AccessStateOut(BaseModel):
+    ssh: AccessSshStateOut
+    web: AccessWebStateOut
+    readonly_reason: str | None
+    pending: AccessPendingOut | None
+    last_result: AccessLastResultOut | None
+
+
+class AccessSshApplyIn(BaseModel):
+    port: int = Field(ge=1, le=65535)
+    timeout_s: int | None = Field(default=None, ge=30, le=600)
+
+
+class AccessWebApplyIn(BaseModel):
+    http_port: int = Field(ge=1, le=65535)
+    https_port: int = Field(ge=1, le=65535)
+    timeout_s: int | None = Field(default=None, ge=30, le=600)
+
+
+class AccessApplyOut(BaseModel):
+    pending_id: str
+    expires_at: datetime
+    warnings: list[str]
+
+
+class AccessPendingActionIn(BaseModel):
+    pending_id: str = Field(min_length=1, max_length=64)
+
+
+class AccessWebConfirmPublicOut(BaseModel):
+    status: Literal["confirmed"]
 
 
 # ================================================================== M9 A1: e'lonlar

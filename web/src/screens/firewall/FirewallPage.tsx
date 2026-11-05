@@ -1,9 +1,10 @@
 // Firewall sozlamalari: xizmatlar (ssh/web/sip/rtp) ruxsat ro'yxati + bloklangan manzillar, qo'llash-tasdiqlash
 // oqimi. Shartnoma: ../../replica/m12-contract.md §B3. Faqat `*` ruxsatiga ko'rinadi (`screens.ts`, group `system`).
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { apiErrorMessage, isApiError } from '@/api/errors';
-import { useApplyFirewall, useConfirmFirewall, useFirewallState, useRollbackFirewall, useValidateFirewall } from '@/api/queries';
+import { useAccessState, useApplyFirewall, useConfirmFirewall, useFirewallState, useRollbackFirewall, useValidateFirewall } from '@/api/queries';
 import type { FirewallFieldError, FirewallStateOut } from '@/api/types';
 import { buildFirewallDiff, parseFirewallFieldPath } from '@/domain/firewall';
 import { AppShellPage } from '@/shell/AppShellPage';
@@ -73,19 +74,23 @@ function groupFirewallErrors(errors: FirewallFieldError[], draft: FirewallDraft)
 }
 
 function ServiceRow({
-  draft, errors, locked, onChange, t,
+  draft, errors, locked, onChange, t, portLabel,
 }: {
   draft: FirewallDraft['services'][number];
   errors: Record<string, string>;
   locked: boolean;
   onChange: (name: string, patch: Partial<FirewallDraft['services'][number]>) => void;
   t: TFunc;
+  portLabel?: ReactNode;
 }) {
   const error = errors[draft.name];
   return (
     <div className="flex flex-col gap-2 rounded-md border border-line bg-surface-2 px-3 py-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <span className="text-sm font-medium text-fg">{t(`services.name.${draft.name}`)}</span>
+        <span className="text-sm font-medium text-fg">
+          {t(`services.name.${draft.name}`)}
+          {portLabel && <span className="num ml-2 text-xs text-muted">{portLabel}</span>}
+        </span>
         <Segmented
           value={draft.mode}
           onChange={(v) => !locked && onChange(draft.name, { mode: v as 'all' | 'allowlist' })}
@@ -113,18 +118,24 @@ function ServiceRow({
 }
 
 function ServicesSection({
-  draft, errors, locked, onChangeService, t,
+  draft, errors, locked, onChangeService, t, portLabels,
 }: {
   draft: FirewallDraft;
   errors: Record<string, string>;
   locked: boolean;
   onChangeService: (name: string, patch: Partial<FirewallDraft['services'][number]>) => void;
   t: TFunc;
+  portLabels: Record<string, ReactNode>;
 }) {
   return (
     <div className="flex flex-col gap-3">
-      <p className="text-sm font-medium text-fg">{t('services.title')}</p>
-      {draft.services.map((s) => <ServiceRow key={s.name} draft={s} errors={errors} locked={locked} onChange={onChangeService} t={t} />)}
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <p className="text-sm font-medium text-fg">{t('services.title')}</p>
+        <Link to="/settings/access" className="text-sm text-accent underline-offset-2 hover:underline">{t('accessLink')}</Link>
+      </div>
+      {draft.services.map((s) => (
+        <ServiceRow key={s.name} draft={s} errors={errors} locked={locked} onChange={onChangeService} t={t} portLabel={portLabels[s.name]} />
+      ))}
     </div>
   );
 }
@@ -201,29 +212,31 @@ function resolvePending(pendingId: string | undefined, mutation: PendingMutation
   mutation.mutate(pendingId, { onSuccess, onError });
 }
 
-function FirewallLoadingState({ title, isError, onRetry, t }: { title: string; isError: boolean; onRetry: () => void; t: (k: string) => string }) {
-  return (
-    <AppShellPage title={title}>
-      {isError ? (
-        <div className="flex flex-col items-center gap-2 rounded-md border border-dashed border-line px-3 py-6 text-center text-sm text-muted">
-          <p>{t('loadFailed')}</p>
-          <Button size="sm" variant="secondary" onClick={onRetry}>{t('retry')}</Button>
-        </div>
-      ) : (
-        <div className="flex flex-col gap-4"><div className="skeleton h-64 rounded-lg" /></div>
-      )}
-    </AppShellPage>
+// DIQQAT: AppShellPage komponenti doim BIR marta, FirewallPage darajasida render qilinadi (pastda) —
+// yuklanish/tayyor holatlar faqat uning ICHIDAGI bolani almashtiradi (qarang AccessPage.tsx'dagi xuddi
+// shu izoh). Ikki holat ikki xil joyda alohida AppShellPage qaytarsa, React ularni turli element turi
+// sifatida koʻrib butun main tugunini qayta yaratadi — bu sidebar/footer soʻrovlarini qayta ishga
+// tushiradi va testda within(main) uzilib qoladi.
+function FirewallLoadingBody({ isError, onRetry, t }: { isError: boolean; onRetry: () => void; t: (k: string) => string }) {
+  return isError ? (
+    <div className="flex flex-col items-center gap-2 rounded-md border border-dashed border-line px-3 py-6 text-center text-sm text-muted">
+      <p>{t('loadFailed')}</p>
+      <Button size="sm" variant="secondary" onClick={onRetry}>{t('retry')}</Button>
+    </div>
+  ) : (
+    <div className="flex flex-col gap-4"><div className="skeleton h-64 rounded-lg" /></div>
   );
 }
 
-function FirewallReadyView({
-  t, state, draft, grouped, hasOtherErrors, timeoutS, onTimeoutChange, confirm, pendingActions, draftActions,
+function FirewallReadyBody({
+  t, state, draft, grouped, hasOtherErrors, portLabels, timeoutS, onTimeoutChange, confirm, pendingActions, draftActions,
 }: {
   t: TFunc;
   state: FirewallStateOut;
   draft: FirewallDraft;
   grouped: ReturnType<typeof groupFirewallErrors>;
   hasOtherErrors: boolean;
+  portLabels: Record<string, ReactNode>;
   timeoutS: number;
   onTimeoutChange: (s: number) => void;
   confirm: { open: boolean; diff: string[]; loading: boolean; onConfirm: () => void; onClose: () => void };
@@ -237,7 +250,7 @@ function FirewallReadyView({
 }) {
   const locked = isFirewallLocked(state);
   return (
-    <AppShellPage title={t('title')}>
+    <>
       <div className="flex flex-col gap-4">
         {locked && <Banner tone="warning">{t('readonlyBanner', { reason: state.readonly_reason })}</Banner>}
         {hasOtherErrors && <Banner tone="danger">{t('errorsBanner')}</Banner>}
@@ -253,7 +266,7 @@ function FirewallReadyView({
           </>
         ) : (
           <div className="flex flex-col gap-6">
-            <ServicesSection draft={draft} errors={grouped.serviceErrors} locked={locked} onChangeService={draftActions.onChangeService} t={t} />
+            <ServicesSection draft={draft} errors={grouped.serviceErrors} locked={locked} onChangeService={draftActions.onChangeService} t={t} portLabels={portLabels} />
             <BlockedSection draft={draft} error={grouped.blockedError} locked={locked} onChange={draftActions.onChangeBlocked} t={t} />
           </div>
         )}
@@ -264,7 +277,7 @@ function FirewallReadyView({
       )}
 
       <ConfirmApplyModal open={confirm.open} diff={confirm.diff} timeoutS={timeoutS} onTimeoutChange={onTimeoutChange} onConfirm={confirm.onConfirm} onClose={confirm.onClose} loading={confirm.loading} />
-    </AppShellPage>
+    </>
   );
 }
 
@@ -273,6 +286,7 @@ export function FirewallPage() {
   const { t } = useTranslation('firewall');
   const toast = useToast();
   const { data: state, isLoading, isError, refetch } = useFirewallState();
+  const { data: access } = useAccessState();
   const validateM = useValidateFirewall();
   const applyM = useApplyFirewall();
   const confirmM = useConfirmFirewall();
@@ -324,27 +338,35 @@ export function FirewallPage() {
 
   const grouped = useMemo(() => (draft ? groupFirewallErrors(validateErrors, draft) : { serviceErrors: {}, blockedError: undefined, otherMessages: [] }), [validateErrors, draft]);
 
-  if (isLoading || !state || !draft) {
-    return <FirewallLoadingState title={t('title')} isError={isError} onRetry={() => void refetch()} t={t} />;
-  }
+  const portLabels: Record<string, ReactNode> = useMemo(() => (access ? {
+    ssh: t('services.portLabel', { port: access.ssh.port }),
+    web: t('services.webPortsLabel', { http: access.web.http_port, https: access.web.https_port }),
+  } : {}), [access, t]);
 
   return (
-    <FirewallReadyView
-      t={t}
-      state={state}
-      draft={draft}
-      grouped={grouped}
-      hasOtherErrors={validateErrors.length > 0}
-      timeoutS={timeoutS}
-      onTimeoutChange={setTimeoutS}
-      confirm={{ open: confirmOpen, diff: confirmDiff, loading: applyM.isPending, onConfirm: handleConfirmApply, onClose: () => setConfirmOpen(false) }}
-      pendingActions={{ onConfirm: handleConfirmPending, onRollback: handleRollbackPending, onExpire: () => void refetch(), confirmLoading: confirmM.isPending, rollbackLoading: rollbackM.isPending }}
-      draftActions={{
-        lastResultDismissed, onDismissLastResult: () => setLastResultDismissed(true),
-        diffCount: diff.length, onDiscard: handleDiscard, onApply: handleApplyClick, applyLoading: validateM.isPending,
-        onChangeService: handleChangeService,
-        onChangeBlocked: handleChangeBlocked,
-      }}
-    />
+    <AppShellPage title={t('title')}>
+      {isLoading || !state || !draft ? (
+        <FirewallLoadingBody isError={isError} onRetry={() => void refetch()} t={t} />
+      ) : (
+        <FirewallReadyBody
+          t={t}
+          state={state}
+          draft={draft}
+          grouped={grouped}
+          hasOtherErrors={validateErrors.length > 0}
+          portLabels={portLabels}
+          timeoutS={timeoutS}
+          onTimeoutChange={setTimeoutS}
+          confirm={{ open: confirmOpen, diff: confirmDiff, loading: applyM.isPending, onConfirm: handleConfirmApply, onClose: () => setConfirmOpen(false) }}
+          pendingActions={{ onConfirm: handleConfirmPending, onRollback: handleRollbackPending, onExpire: () => void refetch(), confirmLoading: confirmM.isPending, rollbackLoading: rollbackM.isPending }}
+          draftActions={{
+            lastResultDismissed, onDismissLastResult: () => setLastResultDismissed(true),
+            diffCount: diff.length, onDiscard: handleDiscard, onApply: handleApplyClick, applyLoading: validateM.isPending,
+            onChangeService: handleChangeService,
+            onChangeBlocked: handleChangeBlocked,
+          }}
+        />
+      )}
+    </AppShellPage>
   );
 }

@@ -12,7 +12,7 @@ export const uz = {
   },
   helperUnavailableBanner: 'Tarmoq xizmati (netd) ishlamayapti — oʻzgarishlarni qoʻllab boʻlmaydi.',
 
-  tabs: { general: 'Umumiy', interfaces: 'Interfeyslar', routes: 'Statik marshrutlar' },
+  tabs: { general: 'Umumiy', interfaces: 'Interfeyslar', routes: 'Statik marshrutlar', ping: 'Ping' },
 
   general: {
     hostnameLabel: 'Host nomi',
@@ -106,6 +106,27 @@ export const uz = {
     rolledBack: 'Qaytarildi.',
   },
 
+  ping: {
+    intro: 'SIP server, shlyuz yoki internetga ulanishni tekshiring. Sozlamalar oʻzgarmaydi.',
+    presetsLabel: 'Tez tanlash',
+    preset: { gateway: 'Shlyuz', sip: 'SIP', internet: 'Internet', dns: 'DNS nomi' },
+    hostLabel: 'Host',
+    hostPlaceholder: 'IP manzil yoki domen (masalan, sip.example.uz)',
+    hostInvalid: 'IP manzil yoki domen nomi kiriting (boʻsh joy va boshida «-» boʻlmasin).',
+    countLabel: 'Paketlar soni',
+    countHint: '1–10',
+    run: 'Ping',
+    helperUnavailable: 'Tarmoq xizmati (netd) ishlamayapti — Ping ishlamaydi.',
+    resultTitle: 'Natija',
+    reachable: 'Javob bor',
+    unreachable: 'Javob yoʻq',
+    loss: 'Yoʻqotish',
+    packets: 'Paketlar (yuborildi/qaytdi)',
+    rtt: 'Kechikish min/oʻrt/maks',
+    ms: '{{value}} ms',
+    output: 'Buyruq chiqishi',
+  },
+
   validation: {
     cidrInvalid: 'CIDR koʻrinishida boʻlishi kerak (masalan 192.168.1.10/24).',
     ipInvalid: 'IP manzil notoʻgʻri.',
@@ -125,7 +146,7 @@ export const ru = {
   },
   helperUnavailableBanner: 'Служба сети (netd) не работает — изменения невозможны.',
 
-  tabs: { general: 'Общее', interfaces: 'Интерфейсы', routes: 'Статические маршруты' },
+  tabs: { general: 'Общее', interfaces: 'Интерфейсы', routes: 'Статические маршруты', ping: 'Ping' },
 
   general: {
     hostnameLabel: 'Имя хоста',
@@ -219,6 +240,27 @@ export const ru = {
     rolledBack: 'Откатано.',
   },
 
+  ping: {
+    intro: 'Проверьте доступность SIP-сервера, шлюза или интернета. Настройки не меняются.',
+    presetsLabel: 'Быстрый выбор',
+    preset: { gateway: 'Шлюз', sip: 'SIP', internet: 'Интернет', dns: 'DNS-имя' },
+    hostLabel: 'Хост',
+    hostPlaceholder: 'IP-адрес или домен (например, sip.example.uz)',
+    hostInvalid: 'Введите IP-адрес или доменное имя (без пробелов и «-» в начале).',
+    countLabel: 'Количество пакетов',
+    countHint: '1–10',
+    run: 'Ping',
+    helperUnavailable: 'Сетевая служба (netd) не работает — Ping недоступен.',
+    resultTitle: 'Результат',
+    reachable: 'Есть ответ',
+    unreachable: 'Нет ответа',
+    loss: 'Потери',
+    packets: 'Пакеты (отправлено/получено)',
+    rtt: 'Задержка мин/сред/макс',
+    ms: '{{value}} мс',
+    output: 'Вывод команды',
+  },
+
   validation: {
     cidrInvalid: 'Нужен формат CIDR (например 192.168.1.10/24).',
     ipInvalid: 'Некорректный IP-адрес.',
@@ -238,7 +280,7 @@ export const en = {
   },
   helperUnavailableBanner: 'The network service (netd) is down — changes cannot be applied.',
 
-  tabs: { general: 'General', interfaces: 'Interfaces', routes: 'Static routes' },
+  tabs: { general: 'General', interfaces: 'Interfaces', routes: 'Static routes', ping: 'Ping' },
 
   general: {
     hostnameLabel: 'Hostname',
@@ -330,6 +372,27 @@ export const en = {
     applied: 'Change applied — remember to confirm it.',
     confirmed: 'Confirmed.',
     rolledBack: 'Rolled back.',
+  },
+
+  ping: {
+    intro: 'Check reachability of the SIP server, gateway or the internet. Settings are not changed.',
+    presetsLabel: 'Quick pick',
+    preset: { gateway: 'Gateway', sip: 'SIP', internet: 'Internet', dns: 'DNS name' },
+    hostLabel: 'Host',
+    hostPlaceholder: 'IP address or domain (e.g. sip.example.uz)',
+    hostInvalid: 'Enter an IP address or domain name (no spaces, must not start with "-").',
+    countLabel: 'Packet count',
+    countHint: '1–10',
+    run: 'Ping',
+    helperUnavailable: 'Network service (netd) is not running — Ping is unavailable.',
+    resultTitle: 'Result',
+    reachable: 'Reachable',
+    unreachable: 'No reply',
+    loss: 'Loss',
+    packets: 'Packets (sent/received)',
+    rtt: 'Latency min/avg/max',
+    ms: '{{value}} ms',
+    output: 'Command output',
   },
 
   validation: {

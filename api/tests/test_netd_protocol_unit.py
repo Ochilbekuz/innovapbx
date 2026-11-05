@@ -62,6 +62,26 @@ class _FakeService:
     async def firewall_rollback(self, pending_id):
         return {"rolled_back": pending_id}
 
+    # ------------------------------------------------------- kirish (access: SSH/Veb)
+    async def access_state(self):
+        return {"ssh": {}, "web": {}}
+
+    async def access_ssh_apply(self, port, *, timeout_s=None):
+        return {"pending_id": "a1", "port": port, "timeout_s": timeout_s}
+
+    async def access_web_apply(self, http_port, https_port, *, timeout_s=None):
+        return {"pending_id": "a2", "http_port": http_port, "https_port": https_port, "timeout_s": timeout_s}
+
+    async def access_confirm(self, pending_id, *, kind=None):
+        return {"confirmed": pending_id, "kind": kind}
+
+    async def access_rollback(self, pending_id):
+        return {"rolled_back": pending_id}
+
+    # ------------------------------------------------------- tarmoq «Ping»
+    async def net_ping(self, host, count):
+        return {"host": host, "count": count}
+
 
 @pytest.mark.asyncio
 async def test_unknown_op_is_bad_request():
@@ -213,3 +233,71 @@ async def test_firewall_confirm_dispatch():
 async def test_firewall_rollback_dispatch():
     response = await dispatch(_FakeService(), {"op": "firewall_rollback", "pending_id": "p1"})
     assert response == {"ok": True, "result": {"rolled_back": "p1"}}
+
+
+# --------------------------------------------------------------- kirish (access: SSH/Veb)
+
+@pytest.mark.asyncio
+async def test_access_state_dispatch():
+    response = await dispatch(_FakeService(), {"op": "access_state"})
+    assert response == {"ok": True, "result": {"ssh": {}, "web": {}}}
+
+
+@pytest.mark.asyncio
+async def test_access_ssh_apply_forwards_port_and_timeout():
+    response = await dispatch(_FakeService(), {"op": "access_ssh_apply", "port": 2222, "timeout_s": 60})
+    assert response == {"ok": True, "result": {"pending_id": "a1", "port": 2222, "timeout_s": 60}}
+
+
+@pytest.mark.asyncio
+async def test_access_ssh_apply_missing_port_is_bad_request():
+    response = await dispatch(_FakeService(), {"op": "access_ssh_apply"})
+    assert response["ok"] is False and response["error"]["code"] == "bad_request"
+
+
+@pytest.mark.asyncio
+async def test_access_ssh_apply_non_int_port_is_bad_request():
+    response = await dispatch(_FakeService(), {"op": "access_ssh_apply", "port": "2222"})
+    assert response["ok"] is False and response["error"]["code"] == "bad_request"
+
+
+@pytest.mark.asyncio
+async def test_access_web_apply_forwards_both_ports():
+    response = await dispatch(_FakeService(), {"op": "access_web_apply", "http_port": 8080, "https_port": 8443})
+    assert response == {"ok": True,
+                         "result": {"pending_id": "a2", "http_port": 8080, "https_port": 8443, "timeout_s": None}}
+
+
+@pytest.mark.asyncio
+async def test_access_confirm_forwards_pending_id_and_kind():
+    response = await dispatch(_FakeService(), {"op": "access_confirm", "pending_id": "a1", "kind": "web"})
+    assert response == {"ok": True, "result": {"confirmed": "a1", "kind": "web"}}
+
+
+@pytest.mark.asyncio
+async def test_access_confirm_missing_pending_id_is_bad_request():
+    response = await dispatch(_FakeService(), {"op": "access_confirm"})
+    assert response["ok"] is False and response["error"]["code"] == "bad_request"
+
+
+@pytest.mark.asyncio
+async def test_access_rollback_dispatch():
+    response = await dispatch(_FakeService(), {"op": "access_rollback", "pending_id": "a1"})
+    assert response == {"ok": True, "result": {"rolled_back": "a1"}}
+
+
+@pytest.mark.asyncio
+async def test_net_ping_forwards_host_and_count():
+    response = await dispatch(_FakeService(), {"op": "net_ping", "host": "1.1.1.1", "count": 3})
+    assert response == {"ok": True, "result": {"host": "1.1.1.1", "count": 3}}
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("request_", [
+    {"op": "net_ping", "count": 3}, {"op": "net_ping", "host": "", "count": 3},
+    {"op": "net_ping", "host": 5, "count": 3}, {"op": "net_ping", "host": "1.1.1.1"},
+    {"op": "net_ping", "host": "1.1.1.1", "count": "3"},
+])
+async def test_net_ping_missing_or_wrong_typed_fields_are_bad_request(request_):
+    response = await dispatch(_FakeService(), request_)
+    assert response["ok"] is False and response["error"]["code"] == "bad_request"

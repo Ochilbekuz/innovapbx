@@ -18,6 +18,7 @@ import { useSoftphoneStore } from '@/softphone/store';
 import { helpPathFor } from './helpLink';
 import { SCREENS } from './screens';
 import { Sidebar } from './Sidebar';
+import { LiveClock } from './LiveClock';
 
 export { BrandMark } from './BrandMark';
 
@@ -87,8 +88,8 @@ function UserMenu() {
 
 export type SystemInfo = { name: string; detail: string };
 
-/** `zone` — `at` qaysi vaqt zonasida ekani: `label` «UTC+5», `name` IANA nomi «Asia/Tashkent» (tooltip'da). */
-export type Revision = { number: number; state: 'applied' | 'applying' | 'rolled_back'; at: string; zone?: { label: string; name: string } };
+/** `at` — qo'llangan vaqt (tizim zonasida, zona siljishi bilan); faqat tooltip'da — panelda jonli soat (`LiveClock`). */
+export type Revision = { number: number; state: 'applied' | 'applying' | 'rolled_back'; at: string };
 
 /** Dialplan reviziyasi belgisi. Bizda «Apply Config» tugmasi yo'q — har saqlash darhol qo'llanadi; bu faqat holatni ko'rsatadi. */
 export function RevisionBadge({ rev }: { rev: Revision }) {
@@ -105,15 +106,11 @@ export function RevisionBadge({ rev }: { rev: Revision }) {
         'inline-flex h-ctl-md items-center gap-2 rounded-md border px-2.5 text-sm transition-colors duration-fast hover:bg-surface-2',
         rev.state === 'rolled_back' ? 'border-danger/40 bg-danger-soft' : 'border-line bg-surface',
       )}
-      title={t('revisionHistoryTitle')}
+      title={`${st.text} ${rev.at} · ${t('revisionHistoryTitle')}`}
     >
       <span aria-hidden className={cn('[&_svg]:size-4', st.cls)}>{st.icon}</span>
       <span className="text-muted">{t('dialplanLabel')}</span>
       <span className="num font-medium text-fg">r{rev.number}</span>
-      <span className={cn('hidden text-sm xl:inline', rev.state === 'rolled_back' ? 'text-on-danger-soft' : 'text-muted')}>
-        {st.text} <span className="num">{rev.at}</span>
-        {rev.zone && <> <span className="num" title={rev.zone.name}>{rev.zone.label}</span></>}
-      </span>
     </Link>
   );
 }
@@ -212,6 +209,7 @@ function ShellHeader({ embedded, navOpen, onOpenNav, revision, activeId, call }:
       </button>
       <SearchBox />
       <div className="ml-auto flex items-center gap-2">
+        <LiveClock />
         {revision && <RevisionBadge rev={revision} />}
         <Link to={helpPathFor(location.pathname, activeId)} aria-label={t('helpLink')} title={t('helpLink')} className={HEADER_ICON_BTN}>
           <CircleHelp aria-hidden className="size-4" />

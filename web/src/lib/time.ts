@@ -28,6 +28,15 @@ export const formatDateTime = fmt({ day: '2-digit', month: '2-digit', year: 'num
 export const formatDateTimeShort = fmt({ day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' });
 export const formatTime = fmt({ hour: '2-digit', minute: '2-digit' });
 
+/** Jonli soat uchun: tenant zonasida «05.11.2026» va «14:03:21» — tildan qat'i nazar, 24 soatlik. */
+export function clockParts(d: Date, tz: string = tenantTz()): { date: string; time: string } {
+  const p = Object.fromEntries(
+    new Intl.DateTimeFormat('en-GB', { timeZone: tz, day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' })
+      .formatToParts(d).map((x) => [x.type, x.value]),
+  );
+  return { date: `${p.day}.${p.month}.${p.year}`, time: `${p.hour}:${p.minute}:${p.second}` };
+}
+
 /** Vaqt zonasi siljishi shu lahzada: «UTC+5», «UTC+5:30», «UTC» (yozgi vaqt bo'lsa sanaga qarab to'g'ri chiqadi). */
 export function tzOffsetLabel(iso: string, tz: string = tenantTz()): string {
   const name = new Intl.DateTimeFormat('en-US', { timeZone: tz, timeZoneName: 'shortOffset' })

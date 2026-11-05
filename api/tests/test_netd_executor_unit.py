@@ -7,7 +7,14 @@ import stat
 
 import pytest
 
-from app.netd.executor import FIREWALL_CONF_PATH, CommandNotAllowedError, Executor, host_path
+from app.netd.executor import (
+    COMPOSE_WEB_ARGV,
+    FIREWALL_CONF_PATH,
+    NFTABLES_CONF_PATH,
+    CommandNotAllowedError,
+    Executor,
+    host_path,
+)
 
 
 def test_host_path_joins_under_root():
@@ -106,6 +113,22 @@ def test_is_symlink_detection(tmp_path):
     ["systemctl", "restart", "chrony"],
     ["nft", "-c", "-f", FIREWALL_CONF_PATH],
     ["nft", "-f", FIREWALL_CONF_PATH],
+    # Kirish (SSH/Veb) — M12 B4
+    ["nft", "-c", "-f", NFTABLES_CONF_PATH],
+    ["nft", "-f", NFTABLES_CONF_PATH],
+    ["sshd", "-t"],
+    ["sshd", "-T"],
+    ["ss", "-Hltn"],
+    ["systemctl", "is-active", "ssh"],
+    ["systemctl", "is-active", "ssh.socket"],
+    ["systemctl", "reload", "ssh"],
+    ["systemctl", "restart", "ssh.socket"],
+    ["systemctl", "daemon-reload"],
+    list(COMPOSE_WEB_ARGV),
+    # Tarmoq «Ping» tabi — faqat `ping -c N -W S [-4|-6] <host>`
+    ["ping", "-c", "4", "-W", "2", "-4", "1.1.1.1"],
+    ["ping", "-c", "1", "-W", "5", "-6", "2001:db8::1"],
+    ["ping", "-c", "10", "-W", "1", "google.com"],
 ])
 async def test_run_accepts_allowlisted_argv_for_new_binaries(argv, monkeypatch):
     # XAVF: bu buyruqlar HAQIQIY bajarilsa host qayta yuklanadi/o'chadi (2026-11-04 dev/bot
@@ -139,11 +162,34 @@ async def test_run_accepts_allowlisted_argv_for_new_binaries(argv, monkeypatch):
     ["systemctl", "restart", "systemd-timesyncd", "asterisk"],
     ["timedatectl", "show-timesync", "--all"],
     ["systemctl", "reboot", "--now"],
-    ["nft", "-f", "/etc/nftables.conf"],
     ["nft", "flush", "ruleset"],
     ["nft", "list", "table", "ip", "filter"],
     ["nft", "list", "table", "inet", "innova_fw"],
     ["nft", "-c", "-f", "/etc/innova/firewall.nft", "extra"],
+    ["nft", "-f", NFTABLES_CONF_PATH, "extra"],
+    # Kirish (SSH/Veb) — M12 B4: ruxsat etilmagan argv'lar
+    ["sshd", "-D"],
+    ["sshd", "-t", "-f", "/tmp/evil.conf"],
+    ["ss", "-tunlp"],
+    ["systemctl", "restart", "ssh"],
+    ["systemctl", "stop", "ssh.socket"],
+    ["docker", "compose", "down"],
+    [*COMPOSE_WEB_ARGV[:-1], "api"],  # web o'rniga boshqa konteyner
+    # Tarmoq «Ping» — argument in'eksiyasi / chegaradan tashqari qiymatlar
+    ["ping", "-c", "4", "-W", "2", "-oProxy"],
+    ["ping", "-c", "4", "-W", "2", "-f", "1.1.1.1"],
+    ["ping", "-c", "11", "-W", "2", "-4", "1.1.1.1"],
+    ["ping", "-c", "0", "-W", "2", "-4", "1.1.1.1"],
+    ["ping", "-c", "4", "-W", "6", "-4", "1.1.1.1"],
+    ["ping", "-c", "04", "-W", "2", "-4", "1.1.1.1"],
+    ["ping", "-c", "4", "-W", "2", "1.1.1.1"],  # IP literal — oila bayrog'isiz emas
+    ["ping", "-c", "4", "-W", "2", "-6", "1.1.1.1"],  # noto'g'ri oila
+    ["ping", "-c", "4", "-W", "2", "-4", "google.com"],
+    ["ping", "-W", "2", "-c", "4", "google.com"],
+    ["ping", "-c", "4", "-W", "2", "a b"],
+    ["ping", "-c", "4", "-W", "2", "google.com", "extra"],
+    ["ping", "-c", "x", "-W", "2", "google.com"],
+    ["ping", "google.com"],
 ])
 async def test_run_rejects_argv_outside_per_binary_guard(argv):
     executor = Executor("local", "/")

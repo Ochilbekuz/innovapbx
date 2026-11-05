@@ -14,7 +14,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import get_netd_client, get_session, require_access
 from app.core.errors import ApiError
 from app.db.models import User
-from app.schemas import NetworkConfigIn, NetworkPendingActionIn, NetworkStateOut, NetworkValidateOut
+from app.schemas import (
+    NetworkConfigIn,
+    NetworkPendingActionIn,
+    NetworkPingIn,
+    NetworkPingOut,
+    NetworkStateOut,
+    NetworkValidateOut,
+)
 from app.services.audit import record_audit
 from app.services.netd_client import NetdClient, NetdUnavailableError
 
@@ -114,3 +121,12 @@ async def rollback_network(
     client: NetdClient = Depends(get_netd_client), user: User = Depends(require_access),
 ) -> dict[str, Any]:
     return await _finish_pending_action("rollback", "network.rollback", payload, session, client, user)
+
+
+@router.post("/network/ping", response_model=NetworkPingOut)
+async def ping_network(
+    payload: NetworkPingIn, client: NetdClient = Depends(get_netd_client), user: User = Depends(require_access),
+) -> dict[str, Any]:
+    """Diagnostika — hech narsa o'zgarmaydi, shu sabab `validate` kabi audit yo'q
+    (locked/readonly holatda ham ishlaydi)."""
+    return await _call(client, "net_ping", host=payload.host, count=payload.count)

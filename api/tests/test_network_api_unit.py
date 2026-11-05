@@ -9,7 +9,7 @@ import pytest
 
 from app.api.v1 import network as net
 from app.core.errors import ApiError
-from app.schemas import NetworkConfigIn, NetworkDnsIn, NetworkPendingActionIn
+from app.schemas import NetworkConfigIn, NetworkDnsIn, NetworkPendingActionIn, NetworkPingIn
 from app.services.netd_client import NetdUnavailableError
 
 USER = SimpleNamespace(id="u1", tenant_id="t1")
@@ -53,6 +53,9 @@ class _FakeClient:
 
     async def rollback(self, **kw):
         return await self._dispatch("rollback", **kw)
+
+    async def net_ping(self, **kw):
+        return await self._dispatch("net_ping", **kw)
 
 
 def _ok(result):
@@ -177,3 +180,44 @@ async def test_rollback_network_not_found_raises_404():
     with pytest.raises(ApiError) as exc:
         await net.rollback_network(payload, session=_Session(), client=client, user=USER)
     assert exc.value.status_code == 404
+
+
+# --------------------------------------------------------------------- «Ping» tabi
+
+PING_RESULT = {"host": "1.1.1.1", "ok": True, "transmitted": 4, "received": 4, "loss_pct": 0.0,
+               "rtt_min_ms": 1.0, "rtt_avg_ms": 1.5, "rtt_max_ms": 2.0, "output": "4 packets transmitted"}
+
+
+@pytest.mark.asyncio
+async def test_ping_network_forwards_host_and_count_without_audit():
+    seen = {}
+
+    def behavior(**kw):
+        seen.update(kw)
+        return _ok(PING_RESULT)
+
+    result = await net.ping_network(NetworkPingIn(host="1.1.1.1", count=4), client=_FakeClient(net_ping=behavior),
+                                    user=USER)
+    assert seen == {"host": "1.1.1.1", "count": 4}
+    assert result == PING_RESULT
+
+
+@pytest.mark.asyncio
+async def test_ping_network_helper_unreachable_raises_503():
+    client = _FakeClient(net_ping=NetdUnavailableError("yo'q"))
+    with pytest.raises(ApiError) as exc:
+        await net.ping_network(NetworkPingIn(host="google.com"), client=client, user=USER)
+    assert exc.value.status_code == 503 and exc.value.code == "helper_unavailable"
+
+
+@pytest.mark.asyncio
+async def test_ping_network_invalid_host_from_netd_raises_422():
+    client = _FakeClient(net_ping=_err("invalid_config", "Yaroqsiz host", [{"field": "host", "message": "x"}]))
+    with pytest.raises(ApiError) as exc:
+        await net.ping_network(NetworkPingIn(host="google.com"), client=client, user=USER)
+    assert exc.value.status_code == 422
+
+
+def test_ping_route_is_registered_as_post():
+    paths = {(m, r.path) for r in net.router.routes for m in r.methods}
+    assert ("POST", "/network/ping") in paths
