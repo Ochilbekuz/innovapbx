@@ -5,6 +5,7 @@ import { screen } from '@testing-library/react';
 import { createFakeClient } from '@/api/fake';
 import { useSession } from '@/api/session';
 import { loginAs, renderPage } from '@/test-pages';
+import { formatDateTimeShort } from '@/lib/time';
 
 const client = createFakeClient();
 vi.mock('@/api', async (importOriginal) => {
@@ -35,5 +36,15 @@ describe('AppShellPage', () => {
 
     expect(await screen.findByText(/Dialplan/)).toBeTruthy();
     expect(screen.queryByRole('button', { name: /softfon|softphone|telefon/i })).toBeNull();
+  });
+
+  it('reviziya belgisi sana, vaqt va vaqt zonasini koʻrsatadi', async () => {
+    await loginAs(client, 'admin');
+    const createdAt = (await client.configRevisions(1)).items[0]!.created_at;
+    renderPage(<AppShellPage title="Test">x</AppShellPage>);
+
+    const zone = await screen.findByText('UTC+5');
+    expect(zone).toHaveAttribute('title', 'Asia/Tashkent');
+    expect(zone.closest('a')).toHaveTextContent(`${formatDateTimeShort(createdAt)} UTC+5`);
   });
 });

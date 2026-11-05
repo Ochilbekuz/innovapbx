@@ -1,7 +1,20 @@
 import { describe, expect, it } from 'vitest';
-import { formatDateTime, formatTime, formatUptime, tenantDate, tenantDateTimeIso } from './time';
+import { formatDateTime, formatTime, formatUptime, tenantDate, tenantDateTimeIso, tzOffsetLabel } from './time';
 
 describe('time', () => {
+  it.each([
+    ['Asia/Tashkent', 'UTC+5'],
+    ['Asia/Kolkata', 'UTC+5:30'],
+    ['America/New_York', 'UTC-4'],
+    ['UTC', 'UTC'],
+  ])('vaqt zonasi siljishi: %s → %s', (tz, label) => {
+    expect(tzOffsetLabel('2026-10-27T13:19:31Z', tz)).toBe(label);
+  });
+
+  it('siljish sukut boʻyicha panel zonasida (Toshkent)', () => {
+    expect(tzOffsetLabel('2026-10-27T13:19:31Z')).toBe('UTC+5');
+  });
+
   it('UTC vaqtni brauzer zonasidan qat\'i nazar Toshkent vaqtida ko\'rsatadi', () => {
     expect(formatTime('2026-10-27T13:19:31Z')).toContain('18:19');
     expect(formatDateTime('2026-10-27T13:19:31Z')).toContain('18:19:31');

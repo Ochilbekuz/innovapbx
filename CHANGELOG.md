@@ -1,5 +1,10 @@
 # O'zgarishlar tarixi
 
+## 1.0.20 — 2026-11-05
+- Yuqori paneldagi **Dialplan reviziyasi belgisi** endi faqat soatni emas, **sana, vaqt va vaqt zonasini** ko'rsatadi:
+  «qo'llandi 05.11.26 19:48 UTC+5». Zona ustiga sichqoncha olib borilsa to'liq nomi chiqadi (`Asia/Tashkent`).
+  Ilgari faqat «19:48» edi — qaysi kun va qaysi zona ekani noma'lum edi.
+
 ## 1.0.19 — 2026-11-04
 - **Yangi yon menyu**: bir vaqtda faqat bitta bo'lim ochiq (akkordeon) — boshqasini ochsangiz oldingisi yig'iladi;
   boshqa bo'limdagi sahifaga o'tilsa o'sha bo'lim o'zi ochiladi.

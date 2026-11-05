@@ -87,7 +87,8 @@ function UserMenu() {
 
 export type SystemInfo = { name: string; detail: string };
 
-export type Revision = { number: number; state: 'applied' | 'applying' | 'rolled_back'; at: string };
+/** `zone` — `at` qaysi vaqt zonasida ekani: `label` «UTC+5», `name` IANA nomi «Asia/Tashkent» (tooltip'da). */
+export type Revision = { number: number; state: 'applied' | 'applying' | 'rolled_back'; at: string; zone?: { label: string; name: string } };
 
 /** Dialplan reviziyasi belgisi. Bizda «Apply Config» tugmasi yo'q — har saqlash darhol qo'llanadi; bu faqat holatni ko'rsatadi. */
 export function RevisionBadge({ rev }: { rev: Revision }) {
@@ -111,6 +112,7 @@ export function RevisionBadge({ rev }: { rev: Revision }) {
       <span className="num font-medium text-fg">r{rev.number}</span>
       <span className={cn('hidden text-sm xl:inline', rev.state === 'rolled_back' ? 'text-on-danger-soft' : 'text-muted')}>
         {st.text} <span className="num">{rev.at}</span>
+        {rev.zone && <> <span className="num" title={rev.zone.name}>{rev.zone.label}</span></>}
       </span>
     </Link>
   );

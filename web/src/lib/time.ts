@@ -20,6 +20,16 @@ const fmt = (opts: Intl.DateTimeFormatOptions) => (iso: string) =>
 export const formatDateTime = fmt({ day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' });
 export const formatDateTimeShort = fmt({ day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' });
 export const formatTime = fmt({ hour: '2-digit', minute: '2-digit' });
+
+/** Vaqt zonasi siljishi shu lahzada: «UTC+5», «UTC+5:30», «UTC» (yozgi vaqt bo'lsa sanaga qarab to'g'ri chiqadi). */
+export function tzOffsetLabel(iso: string, tz: string = TENANT_TZ): string {
+  const name = new Intl.DateTimeFormat('en-US', { timeZone: tz, timeZoneName: 'shortOffset' })
+    .formatToParts(new Date(iso))
+    .find((p) => p.type === 'timeZoneName')?.value;
+  // ICU nol siljishni «GMT» yoki «GMT+0» deb beradi — ikkalasi ham «UTC».
+  return (name ?? 'GMT').replace(/^GMT(\+0$)?/, 'UTC');
+}
+
 /** Sana-only maydonlar uchun (bayram kuni, "YYYY-MM-DD") — vaqt zonasiz, chunki kalendar kuni, lahza emas. */
 export const formatDateShort = (day: string) => new Date(`${day}T00:00:00Z`).toLocaleDateString(currentLocale(), { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'UTC' });
 
