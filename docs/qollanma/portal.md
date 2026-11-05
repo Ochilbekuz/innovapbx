@@ -23,6 +23,9 @@ Menyu: **Foydalanuvchilar → Mening kabinetim**. Kim koʻradi: tizimga kirgan h
 - **Telefonga ulash (QR)** — mobil Linphone ilovasini QR kod orqali parolsiz sozlash; havola bir martalik va 60 soniyadan keyin yaroqsiz boʻladi.
 - **Brauzer telefoni** — sahifa yuqori qismidagi (header) softfon chipi: WebRTC orqali toʻgʻridan-toʻgʻri brauzerdan qoʻngʻiroq qilish/qabul qilish. Faqat WebRTC yoqilgan ichki raqamga ega foydalanuvchilarda koʻrinadi.
 - **2FA (ikki bosqichli tasdiqlash)** — ixtiyoriy, kirishda ilovadan 6 xonali kod talab qiladi.
+- **Parolni oʻzgartirish** — joriy va yangi parol (kamida 10 belgi); saqlangach boshqa qurilmalardagi sessiyalar yopiladi.
+
+> Profil, parol va 2FA boʻlimi **ichki raqami boʻlmagan** foydalanuvchida (masalan, admin) ham koʻrinadi. Tez kirish: yuqori oʻng burchakdagi ism belgisi → **Profil va xavfsizlik**.
 
 ## Maydonlar
 
@@ -36,6 +39,7 @@ Menyu: **Foydalanuvchilar → Mening kabinetim**. Kim koʻradi: tizimga kirgan h
 | **Soʻnggi qoʻngʻiroqlar** | Oxirgi 24 soat: vaqt, yoʻnalish, raqam, natija belgisi, davomiylik, yozib olingan ovoz |
 | **Mening baholarim** | Sifat nazorati baholagan varaqalar: sana, varaqa nomi, ball foizi, izoh |
 | **Ikki bosqichli tasdiqlash (2FA)** | Yoqish/oʻchirish, zaxira kodlarni qayta yaratish |
+| **Parolni oʻzgartirish** | **Joriy parol**, **Yangi parol** (kamida 10 belgi), **Parolni saqlash** |
 | **Ovozli xabarlar** | Kimdan, sana, davomiylik, tinglash/oʻchirish, oʻqilmagan belgisi |
 
 ## Qanday qilinadi
@@ -64,6 +68,10 @@ Menyu: **Foydalanuvchilar → Mening kabinetim**. Kim koʻradi: tizimga kirgan h
 1. **Ikki bosqichli tasdiqlash (2FA)** kartasida **Yoqish** tugmasini bosing.
 2. Ochilgan QR kodni autentifikator ilovasi (masalan Google Authenticator) bilan skanerlang va kodni kiritib tasdiqlang.
 3. Koʻrsatilgan zaxira kodlarni xavfsiz joyga saqlang, **Tayyor**ni bosing.
+
+### Parolni oʻzgartirish
+1. **Parolni oʻzgartirish** kartasida joriy parolni va yangi parolni kiriting.
+2. **Parolni saqlash**ni bosing — «Parol oʻzgartirildi» xabari chiqadi; boshqa qurilmalarda qayta kirish kerak boʻladi.
 
 ### Ovozli xabarni tinglash yoki oʻchirish
 1. **Ovozli xabarlar** roʻyxatida kerakli xabarni toping.

@@ -2,7 +2,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import * as Popover from '@radix-ui/react-popover';
-import { CircleCheck, CircleHelp, LoaderCircle, LogOut, Menu, Moon, RotateCcw, Search, Sun } from 'lucide-react';
+import { CircleCheck, CircleHelp, LoaderCircle, LogOut, Menu, Moon, RotateCcw, Search, Sun, UserRoundCog } from 'lucide-react';
 import { cn } from '@/lib/cn';
 import { LANGS, persistLanguage, type Lang } from '@/lib/i18n';
 import { useTheme } from '@/lib/theme';
@@ -72,6 +72,14 @@ function UserMenu() {
             <p className="truncate text-sm font-medium text-fg">{name}</p>
             <p className="num truncate text-xs text-muted">{user?.login}</p>
           </div>
+          <Link
+            to="/me"
+            onClick={() => setOpen(false)}
+            className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm text-fg transition-colors duration-fast hover:bg-surface-2"
+          >
+            <UserRoundCog aria-hidden className="size-4 text-muted" />
+            {t('userMenu.profile')}
+          </Link>
           <button
             type="button"
             onClick={handleLogout}

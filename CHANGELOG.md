@@ -1,5 +1,13 @@
 # O'zgarishlar tarixi
 
+## 1.0.26 — 2026-11-05
+- **Profil endi hammada shakllanadi**: «Mening kabinetim» ichki raqami bo'lmagan foydalanuvchida (masalan, admin) faqat
+  «Ichki raqam bog'lanmagan» yozuvini ko'rsatardi — 2FA yoqib ham, parolni o'zgartirib ham bo'lmasdi. Endi har kimda
+  «Profil va xavfsizlik» bo'limi bor: ism/login/ichki raqam, **Parolni o'zgartirish** (joriy + yangi, kamida 10 belgi;
+  boshqa qurilmalardagi sessiyalar yopiladi) va **Ikki bosqichli tasdiqlash (2FA)**.
+- Yuqori o'ng burchakdagi ism belgisi menyusida **«Profil va xavfsizlik»** havolasi qo'shildi.
+- 2FA tasdiqlash oynalari bitta komponentga birlashtirildi; oyna qayta ochilganda eski kod qolmaydi.
+
 ## 1.0.25 — 2026-11-05
 - **«Kirish (SSH va veb-panel)» endi alohida menyu emas** — Firewall sahifasidagi tab: «Qoidalar» | «SSH va veb-panel».
   Firewall'dagi «SSH va veb-panelga kirish sozlamalari» havolasi shu tabni ochadi.

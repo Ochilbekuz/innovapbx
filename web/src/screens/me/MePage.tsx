@@ -1,19 +1,16 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
-  ArrowLeftRight, CheckCircle2, LogIn, LogOut, Pause, Phone, PhoneIncoming, PhoneOutgoing, Play, QrCode, ShieldCheck, Trash2, Voicemail,
+  ArrowLeftRight, CheckCircle2, LogIn, LogOut, Pause, Phone, PhoneIncoming, PhoneOutgoing, Play, QrCode, Trash2, Voicemail,
 } from 'lucide-react';
 import { apiClient } from '@/api';
 import {
-  useDisableTotp, useMeCalls, useMeOverview, useMeQueueAction, useMeVoicemailDelete, useMeVoicemailHeard, useMeVoicemailMessages,
-  useMyEvaluations, usePatchMeExtension, useRegenerateTotpRecoveryCodes,
+  useMeCalls, useMeOverview, useMeQueueAction, useMeVoicemailDelete, useMeVoicemailHeard, useMeVoicemailMessages,
+  useMyEvaluations, usePatchMeExtension,
 } from '@/api/queries';
 import { isApiError } from '@/api/errors';
-import { useSession } from '@/api/session';
 import type { Call, CallDirection, MeExtensionOverview, MeQueueOverview, QaEvaluation } from '@/api/types';
 import { useCanEdit } from '@/auth/permissions';
-import { TotpEnrollPanel } from '@/auth/TotpEnrollPanel';
-import { TotpRecoveryCodes } from '@/auth/TotpRecoveryCodes';
 import { daysAgo, formatDateTimeShort, formatDurationSec, isoDate } from '@/lib/time';
 import { AppShellPage } from '@/shell/AppShellPage';
 import { ClickToCallButton } from '@/softphone/ClickToCallButton';
@@ -22,6 +19,7 @@ import { Modal } from '@/ui/Dialog';
 import { Field, Input } from '@/ui/Field';
 import { AudioPlayer } from '@/pbx/AudioPlayer';
 import { RecordingList, recordingFileBase } from '@/pbx/RecordingList';
+import { AccountSection } from '@/screens/me/AccountSection';
 import { FollowMeSection } from '@/screens/extensions/FollowMeSection';
 import { QrConnectModal } from '@/screens/extensions/QrConnectModal';
 import { scoreTone } from '@/screens/quality/qaScore';
@@ -44,10 +42,15 @@ export function MePage() {
   if (!data?.extension) {
     return (
       <AppShellPage title={t('title')}>
-        <div className="flex flex-col items-center gap-2 rounded-lg border border-dashed border-line px-6 py-12 text-center">
-          <Phone aria-hidden className="size-8 text-muted" />
-          <p className="font-display text-lg text-fg">{t('noExtension.title')}</p>
-          <p className="max-w-md text-sm text-muted">{t('noExtension.body')}</p>
+        <div className="flex flex-col gap-5">
+          <div className="flex items-start gap-3 rounded-lg border border-dashed border-line px-4 py-3">
+            <Phone aria-hidden className="mt-0.5 size-5 shrink-0 text-muted" />
+            <div>
+              <p className="font-display text-base text-fg">{t('noExtension.title')}</p>
+              <p className="text-sm text-muted">{t('noExtension.body')}</p>
+            </div>
+          </div>
+          <AccountSection />
         </div>
       </AppShellPage>
     );
@@ -66,11 +69,9 @@ export function MePage() {
         </div>
         <QueuesCard queues={data.queues} />
         <RecentCallsCard />
-        <div className="grid items-start gap-4 lg:grid-cols-2">
-          <MyEvaluationsCard />
-          <TwoFactorCard />
-        </div>
+        <MyEvaluationsCard />
         <VoicemailCard />
+        <AccountSection />
       </div>
     </AppShellPage>
   );
@@ -290,112 +291,6 @@ function MyEvaluationsCard() {
         empty={{ title: t('evaluations.empty'), body: '' }}
         pageSize={6}
       />
-    </div>
-  );
-}
-
-/** M10 C B2 — ixtiyoriy 2FA: yoqish (QR/kod), oʻchirish, zaxira kodlarni qayta yaratish. */
-function TwoFactorCard() {
-  const { t } = useTranslation(['me', 'common']);
-  const toast = useToast();
-  const user = useSession((s) => s.user);
-  const setUser = useSession((s) => s.setUser);
-  const disableM = useDisableTotp();
-  const regenerateM = useRegenerateTotpRecoveryCodes();
-
-  const [enrolling, setEnrolling] = useState(false);
-  const [newRecoveryCodes, setNewRecoveryCodes] = useState<string[] | null>(null);
-  const [disabling, setDisabling] = useState(false);
-  const [disableCode, setDisableCode] = useState('');
-  const [regenerating, setRegenerating] = useState(false);
-  const [regenerateCode, setRegenerateCode] = useState('');
-
-  const enabled = !!user?.totp_enabled;
-
-  const onEnabled = (codes: string[]) => {
-    if (user) setUser({ ...user, totp_enabled: true });
-    setEnrolling(false);
-    setNewRecoveryCodes(codes);
-  };
-  const confirmDisable = () => {
-    disableM.mutate({ code: disableCode.trim() }, {
-      onSuccess: () => {
-        if (user) setUser({ ...user, totp_enabled: false });
-        setDisabling(false);
-        setDisableCode('');
-        toast({ kind: 'success', title: t('me:twofa.toastDisabled') });
-      },
-      onError: (e) => toast({ kind: 'error', title: e.message }),
-    });
-  };
-  const confirmRegenerate = () => {
-    regenerateM.mutate({ code: regenerateCode.trim() }, {
-      onSuccess: (res) => { setRegenerating(false); setRegenerateCode(''); setNewRecoveryCodes(res.recovery_codes); },
-      onError: (e) => toast({ kind: 'error', title: e.message }),
-    });
-  };
-
-  return (
-    <div className="flex flex-col gap-4 rounded-lg border border-line bg-surface p-4 shadow-card">
-      <div className="flex items-center justify-between gap-2">
-        <p className="font-display text-base text-fg">{t('me:twofa.title')}</p>
-        <Badge tone={enabled ? 'success' : 'neutral'}>{t(enabled ? 'me:twofa.enabled' : 'me:twofa.disabled')}</Badge>
-      </div>
-      <p className="text-sm text-muted">{t('me:twofa.description')}</p>
-
-      {newRecoveryCodes ? (
-        <>
-          <TotpRecoveryCodes codes={newRecoveryCodes} />
-          <Button size="sm" variant="primary" className="self-start" onClick={() => setNewRecoveryCodes(null)}>{t('me:twofa.done')}</Button>
-        </>
-      ) : enrolling ? (
-        <TotpEnrollPanel onEnabled={onEnabled} />
-      ) : enabled ? (
-        <div className="flex flex-wrap gap-2">
-          <Button size="sm" variant="secondary" onClick={() => setRegenerating(true)}>{t('me:twofa.regenerate')}</Button>
-          <Button size="sm" variant="danger-ghost" onClick={() => setDisabling(true)}>{t('me:twofa.disable')}</Button>
-        </div>
-      ) : (
-        <Button size="sm" variant="primary" icon={<ShieldCheck />} className="self-start" onClick={() => setEnrolling(true)}>{t('me:twofa.enable')}</Button>
-      )}
-
-      <Modal
-        open={disabling}
-        onOpenChange={(v) => { setDisabling(v); if (!v) setDisableCode(''); }}
-        title={t('me:twofa.disable')}
-        footer={
-          <>
-            <Button variant="ghost" onClick={() => setDisabling(false)}>{t('common:cancel')}</Button>
-            <Button variant="danger" loading={disableM.isPending} disabled={disableCode.trim().length < 6} onClick={confirmDisable}>
-              {t('me:twofa.disable')}
-            </Button>
-          </>
-        }
-      >
-        <p className="mb-3 text-sm text-muted">{t('me:twofa.disableIntro')}</p>
-        <Field label={t('me:twofa.codeLabel')} error={isApiError(disableM.error) ? disableM.error.message : undefined}>
-          {(a) => <Input {...a} autoFocus inputMode="numeric" autoComplete="one-time-code" placeholder="000000" value={disableCode} onChange={(e) => setDisableCode(e.target.value)} />}
-        </Field>
-      </Modal>
-
-      <Modal
-        open={regenerating}
-        onOpenChange={(v) => { setRegenerating(v); if (!v) setRegenerateCode(''); }}
-        title={t('me:twofa.regenerate')}
-        footer={
-          <>
-            <Button variant="ghost" onClick={() => setRegenerating(false)}>{t('common:cancel')}</Button>
-            <Button variant="primary" loading={regenerateM.isPending} disabled={regenerateCode.trim().length < 6} onClick={confirmRegenerate}>
-              {t('me:twofa.regenerate')}
-            </Button>
-          </>
-        }
-      >
-        <p className="mb-3 text-sm text-muted">{t('me:twofa.regenerateIntro')}</p>
-        <Field label={t('me:twofa.codeLabel')} error={isApiError(regenerateM.error) ? regenerateM.error.message : undefined}>
-          {(a) => <Input {...a} autoFocus inputMode="numeric" autoComplete="one-time-code" placeholder="000000" value={regenerateCode} onChange={(e) => setRegenerateCode(e.target.value)} />}
-        </Field>
-      </Modal>
     </div>
   );
 }

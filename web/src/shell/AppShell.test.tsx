@@ -139,3 +139,15 @@ describe('AppShell — sidebar rejimi (qotirilgan / rail)', () => {
     await waitFor(() => expect(aside).toHaveAttribute('data-compact', 'true'));
   });
 });
+
+describe('AppShell — foydalanuvchi menyusi', () => {
+  afterEach(() => useSession.getState().clear());
+
+  it('menyuda «Profil va xavfsizlik» havolasi bor — parol va 2FA sahifasiga (/me) olib boradi', async () => {
+    const user = userEvent.setup();
+    await renderShell('/dashboard');
+    await user.click(screen.getByRole('button', { name: /^Foydalanuvchi menyusi/ }));
+    const link = await screen.findByRole('link', { name: 'Profil va xavfsizlik' });
+    expect(link).toHaveAttribute('href', '/me');
+  });
+});

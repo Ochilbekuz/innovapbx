@@ -29,6 +29,12 @@ export const uz = {
     title: 'Mening baholarim', empty: 'Hali baholanmagansiz.',
     column: { date: 'Sana', checklist: 'Varaqa', score: 'Ball', comment: 'Izoh' },
   },
+  // Profil va xavfsizlik — ichki raqami yoʻq foydalanuvchida ham koʻrinadi.
+  account: { login: 'Login', extension: 'Ichki raqam', extensionNone: 'bogʻlanmagan' },
+  password: {
+    title: 'Parolni oʻzgartirish', description: 'Saqlangandan keyin boshqa qurilmalardagi sessiyalar yopiladi.',
+    current: 'Joriy parol', new: 'Yangi parol', newHint: 'Kamida 10 belgi', submit: 'Parolni saqlash', success: 'Parol oʻzgartirildi',
+  },
   // M10 C B2 — ixtiyoriy 2FA: yoqish/oʻchirish/zaxira kodlarni qayta yaratish.
   twofa: {
     title: 'Ikki bosqichli tasdiqlash (2FA)', enabled: 'Yoqilgan', disabled: 'Oʻchirilgan',
@@ -68,6 +74,12 @@ export const ru = {
     title: 'Мои оценки', empty: 'Вас пока не оценивали.',
     column: { date: 'Дата', checklist: 'Чек-лист', score: 'Балл', comment: 'Комментарий' },
   },
+  // Профиль и безопасность — видно и пользователю без внутреннего номера.
+  account: { login: 'Логин', extension: 'Внутренний номер', extensionNone: 'не привязан' },
+  password: {
+    title: 'Смена пароля', description: 'После сохранения сеансы на других устройствах будут закрыты.',
+    current: 'Текущий пароль', new: 'Новый пароль', newHint: 'Не менее 10 символов', submit: 'Сохранить пароль', success: 'Пароль изменён',
+  },
   twofa: {
     title: 'Двухфакторная проверка (2FA)', enabled: 'Включена', disabled: 'Отключена',
     description: 'Когда включена, при входе дополнительно запрашивается 6-значный код из приложения — ваша учётная запись защищена лучше.',
@@ -105,6 +117,12 @@ export const en = {
   evaluations: {
     title: 'My evaluations', empty: "You haven't been evaluated yet.",
     column: { date: 'Date', checklist: 'Checklist', score: 'Score', comment: 'Comment' },
+  },
+  // Profile & security — shown even to users without an extension.
+  account: { login: 'Login', extension: 'Extension', extensionNone: 'not linked' },
+  password: {
+    title: 'Change password', description: 'After saving, sessions on other devices are signed out.',
+    current: 'Current password', new: 'New password', newHint: 'At least 10 characters', submit: 'Save password', success: 'Password changed',
   },
   twofa: {
     title: 'Two-factor verification (2FA)', enabled: 'Enabled', disabled: 'Disabled',

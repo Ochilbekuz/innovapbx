@@ -31,6 +31,9 @@ sections are hidden — contact your admin.
 - **Browser phone** — the softphone chip at the top of the page (header): place/receive calls
   directly from the browser via WebRTC. Only shown for users whose extension has WebRTC enabled.
 - **2FA (two-factor verification)** — optional; requires a 6-digit code from an app at sign-in.
+- **Change password** — current and new password (at least 10 characters); saving signs out sessions on other devices.
+
+> The profile, password and 2FA section is shown even to users **without an extension** (e.g. the admin). Shortcut: the name badge in the top-right corner → **Profile & security**.
 
 ## Fields
 
@@ -44,6 +47,7 @@ sections are hidden — contact your admin.
 | **Recent calls** | Last 24 hours: time, direction, number, outcome badge, duration, call recording |
 | **My evaluations** | Scorecards completed by quality control: date, checklist name, score percentage, comment |
 | **Two-factor verification (2FA)** | Enable/disable, regenerate recovery codes |
+| **Change password** | **Current password**, **New password** (at least 10 characters), **Save password** |
 | **Voicemail** | From, date, duration, listen/delete, unread badge |
 
 ## How to
