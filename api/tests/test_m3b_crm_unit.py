@@ -165,10 +165,12 @@ def test_register_params_inbound_and_outbound():
 
 def test_finish_params_record_url_and_duration():
     call = _call(billsec=17.9, recordings=[{"url": None}, {"url": "https://pbx/r/1"}, {"url": "https://pbx/r/2"}])
-    assert bitrix24.finish_params(call, call_id="C", user_id="9") == {
+    assert bitrix24.finish_params(call, call_id="C", user_id="9", upload_records=False) == {
         "CALL_ID": "C", "USER_ID": "9", "DURATION": "17", "STATUS_CODE": "200", "ADD_TO_CHAT": "1",
         "RECORD_URL": "https://pbx/r/1"}
-    assert "RECORD_URL" not in bitrix24.finish_params(_call(), call_id="C", user_id="9")
+    assert "RECORD_URL" not in bitrix24.finish_params(_call(), call_id="C", user_id="9", upload_records=False)
+    # M-CRM §2: `upload_records=True` — `RECORD_URL` HECH QACHON (fayl alohida `attachRecord` orqali).
+    assert "RECORD_URL" not in bitrix24.finish_params(call, call_id="C", user_id="9", upload_records=True)
 
 
 def test_is_late():
@@ -219,7 +221,7 @@ async def test_bitrix_queue_flow_register_show_hide_finish():
         == "skipped:shown"
     assert (await provider.deliver(_ctx(session, "call.answered", _call(extension="103")))).ok
     ended = _call(extension="103", answered_by="103", recordings=[{"url": "https://pbx/r/1"}])
-    result = await provider.deliver(_ctx(session, "call.ended", ended))
+    result = await provider.deliver(_ctx(session, "call.ended", ended, config={"upload_records": False}))
     assert result == DeliveryResult(ok=True, status_code=200, response_body="finish:externalCall.X1")
     assert fake.methods() == ["telephony.externalcall.register", "telephony.externalcall.show",
                               "telephony.externalcall.hide", "telephony.externalcall.finish"]
@@ -247,7 +249,8 @@ async def test_bitrix_late_ringing_registers_hidden_and_no_show():
 async def test_bitrix_finish_without_register_registers_first():
     fake = FakeCrm(REGISTER_OK)
     provider = _bitrix(fake)
-    result = await provider.deliver(_ctx(CrmSession(map_rows=USERS), "call.ended", _call(status="missed")))
+    result = await provider.deliver(_ctx(CrmSession(map_rows=USERS), "call.ended", _call(status="missed"),
+                                         config={"upload_records": False}))
     assert result.ok
     assert fake.methods() == ["telephony.externalcall.register", "telephony.externalcall.finish"]
     assert fake.last("telephony.externalcall.register")["SHOW"] == "0"
@@ -258,7 +261,8 @@ async def test_bitrix_finish_without_register_registers_first():
 async def test_bitrix_outbound_type_1():
     fake = FakeCrm(REGISTER_OK)
     call = _call(direction="outbound", to="998935550000", **{"from": "101"})
-    await _bitrix(fake).deliver(_ctx(CrmSession(map_rows=USERS), "call.ended", call))
+    await _bitrix(fake).deliver(_ctx(CrmSession(map_rows=USERS), "call.ended", call,
+                                     config={"upload_records": False}))
     assert fake.last("telephony.externalcall.register")["TYPE"] == "1"
     assert fake.last("telephony.externalcall.register")["PHONE_NUMBER"] == "998935550000"
 
@@ -299,7 +303,7 @@ async def test_bitrix_crm_origin_link_prevents_second_register():
     session = CrmSession(map_rows=USERS, links={("t1", "bitrix24", LINKEDID): link})
     out = _call(direction="outbound", to="998935550000", extension="101")
     await _bitrix(fake).deliver(_ctx(session, "call.ringing", out))
-    await _bitrix(fake).deliver(_ctx(session, "call.ended", out))
+    await _bitrix(fake).deliver(_ctx(session, "call.ended", out, config={"upload_records": False}))
     assert fake.methods() == ["telephony.externalcall.finish"]
     assert fake.last("telephony.externalcall.finish")["CALL_ID"] == "B-CALL"
 
@@ -621,7 +625,9 @@ async def test_bitrix_changes_validation(monkeypatch):
                                   application_token=" tok ", default_user_id="")
     changes = await crm_routes.bitrix_changes(payload)
     assert changes.secrets == {"webhook_url": HOOK, "application_token": "tok"}
-    assert changes.config == {"create_lead": True, "popup_max_delay_s": 20, "default_user_id": None}
+    assert changes.config == {"create_lead": True, "popup_max_delay_s": 20, "default_user_id": None,
+                              "route_to_responsible": False, "responsible_ring_s": 20, "set_caller_name": True,
+                              "upload_records": True, "auto_sync_users": True}
     assert checked == [(HOOK, "webhook_url")]
     empty = await crm_routes.bitrix_changes(UpdateBitrixPayload(enabled=False, updated_at=NOW, webhook_url=" "))
     assert empty.secrets == {}

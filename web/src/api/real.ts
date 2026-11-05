@@ -30,7 +30,7 @@ import type {
   UpdateAlertSettingsPayload, UpdateSecuritySettingsPayload,
   // M3b — qarang ../../replica/m3b-contract.md
   AmoConfigResult, ApiKey, BitrixConfigResult, CreateApiKeyPayload, CreateWebhookPayload, CreatedApiKey,
-  CreatedWebhook, CrmProvider, CrmTestResult, CrmUserMapEntry, IntegrationsSettings, ListDeliveriesParams,
+  CreatedWebhook, CrmProvider, CrmTestResult, CrmUser, CrmUserMapEntry, IntegrationsSettings, ListDeliveriesParams,
   OneCSample, RecordingSettings, RotatedWebhookSecret, TestWebhookResult, UpdateAmoPayload, UpdateBitrixPayload,
   UpdateCrmUserMapPayload, UpdateIntegrationsSettingsPayload, UpdateRecordingSettingsPayload, UpdateWebhookPayload,
   Webhook, WebhookDelivery,
@@ -344,6 +344,8 @@ export const realClient: ApiClient = {
   updateAmoCrmConfig: (payload: UpdateAmoPayload) => request<AmoConfigResult>('/integrations/crm/amocrm', { method: 'PUT', body: payload }),
   testCrm: (provider: CrmProvider) => request<CrmTestResult>(`/integrations/crm/${provider}/test`, { method: 'POST' }),
   updateCrmUserMap: (provider: CrmProvider, payload: UpdateCrmUserMapPayload) => request<{ items: CrmUserMapEntry[] }>(`/integrations/crm/${provider}/user-map`, { method: 'PUT', body: payload }),
+  listCrmUsers: (provider: CrmProvider) => request<{ items: CrmUser[] }>(`/integrations/crm/${provider}/users`),
+  syncCrm: (provider: CrmProvider) => request<CrmTestResult>(`/integrations/crm/${provider}/sync`, { method: 'POST' }),
 
   // 1C — tayyor namunalar (../../replica/m3b-contract.md §5 — "1C")
   listOneCSamples: () => request<{ items: OneCSample[] }>('/integrations/1c/samples'),

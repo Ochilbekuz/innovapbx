@@ -4,14 +4,14 @@ title: System status
 group: system
 order: 70
 path: /settings/status
-summary: Disk space, trunks, internet/DNS, SIP interface status; clean up disk and reboot/shut down.
+summary: Disk space, trunks, internet/DNS, SIP interface status; clean up disk and reboot.
 ---
 
 # System status
 
 A page for seeing the server's current "health" at a glance: how full the disk is, whether trunks are
 working, whether internet/DNS is available, SIP transports, and the number of registered devices. From
-here you can also clean up the disk and reboot/shut down the server.
+here you can also clean up the disk and reboot the server.
 
 ## Where to find it
 Menu: **System → System status**. Who sees it: only a user with the `*` (full administrator) permission.
@@ -28,7 +28,7 @@ Menu: **System → System status**. Who sees it: only a user with the `*` (full 
 - **Disk cleanup** — free up space by deleting old call recordings, excess local backup copies, and
   uploaded FreePBX migration files; before deleting, the amount of space that will be freed is shown as a
   **preview**.
-- **Reboot / Shut down** — remotely reboot or shut down the server; if blocked for a reason
+- **Reboot** — remotely reboot the server (administrators only; there is no shut-down button); if blocked for a reason
   (`readonly_reason`), the buttons are disabled.
 
 ## Fields
@@ -38,7 +38,7 @@ Menu: **System → System status**. Who sees it: only a user with the `*` (full 
 | Delete records older than this many days | Threshold for cleaning up call recordings | 180 days |
 | Delete all but the last this many backups | Threshold for cleaning up local backup copies | 3 |
 | Uploaded FreePBX migration files | If checked — all uploaded packages are deleted | Default: unchecked |
-| Hostname (confirmation) | Must be typed exactly to confirm reboot/shutdown | — |
+| `reboot` (confirmation) | Type this word to confirm the reboot | — |
 
 ## How to
 
@@ -54,23 +54,23 @@ Menu: **System → System status**. Who sees it: only a user with the `*` (full 
 3. After each change, the system automatically shows how much space will be freed (size and file count).
 4. Click **Delete** and confirm — this action **cannot be undone**.
 
-### Reboot or shut down the server
-1. Click **Reboot** or **Shut down**.
-2. In the dialog, type the server's **hostname** exactly to confirm (to prevent accidental clicks).
+### Reboot the server
+1. Click **Reboot**.
+2. In the dialog, type the word **reboot** to confirm (to prevent accidental clicks; case-insensitive).
 3. After confirming, the action runs after a short delay (a few seconds) rather than instantly — a
    message about this is shown.
 
 ## Tips and limitations
 
 > [!WARNING]
-> Rebooting/shutting down ends all **active calls**. After **Shut down**, you'll need to power the server
-> back on manually (physically or from a management panel).
+> Rebooting ends all **active calls**. Remote shut-down was removed on purpose — a powered-off server
+> would need physical access to start again.
 
 > [!TIP]
 > Before cleaning up the disk, check the amount shown in the **preview** — especially before reducing the
 > number of backup copies, make sure enough copies remain to cover your needs.
 
-- If the reboot/shutdown buttons are **disabled**, the reason is shown on the page (`readonly_reason`) —
+- If the reboot button is **disabled**, the reason is shown on the page (`readonly_reason`) —
   for example, another system operation (backup/migration) might be running.
 - Some disk categories (e.g. logs) are marked as **not manually cleanable** — they can't be deleted from
   this page.
@@ -83,8 +83,8 @@ Menu: **System → System status**. Who sees it: only a user with the `*` (full 
 | Disk is full (red) | Call recordings/backups are taking up a lot of space | Delete old files with **Clean up disk** |
 | Trunk red/problem | No connection to the carrier | Read the reason text, check [SIP & network](/docs/sip) settings |
 | Internet "Disconnected" / DNS not working | Server network issue or DNS service is down | Check the server's network settings |
-| "Hostname doesn't match" | Incorrect text entered in the confirmation field | Type the hostname exactly, matching case |
-| Reboot/shutdown button is disabled | Blocked by `readonly_reason` | Resolve the shown reason and try again |
+| "Type “reboot”" | Different text entered in the confirmation field | Type the word `reboot` |
+| Reboot button is disabled | Blocked by `readonly_reason` | Resolve the shown reason and try again |
 
 ## Related sections
 

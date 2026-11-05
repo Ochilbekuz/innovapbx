@@ -5,6 +5,7 @@ import type { FollowMe, FollowMeInfo, FollowMeTarget, QrProvisioning, UpdateFoll
 import type {
   CreateDayNightPayload, CreateDisaPayload, DayNight, Disa, UpdateDayNightPayload, UpdateDisaPayload,
 } from './types';
+import { buildBitrixSyncPlan, parseBitrixPortalHost } from '@/domain/crm';
 import { defaultFollowMe, sameFollowMe } from '@/domain/followMe';
 import { generateSipPassword, validateSipPassword, type SipPasswordIssue } from '@/domain/sipPassword';
 import { normalizeFollowMe } from './fakeFollowMe';
@@ -29,8 +30,8 @@ import {
   seedSipSettings, seedSipTls, seedTimeConditions, seedTimeGroups, seedTrunks, seedUsers,
   seedVoicemailBoxes, seedVoicemailMessages,
   // M3b — qarang ../../replica/m3b-contract.md
-  seedAmoConfig, seedApiKeys, seedBitrixConfig, seedIntegrationsSettings, seedOneCSamples, seedRecordingSettings,
-  seedWebhookDeliveries, seedWebhooks,
+  seedAmoConfig, seedApiKeys, seedBitrixConfig, seedBitrixPortalUsers, seedIntegrationsSettings, seedOneCSamples,
+  seedRecordingSettings, seedWebhookDeliveries, seedWebhooks,
   // M4a — qarang ../../replica/m4a-contract.md
   seedDeviceKeys, seedDeviceModels, seedDevices, seedDiscoveredDevices, seedProvisionRequests,
   seedProvisioningSettings,
@@ -100,7 +101,7 @@ import type {
   WebrtcCodec, Weekday,
   // M3b — qarang ../../replica/m3b-contract.md
   AmoConfigResult, ApiKey, BitrixConfigResult, CreateApiKeyPayload, CreateWebhookPayload, CreatedApiKey,
-  CreatedWebhook, CrmProvider, CrmTestResult, CrmUserMapEntry, IntegrationsSettings, ListDeliveriesParams,
+  CreatedWebhook, CrmProvider, CrmTestResult, CrmUser, CrmUserMapEntry, IntegrationsSettings, ListDeliveriesParams,
   OneCSample, RecordingSettings, RotatedWebhookSecret, TestWebhookResult, UpdateAmoPayload, UpdateBitrixPayload,
   UpdateCrmUserMapPayload, UpdateIntegrationsSettingsPayload, UpdateRecordingSettingsPayload, UpdateWebhookPayload,
   Webhook, WebhookDelivery,
@@ -403,6 +404,47 @@ export function createFakeClient(
   const webhookDeliveries = new Map<string, WebhookDelivery[]>(webhooks.map((w) => [w.id, seedWebhookDeliveries(w.id)]));
   let bitrixConfig = seedBitrixConfig();
   let amoConfig = seedAmoConfig();
+  /** M3b §5 — oxirgi "Bitrix'dan sinxronlash"da keshlangan portal foydalanuvchilari. */
+  let bitrixUsers: CrmUser[] = [];
+
+  /** M3b §5 — manual moslashuvlarni saqlab qolgan holda `bitrixConfig.user_map`ni portal foydalanuvchilariga moslaydi. */
+  function bitrixManualExtensions(): string[] {
+    return bitrixConfig.user_map.filter((e) => e.source === 'manual').map((e) => e.extension);
+  }
+
+  /** M3b §5 — "Bitrix'dan sinxronlash": portal foydalanuvchilarini (demo) yuklaydi, avto-moslashuvni qayta quradi. */
+  function runBitrixSync(): CrmTestResult {
+    if (!bitrixConfig.config.has_webhook_url) err(422, 'not_configured', 'Avval ulanish maʼlumotlarini saqlang.');
+    bitrixUsers = seedBitrixPortalUsers();
+    const plan = buildBitrixSyncPlan(bitrixUsers, extensions.map((e) => e.number), bitrixManualExtensions());
+    const manualByExt = new Map(bitrixConfig.user_map.filter((e) => e.source === 'manual').map((e) => [e.extension, e]));
+    const nextMap: CrmUserMapEntry[] = extensions.map((e) => {
+      const manual = manualByExt.get(e.number);
+      if (manual) return manual;
+      const auto = plan.autoMap.get(e.number);
+      return { extension: e.number, crm_user_id: auto?.crm_user_id ?? null, crm_user_name: auto?.crm_user_name ?? null, source: 'auto' as const };
+    });
+    bitrixConfig = {
+      ...bitrixConfig,
+      config: { ...bitrixConfig.config, sync: { ...plan.report, last_at: new Date().toISOString() } },
+      user_map: nextMap,
+      status: { ...bitrixConfig.status, state: 'ok', last_ok_at: new Date().toISOString(), last_error: null, unmapped_extensions: nextMap.filter((e) => !e.crm_user_id).map((e) => e.extension) },
+    };
+    return { ok: true, message: 'Sinxronlandi.', users_loaded: bitrixUsers.length };
+  }
+
+  /** M3b §5 — moslashuv jadvalidagi bitta oʻzgarish: `crm_user_id: null` — avto-moslashuvga qaytaradi. */
+  function applyBitrixUserMapEntry(entry: CrmUserMapEntry, crmUserId: string | null): CrmUserMapEntry {
+    if (crmUserId !== null) {
+      const user = bitrixUsers.find((u) => u.id === crmUserId);
+      return { extension: entry.extension, crm_user_id: crmUserId, crm_user_name: user?.name ?? null, source: 'manual' };
+    }
+    const manualExtensions = bitrixManualExtensions().filter((ext) => ext !== entry.extension);
+    const plan = buildBitrixSyncPlan(bitrixUsers, extensions.map((e) => e.number), manualExtensions);
+    const auto = plan.autoMap.get(entry.extension);
+    return { extension: entry.extension, crm_user_id: auto?.crm_user_id ?? null, crm_user_name: auto?.crm_user_name ?? null, source: 'auto' };
+  }
+
   const oneCSamples = seedOneCSamples();
   let integrationsSettingsCore = seedIntegrationsSettings();
   /** M5b — ichki raqam id → Follow Me (yo'q bo'lsa — sukut). */
@@ -2970,10 +3012,10 @@ export function createFakeClient(
     async executePower(payload: PowerActionIn): Promise<PowerActionOut> {
       requireManage('*');
       await delay(200);
-      if (payload.confirm !== netHostname) {
-        err(422, 'hostname_mismatch', "Hostname mos kelmadi — qo'lda aniq yozing", { field: 'confirm' });
+      if (payload.confirm.trim().toLowerCase() !== 'reboot') {
+        err(422, 'confirm_mismatch', "Tasdiqlash uchun «reboot» so'zini yozing", { field: 'confirm' });
       }
-      auditAdd('restart', 'system_power', null, `Tizim ${payload.action === 'reboot' ? 'qayta yuklanadi' : 'o\'chiriladi'}`,
+      auditAdd('restart', 'system_power', null, 'Tizim qayta yuklanadi',
         { action: [null, payload.action] });
       return { action: payload.action, delay_s: 10, scheduled: true, active_calls: fakeActiveCallCount };
     },
@@ -4870,8 +4912,12 @@ export function createFakeClient(
       if (payload.webhook_url !== undefined && !/^https:\/\/.+\/rest\/.+\/.+\/?$/.test(payload.webhook_url)) {
         err(422, 'bad_webhook_url', 'Bitrix24 kiruvchi vebhuk manzili notoʻgʻri (https://portal/rest/user/code/).', { field: 'webhook_url' });
       }
+      if (payload.responsible_ring_s < 5 || payload.responsible_ring_s > 120) {
+        err(422, 'bad_responsible_ring_s', 'Mas\'ulga jiringlash vaqti 5 dan 120 soniyagacha boʻlishi kerak.', { field: 'responsible_ring_s' });
+      }
       const hasWebhook = payload.webhook_url !== undefined ? true : bitrixConfig.config.has_webhook_url;
       const tokenSet = payload.application_token !== undefined ? true : bitrixConfig.config.application_token_set;
+      const portal = payload.webhook_url !== undefined ? parseBitrixPortalHost(payload.webhook_url) : null;
       bitrixConfig = {
         ...bitrixConfig,
         enabled: payload.enabled,
@@ -4882,6 +4928,13 @@ export function createFakeClient(
           popup_max_delay_s: payload.popup_max_delay_s,
           default_user_id: payload.default_user_id,
           application_token_set: tokenSet,
+          route_to_responsible: payload.route_to_responsible,
+          responsible_ring_s: payload.responsible_ring_s,
+          set_caller_name: payload.set_caller_name,
+          upload_records: payload.upload_records,
+          auto_sync_users: payload.auto_sync_users,
+          portal_host: portal?.host ?? bitrixConfig.config.portal_host,
+          portal_cloud: portal?.cloud ?? bitrixConfig.config.portal_cloud,
         },
         status: payload.enabled && hasWebhook ? { ...bitrixConfig.status, state: 'ok', last_ok_at: new Date().toISOString(), last_error: null } : { ...bitrixConfig.status, state: 'disabled' },
         updated_at: new Date().toISOString(),
@@ -4928,12 +4981,41 @@ export function createFakeClient(
       return { ok: true, message: 'Ulanish muvaffaqiyatli — foydalanuvchilar yuklandi.', users_loaded: 1 };
     },
 
+    async listCrmUsers(provider: CrmProvider): Promise<{ items: CrmUser[] }> {
+      await delay();
+      requireManage('system.manage');
+      return { items: provider === 'bitrix24' ? bitrixUsers : [] };
+    },
+
+    async syncCrm(provider: CrmProvider): Promise<CrmTestResult> {
+      await delay(400);
+      requireManage('system.manage');
+      if (provider !== 'bitrix24') {
+        if (!amoConfig.config.token_set) err(422, 'not_configured', 'Avval ulanish maʼlumotlarini saqlang.');
+        amoConfig = { ...amoConfig, status: { ...amoConfig.status, state: 'ok', last_ok_at: new Date().toISOString(), last_error: null } };
+        return { ok: true, message: 'Ulanish muvaffaqiyatli — foydalanuvchilar yuklandi.', users_loaded: 0 };
+      }
+      const result = runBitrixSync();
+      auditAdd('update', 'crm_bitrix24_sync', null, 'Bitrix24', {});
+      return result;
+    },
+
     async updateCrmUserMap(provider: CrmProvider, payload: UpdateCrmUserMapPayload): Promise<{ items: CrmUserMapEntry[] }> {
       await delay();
       requireManage('system.manage');
+      if (provider === 'bitrix24') {
+        const byExt = new Map(bitrixConfig.user_map.map((e) => [e.extension, e]));
+        for (const change of payload.entries) {
+          const current = byExt.get(change.extension) ?? { extension: change.extension, crm_user_id: null, crm_user_name: null, source: 'auto' as const };
+          byExt.set(change.extension, applyBitrixUserMapEntry(current, change.crm_user_id));
+        }
+        const next = [...byExt.values()];
+        bitrixConfig = { ...bitrixConfig, user_map: next, status: { ...bitrixConfig.status, unmapped_extensions: next.filter((e) => !e.crm_user_id).map((e) => e.extension) } };
+        auditAdd('update', 'crm_bitrix24_user_map', null, provider, {});
+        return { items: next };
+      }
       const next: CrmUserMapEntry[] = payload.entries.map((e) => ({ extension: e.extension, crm_user_id: e.crm_user_id, crm_user_name: e.crm_user_id ? `CRM foydalanuvchi ${e.crm_user_id}` : null, source: 'manual' as const }));
-      if (provider === 'bitrix24') bitrixConfig = { ...bitrixConfig, user_map: next };
-      else amoConfig = { ...amoConfig, user_map: next };
+      amoConfig = { ...amoConfig, user_map: next };
       auditAdd('update', `crm_${provider}_user_map`, null, provider, {});
       return { items: next };
     },

@@ -1,10 +1,10 @@
-"""M9 B2 — CID Lookup manbalari: `phonebook` (ichki telefon kitobi) va `http`
-(tashqi HTTP manba, SSRF tekshiruvi bilan) dispetcherlashtirish + natija
+"""M9 B2 — CID Lookup manbalari: `phonebook` (ichki telefon kitobi), `http`
+(tashqi HTTP manba, SSRF tekshiruvi bilan) va `crm` (M-CRM §3 — Bitrix24
+`searchCrmEntities` orqali, `crm_route.py`) dispetcherlashtirish + natija
 tozalash + jarayon ichidagi TTL keshi (`cache_ttl_s` — manba sozlamasi).
 
-`crm` turi HALI AMALGA OSHIRILMAGAN (m9-freepbx-gaps-contract.md Bo'lak B2 —
-cheklov sifatida hujjatlashtirilgan; `lookup_name()` bu tur uchun `None`
-qaytaradi, dialplan natija bo'sh bo'lsa CallerID(name)ni o'zgartirmaydi)."""
+`crm` turi `app.services.crm_route`ni KECHIKTIRILGAN import qiladi (aylanma
+import yo'q — `crm_route` bu modulni import qilmaydi, lekin ehtiyot chorasi)."""
 from __future__ import annotations
 
 import time
@@ -123,11 +123,29 @@ async def _lookup_http(
     return name
 
 
+async def _lookup_crm(
+    session: AsyncSession, tenant_id: str, num: str, *, transport: httpx.AsyncBaseTransport | None = None,
+) -> str | None:
+    """M-CRM §3: tenant'ning YOQILGAN bitrix24 obunasi orqali — obuna/webhook
+    yo'q bo'lsa `None` (fail-open, `crm_route.py` o'zi ham fail-open)."""
+    from app.services import crm_route  # kechiktirilgan — aylanma importsiz
+    from app.services.crm_settings import read_secrets
+
+    sub = await crm_route.enabled_subscription(session, tenant_id)
+    if sub is None:
+        return None
+    webhook_url = (await read_secrets(session, sub)).get("webhook_url", "")
+    if not webhook_url:
+        return None
+    result = await crm_route.route_for_number(session, sub, webhook_url, num, transport=transport)
+    return result.name
+
+
 async def lookup_name(
     session: AsyncSession, tenant_id: str, source: CidLookupSource, num: str,
     *, transport: httpx.AsyncBaseTransport | None = None,
 ) -> str | None:
-    """Manba turiga qarab dispetcherlaydi; `crm` — hali amalga oshirilmagan (`None`)."""
+    """Manba turiga qarab dispetcherlaydi (`phonebook`/`http`/`crm`); noma'lum tur — `None`."""
     if not source.enabled:
         return None
     key = (str(source.id), num)
@@ -139,6 +157,8 @@ async def lookup_name(
         name = await _lookup_phonebook(session, tenant_id, num)
     elif source.kind == "http":
         name = await _lookup_http(source, num, transport=transport)
+    elif source.kind == "crm":
+        name = await _lookup_crm(session, tenant_id, num, transport=transport)
     else:
         name = None
 
@@ -158,7 +178,10 @@ async def test_lookup(
         error = None if name else "not_found"
     elif source.kind == "http":
         name, error = await _lookup_http_detailed(source, num, transport=transport)
+    elif source.kind == "crm":
+        name = await _lookup_crm(session, tenant_id, num, transport=transport)
+        error = None if name else "not_found"
     else:
-        name, error = None, "crm_not_implemented"
+        name, error = None, "unknown_kind"
     ms = int((time.monotonic() - started) * 1000)
     return name, ms, error

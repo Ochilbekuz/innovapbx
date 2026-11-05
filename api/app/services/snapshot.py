@@ -21,6 +21,7 @@ from app.db.models import (
     FeatureCode,
     Holiday,
     InboundRoute,
+    IntegrationSubscription,
     Ivr,
     MiscApplication,
     MiscDestination,
@@ -40,6 +41,7 @@ from app.db.models import (
 from app.services.compiler import (
     AnnouncementSnapshot,
     ConferenceSnapshot,
+    CrmRouteSnapshot,
     DayNightSnapshot,
     DialNumberSnapshot,
     DialplanSnapshot,
@@ -141,6 +143,29 @@ async def build_snapshot(session: AsyncSession, tenant_id: str) -> DialplanSnaps
     # dialplan'ga ta'sir qilmaydi, shu sabab boshqa maydon olinmaydi).
     callback_widget_target_ids = tuple(sorted(set((await session.execute(
         select(CallbackWidget.target_id).where(CallbackWidget.tenant_id == tenant_id))).scalars().all())))
+    # M-CRM §3: tenant bo'yicha YAGONA yoqilgan bitrix24 obunasi — yo'naltirish
+    # (`route_to_responsible`) VA/YOKI ism qo'yish (`set_caller_name`) yoqilgan
+    # bo'lsagina `crm_route` to'ldiriladi (aks holda kiruvchi marshrutga hech
+    # narsa qo'shilmaydi, m-crm-contract.md §3).
+    crm_sub = (await session.execute(
+        select(IntegrationSubscription).where(
+            IntegrationSubscription.tenant_id == tenant_id,
+            IntegrationSubscription.kind == "bitrix24",
+            IntegrationSubscription.enabled,
+        ),
+    )).scalars().first()
+    crm_route: CrmRouteSnapshot | None = None
+    if crm_sub is not None:
+        cfg = crm_sub.config or {}
+        route_to_responsible = bool(cfg.get("route_to_responsible", False))
+        set_caller_name = bool(cfg.get("set_caller_name", True))
+        if route_to_responsible or set_caller_name:
+            crm_route = CrmRouteSnapshot(
+                subscription_id=str(crm_sub.id),
+                ring_s=int(cfg.get("responsible_ring_s", 20)),
+                route=route_to_responsible,
+                set_name=set_caller_name,
+            )
 
     return DialplanSnapshot(
         timezone=tenant.timezone or "",
@@ -293,6 +318,7 @@ async def build_snapshot(session: AsyncSession, tenant_id: str) -> DialplanSnaps
             )
             for d in disa_rows
         ],
+        crm_route=crm_route,
     )
 
 

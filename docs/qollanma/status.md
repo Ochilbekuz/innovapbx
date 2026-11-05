@@ -4,14 +4,14 @@ title: Tizim holati
 group: system
 order: 70
 path: /settings/status
-summary: Disk boʻshligʻi, trunklar, internet/DNS, SIP interfeysi holati; diskni tozalash va qayta yuklash/oʻchirish.
+summary: Disk boʻshligʻi, trunklar, internet/DNS, SIP interfeysi holati; diskni tozalash va qayta yuklash.
 ---
 
 # Tizim holati
 
 Serverning hozirgi "sogʻligʻi"ni bir qarashda koʻrish uchun sahifa: disk qancha toʻlgan, trunklar ishlab
 turganmi, internet/DNS bor-yoʻqligi, SIP transportlari va roʻyxatdan oʻtgan qurilmalar soni. Shu yerdan
-diskni tozalash va serverni qayta yuklash/oʻchirish ham mumkin.
+diskni tozalash va serverni qayta yuklash ham mumkin.
 
 ## Qayerda
 Menyu: **Tizim → Tizim holati**. Kim koʻradi: faqat `*` (toʻliq administrator) ruxsati bor foydalanuvchi.
@@ -29,7 +29,7 @@ Menyu: **Tizim → Tizim holati**. Kim koʻradi: faqat `*` (toʻliq administrato
 - **Diskni tozalash** — eski qoʻngʻiroq yozuvlarini, ortiqcha zaxira nusxalarini va yuklangan FreePBX
   migratsiya fayllarini oʻchirib joy boʻshatish; oʻchirishdan oldin qancha joy boʻshayotgani **oldindan
   koʻrsatiladi (preview)**.
-- **Qayta yuklash / oʻchirish** — serverni masofadan qayta yuklash yoki oʻchirish; agar sabab bilan
+- **Qayta yuklash** — serverni masofadan qayta yuklash (faqat administrator; oʻchirish tugmasi yoʻq); agar sabab bilan
   bloklangan boʻlsa (`readonly_reason`), tugmalar ishlamaydi.
 
 ## Maydonlar
@@ -39,7 +39,7 @@ Menyu: **Tizim → Tizim holati**. Kim koʻradi: faqat `*` (toʻliq administrato
 | Shuncha kundan eski yozuvlar oʻchirilsin | Qoʻngʻiroq yozuvlarini tozalash chegarasi | 180 kun |
 | Oxirgi shuncha zaxiradan tashqarisi oʻchirilsin | Lokal zaxira nusxalarini tozalash chegarasi | 3 ta |
 | Yuklangan FreePBX migratsiya fayllari | Belgilansa — barcha yuklangan toʻplamlar oʻchiriladi | Sukut: oʻchirilgan |
-| Hostname (tasdiqlash) | Qayta yuklash/oʻchirishni tasdiqlash uchun aniq yozish kerak | — |
+| `reboot` (tasdiqlash) | Qayta yuklashni tasdiqlash uchun shu soʻzni yozish kerak | — |
 
 ## Qanday qilinadi
 
@@ -54,23 +54,23 @@ Menyu: **Tizim → Tizim holati**. Kim koʻradi: faqat `*` (toʻliq administrato
 3. Har oʻzgarishdan keyin tizim avtomatik qancha joy boʻshayotganini (hajm va fayl soni) koʻrsatadi.
 4. **Oʻchirish**ni bosib tasdiqlang — bu amal **qaytarilmaydi**.
 
-### Serverni qayta yuklash yoki oʻchirish
-1. **Qayta yuklash** yoki **Oʻchirish** tugmasini bosing.
-2. Ochilgan oynada serverning **hostname**’ini aniq yozib tasdiqlang (xato bosilib ketmasligi uchun).
+### Serverni qayta yuklash
+1. **Qayta yuklash** tugmasini bosing.
+2. Ochilgan oynada **reboot** soʻzini yozib tasdiqlang (xato bosilib ketmasligi uchun; katta-kichik harf farqi yoʻq).
 3. Tasdiqlagandan keyin amal darhol emas, biroz kechikish bilan (soniyalarda) bajariladi — shu haqida
    xabar chiqadi.
 
 ## Maslahatlar va cheklovlar
 
 > [!WARNING]
-> Qayta yuklash/oʻchirish barcha **faol qoʻngʻiroqlarni** uzadi. **Oʻchirish**dan keyin serverni qoʻlda
-> (fizik yoki boshqaruv panelidan) yoqish kerak boʻladi.
+> Qayta yuklash barcha **faol qoʻngʻiroqlarni** uzadi. Serverni masofadan oʻchirish ataylab olib
+> tashlangan — oʻchirilgan serverni qayta yoqish uchun unga fizik kirish kerak boʻladi.
 
 > [!TIP]
 > Diskni tozalashdan oldin **preview**da koʻrsatilgan hajmni tekshirib chiqing — ayniqsa zaxira nusxalari
 > sonini kamaytirishdan oldin, kerakli nusxalar yetarlicha saqlanib qolayotganiga ishonch hosil qiling.
 
-- Agar qayta yuklash/oʻchirish tugmalari **oʻchirilgan** boʻlsa, sahifada sababi (`readonly_reason`)
+- Agar qayta yuklash tugmasi **oʻchirilgan** boʻlsa, sahifada sababi (`readonly_reason`)
   koʻrsatiladi — masalan, boshqa tizim amali (zaxira/koʻchirish) ketayotgan boʻlishi mumkin.
 - Ba'zi disk kategoriyalari (masalan jurnallar) **qoʻlda tozalanmaydi** deb belgilangan — ular shu sahifa
   orqali oʻchirilmaydi.
@@ -83,8 +83,8 @@ Menyu: **Tizim → Tizim holati**. Kim koʻradi: faqat `*` (toʻliq administrato
 | Disk toʻlib ketgan (qizil) | Qoʻngʻiroq yozuvlari/zaxiralar koʻp joy band qilgan | **Diskni tozalash** bilan eski fayllarni oʻchiring |
 | Trunk qizil/muammo | Provayder bilan ulanish yoʻq | Sabab matnini oʻqing, [SIP va tarmoq](/docs/sip) sozlamalarini tekshiring |
 | Internet «Ulanmagan»/DNS ishlamayapti | Server tarmoq muammosi yoki DNS xizmati ishlamayapti | Server tarmoq sozlamalarini tekshiring |
-| «Hostname mos emas» | Tasdiqlash maydoniga notoʻgʻri matn yozilgan | Hostname’ni aniq, katta-kichik harfigacha mos yozing |
-| Qayta yuklash/oʻchirish tugmasi oʻchirilgan | `readonly_reason` bilan bloklangan | Koʻrsatilgan sababni bartaraf qilib qayta urinib koʻring |
+| ««reboot» deb yozing» | Tasdiqlash maydoniga boshqa matn yozilgan | `reboot` soʻzini yozing |
+| Qayta yuklash tugmasi oʻchirilgan | `readonly_reason` bilan bloklangan | Koʻrsatilgan sababni bartaraf qilib qayta urinib koʻring |
 
 ## Bog'liq bo'limlar
 

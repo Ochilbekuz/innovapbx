@@ -15,7 +15,7 @@ vi.mock('@/api', async (importOriginal) => {
 });
 
 const { IntegrationsPage } = await import('./IntegrationsPage');
-const { bitrixHookUrl } = await import('./CrmTab');
+const { bitrixHookUrl, bitrixSubmitPayload } = await import('./CrmTab');
 
 describe('IntegrationsPage', () => {
   beforeEach(async () => {
@@ -107,18 +107,20 @@ describe('IntegrationsPage', () => {
     expect(await screen.findByText('Kamida bitta hodisa tanlang.')).toBeTruthy();
   });
 
-  it('Bitrix24 — sozlanmagan holatda ulanish sinovi muvaffaqiyatsiz boʻladi', async () => {
+  it('Bitrix24 — sozlanmagan holatda sinxronlash muvaffaqiyatsiz boʻladi', async () => {
     const user = userEvent.setup();
     renderPage(<ToastProvider><IntegrationsPage /></ToastProvider>);
 
     await user.click(await screen.findByRole('tab', { name: 'Bitrix24' }));
     const form = await screen.findByTestId('crm-bitrix24-form');
-    expect(within(form).getByText('Bitrix24 integratsiyasi yoqilgan')).toBeTruthy();
+    expect(within(form).getByText('Bitrix24 integratsiyasini yoqish')).toBeTruthy();
     const hook = within(form).getByDisplayValue(/\/api\/public\/v1\/crm\/bitrix24\/.+\/call$/) as HTMLInputElement;
     expect(hook.value.startsWith(`${window.location.origin}/api/`)).toBe(true);
 
-    await user.click(screen.getByTestId('crm-test'));
-    expect(await screen.findByText('Ulanish muvaffaqiyatsiz.')).toBeTruthy();
+    expect(screen.getByText('Portal ulanmagan')).toBeTruthy();
+    expect(screen.getByText('Hali sinxronlanmagan')).toBeTruthy();
+    await user.click(screen.getByTestId('crm-sync'));
+    expect(await screen.findByText('Sinxronlash muvaffaqiyatsiz.')).toBeTruthy();
   });
 
   it('Bitrix24 — notoʻgʻri vebhuk manzili xato koʻrsatadi, toʻgʻri manzil saqlanadi', async () => {
@@ -136,6 +138,50 @@ describe('IntegrationsPage', () => {
     await user.type(urlField, 'https://portal.bitrix24.ru/rest/1/abcdef12345/');
     await user.click(within(form).getByRole('button', { name: 'Saqlash' }));
     expect(await screen.findByText('Saqlandi.')).toBeTruthy();
+    expect(await screen.findByText('Ulangan: portal.bitrix24.ru')).toBeTruthy();
+  });
+
+  it('Bitrix24 — bulut portal + xususiy manzil: ogohlantirish chiqadi, nusxalash ishlaydi', async () => {
+    const user = userEvent.setup();
+    renderPage(<ToastProvider><IntegrationsPage /></ToastProvider>);
+
+    await user.click(await screen.findByRole('tab', { name: 'Bitrix24' }));
+    const form = await screen.findByTestId('crm-bitrix24-form');
+    const urlField = within(form).getByRole('textbox', { name: 'Kiruvchi vebhuk manzili' });
+    await user.type(urlField, 'https://firma.bitrix24.ru/rest/1/abcdef12345/');
+    await user.click(within(form).getByRole('button', { name: 'Saqlash' }));
+    expect(await screen.findByText('Saqlandi.')).toBeTruthy();
+
+    expect(await screen.findByText(/Bitrix24 bulutdan bu manzilga yeta olmaydi/)).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: 'Manzilni nusxalash' }));
+    expect(await screen.findByText('Nusxalandi.')).toBeTruthy();
+  });
+
+  it('Bitrix24 — sinxronlash: hisobot (unknown_inner/conflicts) koʻrinadi, Select orqali moslashuv saqlanadi', async () => {
+    const user = userEvent.setup();
+    renderPage(<ToastProvider><IntegrationsPage /></ToastProvider>);
+
+    await user.click(await screen.findByRole('tab', { name: 'Bitrix24' }));
+    const form = await screen.findByTestId('crm-bitrix24-form');
+    const urlField = within(form).getByRole('textbox', { name: 'Kiruvchi vebhuk manzili' });
+    await user.type(urlField, 'https://portal.bitrix24.ru/rest/1/abcdef12345/');
+    await user.click(within(form).getByRole('button', { name: 'Saqlash' }));
+    expect(await screen.findByText('Saqlandi.')).toBeTruthy();
+
+    await user.click(screen.getByTestId('crm-sync'));
+    expect(await screen.findByText('Sinxronlandi.')).toBeTruthy();
+
+    expect(await screen.findByText('Bitrix’da ichki raqam bor, PBX’da yoʻq:')).toBeTruthy();
+    expect(screen.getByText('Anvar Tojiboyev — 199')).toBeTruthy();
+    expect(screen.getByText('103 raqami bir nechta foydalanuvchida: Aziz Rahimov, Shoxrux Nazarov')).toBeTruthy();
+
+    const usermap = screen.getByTestId('crm-usermap');
+    const row101 = within(usermap).getByText('101').closest('tr')!;
+    expect(within(row101).getByText('Bitrix’dan')).toBeTruthy();
+    const select101 = within(row101).getByRole('combobox');
+    await user.click(select101);
+    await user.click(await screen.findByRole('option', { name: /Sherzod Yusupov/ }));
+    expect(await within(usermap).findByText('Qoʻlda')).toBeTruthy();
   });
 
   it('Umumiy — kartalar holati koʻrinadi, "Sozlash" tegishli tabga olib boradi', async () => {
@@ -314,4 +360,33 @@ describe('bitrixHookUrl', () => {
     [null, 'http://10.0.0.5:8080/api/public/v1/crm/bitrix24/tok/call'],
     ['', 'http://10.0.0.5:8080/api/public/v1/crm/bitrix24/tok/call'],
   ])('%j → %s', (base, out) => expect(bitrixHookUrl('tok', base, 'http://10.0.0.5:8080')).toBe(out));
+});
+
+describe('bitrixSubmitPayload', () => {
+  const base = {
+    enabled: true, createLead: true, popupDelay: '15', defaultUserId: '  7  ', webhookUrl: '  https://x.bitrix24.ru/hook/  ',
+    appToken: '  tok  ', routeToResponsible: true, responsibleRingS: '25', setCallerName: true, uploadRecords: false,
+    autoSyncUsers: true, updatedAt: '2026-01-01T00:00:00Z',
+  };
+
+  it('qiymatlarni trim qiladi va sonlarga aylantiradi', () => {
+    expect(bitrixSubmitPayload(base)).toEqual({
+      enabled: true, create_lead: true, popup_max_delay_s: 15, default_user_id: '7', webhook_url: 'https://x.bitrix24.ru/hook/',
+      application_token: 'tok', updated_at: '2026-01-01T00:00:00Z', route_to_responsible: true, responsible_ring_s: 25,
+      set_caller_name: true, upload_records: false, auto_sync_users: true,
+    });
+  });
+
+  it("boʻsh maydonlar — default_user_id null, webhook_url/application_token undefined (eski qiymat saqlanadi)", () => {
+    const p = bitrixSubmitPayload({ ...base, defaultUserId: '  ', webhookUrl: '  ', appToken: '  ' });
+    expect(p.default_user_id).toBeNull();
+    expect(p.webhook_url).toBeUndefined();
+    expect(p.application_token).toBeUndefined();
+  });
+
+  it("notoʻgʻri sonlar (boʻsh/NaN) — 0ga tushadi", () => {
+    const p = bitrixSubmitPayload({ ...base, popupDelay: '', responsibleRingS: 'abc' });
+    expect(p.popup_max_delay_s).toBe(0);
+    expect(p.responsible_ring_s).toBe(0);
+  });
 });

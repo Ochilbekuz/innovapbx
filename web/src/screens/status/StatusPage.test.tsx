@@ -77,25 +77,27 @@ describe('StatusPage', () => {
   });
 
   it(
-    'qayta yuklash — hostname mos kelmaguncha tasdiqlash oʻchirilgan, mos kelsa rejalashtiriladi (M12 B2)',
+    'qayta yuklash — «reboot» yozilmaguncha tasdiqlash oʻchirilgan, mos kelsa rejalashtiriladi (M12 B2)',
     async () => {
       const user = userEvent.setup();
       await loginAs(client, 'admin');
       renderPage(<ToastProvider><StatusPage /></ToastProvider>);
 
-      await user.click(await screen.findByRole('button', { name: 'Qayta yuklash' }));
+      const rebootBtn = await screen.findByRole('button', { name: 'Qayta yuklash' });
+      expect(screen.queryByRole('button', { name: 'Oʻchirish' })).toBeNull(); // oʻchirish tugmasi yoʻq
+      await user.click(rebootBtn);
       const dialog = await screen.findByRole('dialog', { name: 'Tizimni qayta yuklash' });
 
       const confirmBtn = within(dialog).getByRole('button', { name: 'Tasdiqlash' });
       expect(confirmBtn).toBeDisabled();
 
-      const input = within(dialog).getByPlaceholderText('hostname');
-      await user.type(input, 'notahostname');
+      const input = within(dialog).getByPlaceholderText('reboot');
+      await user.type(input, 'innova-pbx1');
       expect(confirmBtn).toBeDisabled();
-      expect(within(dialog).getByText("Hostname mos emas.")).toBeTruthy();
+      expect(within(dialog).getByText('«reboot» deb yozing.')).toBeTruthy();
 
       await user.clear(input);
-      await user.type(input, 'innova-pbx1');
+      await user.type(input, 'Reboot');
       expect(confirmBtn).not.toBeDisabled();
       await user.click(confirmBtn);
 

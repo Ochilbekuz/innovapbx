@@ -14,6 +14,7 @@ from app.api.internal_callback import router as internal_callback_router
 from app.api.internal_campaigns import router as internal_campaigns_router
 from app.api.internal_cidlookup import router as internal_cidlookup_router
 from app.api.internal_conference import router as internal_conference_router
+from app.api.internal_crmroute import router as internal_crmroute_router
 from app.api.internal_day_night import router as internal_day_night_router
 from app.api.internal_disa import router as internal_disa_router
 from app.api.internal_pinset import router as internal_pinset_router
@@ -151,6 +152,9 @@ def _m3b_jobs() -> list:
     if settings.missed_notify_enabled:  # M10 A2: o'tkazib yuborilgan qo'ng'iroq bildirishnomasi
         from app.services.missed_call_notify import run_forever as missed_notify_run_forever
         jobs.append(missed_notify_run_forever(SessionLocal, settings.missed_notify_interval_s))
+    if settings.crm_users_sync_enabled:  # M-CRM §1: Bitrix24 foydalanuvchi sinxroni
+        from app.services.crm_users_sync import run_forever as crm_users_sync_run_forever
+        jobs.append(crm_users_sync_run_forever(SessionLocal, settings.crm_users_sync_interval_s))
     return jobs
 
 
@@ -169,6 +173,7 @@ app.middleware("http")(maintenance_middleware)
 app.include_router(v1_router)
 app.include_router(internal_router)
 app.include_router(internal_conference_router)
+app.include_router(internal_crmroute_router)  # M-CRM §3
 app.include_router(internal_voicemail_router)
 app.include_router(internal_toll_router)
 app.include_router(internal_softphone_router)

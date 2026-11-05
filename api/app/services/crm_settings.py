@@ -17,12 +17,13 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.errors import ApiError
-from app.db.models import CrmUser, CrmUserMap, Extension, IntegrationSubscription
+from app.db.models import CrmUser, CrmUserMap, Extension, InboundRoute, IntegrationSubscription
 from app.schemas_crm import (
     AmoConfigOut,
     BitrixConfigOut,
     CrmConfigResult,
     CrmStatusOut,
+    CrmSyncReportOut,
     CrmTestResult,
     CrmUserMapEntryIn,
     CrmUserMapEntryOut,
@@ -38,7 +39,10 @@ EVENTS = {"bitrix24": ["call.answered", "call.ended", "call.ringing"], "amocrm":
 def default_config(provider: str) -> dict[str, Any]:
     if provider == "bitrix24":
         return {"create_lead": True, "popup_max_delay_s": bitrix24.DEFAULT_POPUP_MAX_DELAY_S,
-                "default_user_id": None, "hook_token": new_hook_token()}
+                "default_user_id": None, "hook_token": new_hook_token(),
+                # M-CRM §1/§2/§3 — yangi sozlamalar uchun kafolatlangan standart qiymatlar.
+                "route_to_responsible": False, "responsible_ring_s": 20, "set_caller_name": True,
+                "upload_records": True, "auto_sync_users": True}
     return {"base_url": "", "unsorted_for_unknown": True, "default_user_id": None}
 
 
@@ -72,11 +76,20 @@ async def read_secrets(session: AsyncSession, sub: IntegrationSubscription) -> d
 def config_out(provider: str, config: Mapping[str, Any], secrets: Mapping[str, str]) -> BitrixConfigOut | AmoConfigOut:
     """Sirlar HECH QACHON — faqat borligi."""
     if provider == "bitrix24":
+        host = bitrix24.portal_host(secrets.get("webhook_url", ""))
+        sync = config.get("sync")
         return BitrixConfigOut(
             has_webhook_url=bool(secrets.get("webhook_url")), create_lead=bool(config.get("create_lead", True)),
             popup_max_delay_s=int(config.get("popup_max_delay_s", bitrix24.DEFAULT_POPUP_MAX_DELAY_S)),
             default_user_id=config.get("default_user_id"),
-            application_token_set=bool(secrets.get("application_token")), hook_token=str(config.get("hook_token", "")))
+            application_token_set=bool(secrets.get("application_token")), hook_token=str(config.get("hook_token", "")),
+            route_to_responsible=bool(config.get("route_to_responsible", False)),
+            responsible_ring_s=int(config.get("responsible_ring_s", 20)),
+            set_caller_name=bool(config.get("set_caller_name", True)),
+            upload_records=bool(config.get("upload_records", True)),
+            auto_sync_users=bool(config.get("auto_sync_users", True)),
+            portal_host=host, portal_cloud=bitrix24.portal_is_cloud(host),
+            sync=CrmSyncReportOut(**sync) if isinstance(sync, dict) else None)
     return AmoConfigOut(base_url=str(config.get("base_url") or ""), token_set=bool(secrets.get("token")),
                         unsorted_for_unknown=bool(config.get("unsorted_for_unknown", True)),
                         default_user_id=config.get("default_user_id"))
@@ -166,6 +179,32 @@ def auto_map(users: Iterable[CrmUserInfo], extensions: set[str], manual: set[str
     return found
 
 
+def build_sync_report(users: list[CrmUserInfo], extensions: set[str], manual: set[str],
+                      now: datetime) -> dict[str, Any]:
+    """1c: sinxron hisobot — `unknown_inner` (CRM userda PBX'da YO'Q ichki raqam ko'rsatilgan),
+    `conflicts` (bir xil ichki raqamni bir nechta CRM user da'vo qiladi)."""
+    by_inner: dict[str, list[CrmUserInfo]] = {}
+    for user in users:
+        if user.inner_phone:
+            by_inner.setdefault(user.inner_phone, []).append(user)
+    return {
+        "last_at": now.isoformat(),
+        "users_total": len(users),
+        "mapped": len(auto_map(users, extensions, manual)),
+        "unknown_inner": [{"user_id": u.id, "user_name": u.name, "inner_phone": u.inner_phone}
+                          for u in users if u.inner_phone and u.inner_phone not in extensions],
+        "conflicts": [{"inner_phone": inner, "user_names": [u.name for u in group]}
+                      for inner, group in by_inner.items() if len(group) > 1],
+    }
+
+
+async def crm_users_from_store(session: AsyncSession, tenant_id: str, provider: str) -> list[CrmUserInfo]:
+    """1e: Bitrix'ga MUROJAAT QILMASDAN — oldin saqlangan `crm_users`dan o'qiydi."""
+    rows = (await session.execute(select(CrmUser.crm_user_id, CrmUser.name, CrmUser.inner_phone).where(
+        CrmUser.tenant_id == tenant_id, CrmUser.provider == provider))).all()
+    return [CrmUserInfo(id=uid, name=name, inner_phone=inner) for uid, name, inner in rows]
+
+
 async def store_users(session: AsyncSession, tenant_id: str, provider: str, users: list[CrmUserInfo]) -> None:
     await session.execute(delete(CrmUser).where(CrmUser.tenant_id == tenant_id, CrmUser.provider == provider))
     unique = {u.id: u for u in users if u.id}
@@ -210,9 +249,32 @@ async def test_connection(session: AsyncSession, sub: IntegrationSubscription) -
         return CrmTestResult(ok=False, message=exc.result.error or "Ulanish xatosi", users_loaded=None)
     await store_users(session, str(sub.tenant_id), sub.kind, users)
     auto = await refresh_auto_map(session, str(sub.tenant_id), sub.kind, users) if sub.kind == "bitrix24" else 0
+    if sub.kind == "bitrix24":
+        await _sync_extras(session, sub, secrets, users)
     sub.last_error, sub.last_success_at = None, datetime.now(timezone.utc)
     return CrmTestResult(ok=True, message=f"Ulanish muvaffaqiyatli — {len(users)} ta foydalanuvchi yuklandi"
                                           f" (avto-xarita: {auto})", users_loaded=len(users))
+
+
+async def _sync_extras(session: AsyncSession, sub: IntegrationSubscription, secrets: Mapping[str, str],
+                       users: list[CrmUserInfo]) -> None:
+    """`/sync`+fon ishi+`/test` BIR XIL yadro orqali ham bajaradi: 1c (hisobot) va
+    1g (DID'larni Bitrix "liniya" sifatida ro'yxatdan o'tkazish — xato sinxronni YIQITMAYDI)."""
+    numbers = set((await session.execute(select(Extension.number).where(
+        Extension.tenant_id == sub.tenant_id))).scalars().all())
+    manual = set((await session.execute(select(CrmUserMap.extension).where(
+        CrmUserMap.tenant_id == sub.tenant_id, CrmUserMap.provider == sub.kind,
+        CrmUserMap.source == "manual"))).scalars().all())
+    report = build_sync_report(users, numbers, manual, datetime.now(timezone.utc))
+    sub.config = {**(sub.config or {}), "sync": report}
+    dids = (await session.execute(select(InboundRoute.name, InboundRoute.did).where(
+        InboundRoute.tenant_id == sub.tenant_id, InboundRoute.enabled, InboundRoute.did != ""))).all()
+    client = bitrix24.PROVIDER.client(str(sub.id), secrets.get("webhook_url", ""))
+    try:
+        await bitrix24.ensure_lines(client, [(did, name) for name, did in dids],
+                                    create_lead=bool(sub.config.get("create_lead", True)))
+    except Exception:  # noqa: BLE001 — 1g: liniya ro'yxati MUHIM EMAS, sinxron davom etadi
+        pass
 
 
 async def update_user_map(session: AsyncSession, tenant_id: str, provider: str,
@@ -227,6 +289,11 @@ async def update_user_map(session: AsyncSession, tenant_id: str, provider: str,
                        details={"extensions": missing})
     for entry in entries:
         await _save_entry(session, tenant_id, provider, entry)
+    if any(e.crm_user_id is None for e in entries):
+        # 1e: qo'lda qator o'chirildi — raqam avto-xaritaga QAYTA ochiladi; Bitrix'ga
+        # murojaat qilmasdan, oldin saqlangan `crm_users`dan qayta hisoblanadi.
+        users = await crm_users_from_store(session, tenant_id, provider)
+        await refresh_auto_map(session, tenant_id, provider, users)
 
 
 async def _save_entry(session: AsyncSession, tenant_id: str, provider: str, entry: CrmUserMapEntryIn) -> None:

@@ -1216,6 +1216,10 @@ class CrmCallLink(Base):
     user_id: Mapped[str | None] = mapped_column(Text, nullable=True)
     shown_users: Mapped[list[str]] = mapped_column(ARRAY(Text), default=list)
     created_at: Mapped[datetime] = mapped_column(server_default=text("now()"))
+    # M-CRM §2: idempotentlik — `finish` muvaffaqiyatli bo'lgach yozuv (qayta
+    # urinish `finish`ni TAKRORLAMASIN); yozuv ulangani alohida (retry mustaqil).
+    finished_at: Mapped[datetime | None] = mapped_column(nullable=True)
+    record_attached: Mapped[bool] = mapped_column(default=False)
 
 
 class MacAddr(TypeDecorator):

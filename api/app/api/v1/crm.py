@@ -5,12 +5,13 @@ berilmasa eskisi saqlanadi. URL — format + SSRF tekshiruvi. PUT — optimistik
 """
 from __future__ import annotations
 
+import contextlib
 from typing import Any
 
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_session, require_access
+from app.api.deps import get_ami, get_session, require_access
 from app.api.v1.integrations import check_webhook_url
 from app.core.errors import ApiError
 from app.core.optimistic import check_not_stale
@@ -19,16 +20,23 @@ from app.schemas_crm import (
     CrmConfigResult,
     CrmProvider,
     CrmTestResult,
+    CrmUserItem,
+    CrmUsersOut,
     UpdateAmoPayload,
     UpdateBitrixPayload,
     UpdateCrmUserMapPayload,
 )
 from app.services import crm_settings
+from app.services.apply import AmiLike, apply_config
 from app.services.audit import record_audit
 from app.services.crm_settings import Changes
 from app.services.integrations import amocrm, bitrix24
 
 router = APIRouter(prefix="/integrations/crm", tags=["integrations"])
+
+# M-CRM §4: shu maydonlar o'zgarsa — kompilyatsiya qilingan dialplan ESKIRADI
+# (`_crm_route_lines` ulardan foydalanadi), shu sabab `apply_config` chaqiriladi.
+_DIALPLAN_FIELDS = ("route_to_responsible", "set_caller_name", "responsible_ring_s")
 
 
 async def _audit(session: AsyncSession, user: User, action: str, sub: IntegrationSubscription,
@@ -41,10 +49,20 @@ async def _subscription(session: AsyncSession, user: User, provider: str) -> Int
     return await crm_settings.ensure_subscription(session, str(user.tenant_id), provider)
 
 
-async def _save(session: AsyncSession, user: User, sub: IntegrationSubscription, changes: Changes) -> CrmConfigResult:
+async def _save(session: AsyncSession, user: User, sub: IntegrationSubscription, changes: Changes,
+                ami: AmiLike | None = None) -> CrmConfigResult:
+    before_enabled, before_cfg = sub.enabled, dict(sub.config or {})
     await crm_settings.apply_changes(session, sub, changes)
     await session.flush()
     await _audit(session, user, f"crm.{sub.kind}.update", sub, changes.audit_diff())
+    newly_enabled = sub.enabled and not before_enabled
+    if sub.kind == "bitrix24" and (changes.secrets.get("webhook_url") or newly_enabled):
+        # 1 (darhol qayta sinxron): muvaffaqiyatsizlik SAQLASHNI SINDIRMASIN.
+        with contextlib.suppress(Exception):
+            await crm_settings.test_connection(session, sub)
+    if sub.kind == "bitrix24" and ami is not None and (
+        before_enabled != sub.enabled or any(sub.config.get(k) != before_cfg.get(k) for k in _DIALPLAN_FIELDS)):
+        await apply_config(session, tenant_id=str(user.tenant_id), user_id=str(user.id), ami=ami)
     await session.commit()
     await session.refresh(sub)
     return await crm_settings.crm_view(session, sub)
@@ -72,7 +90,10 @@ async def bitrix_changes(payload: UpdateBitrixPayload) -> Changes:
     if payload.application_token and payload.application_token.strip():
         secrets["application_token"] = payload.application_token.strip()
     config = {"create_lead": payload.create_lead, "popup_max_delay_s": payload.popup_max_delay_s,
-              "default_user_id": payload.default_user_id}
+              "default_user_id": payload.default_user_id,
+              "route_to_responsible": payload.route_to_responsible,
+              "responsible_ring_s": payload.responsible_ring_s, "set_caller_name": payload.set_caller_name,
+              "upload_records": payload.upload_records, "auto_sync_users": payload.auto_sync_users}
     return Changes(enabled=payload.enabled, config=config, secrets=secrets)
 
 
@@ -93,10 +114,10 @@ async def amo_changes(payload: UpdateAmoPayload) -> Changes:
 
 @router.put("/bitrix24", response_model=CrmConfigResult)
 async def update_bitrix24(payload: UpdateBitrixPayload, session: AsyncSession = Depends(get_session),
-                          user: User = Depends(require_access)) -> CrmConfigResult:
+                          user: User = Depends(require_access), ami: AmiLike = Depends(get_ami)) -> CrmConfigResult:
     sub = await _subscription(session, user, "bitrix24")
     check_not_stale(sub.updated_at, payload.updated_at)
-    return await _save(session, user, sub, await bitrix_changes(payload))
+    return await _save(session, user, sub, await bitrix_changes(payload), ami)
 
 
 @router.put("/amocrm", response_model=CrmConfigResult)
@@ -116,6 +137,24 @@ async def test_crm(provider: CrmProvider, session: AsyncSession = Depends(get_se
     await _audit(session, user, f"crm.{provider}.test", sub, {"ok": result.ok, "users_loaded": result.users_loaded})
     await session.commit()
     return result
+
+
+@router.post("/{provider}/sync", response_model=CrmTestResult)
+async def sync_crm(provider: CrmProvider, session: AsyncSession = Depends(get_session),
+                   user: User = Depends(require_access)) -> CrmTestResult:
+    """1f: `/test` bilan BIR XIL yadro (`crm_settings.test_connection`) — alohida sinxron tugmasi uchun."""
+    sub = await _subscription(session, user, provider)
+    result = await crm_settings.test_connection(session, sub)
+    await _audit(session, user, f"crm.{provider}.sync", sub, {"ok": result.ok, "users_loaded": result.users_loaded})
+    await session.commit()
+    return result
+
+
+@router.get("/{provider}/users", response_model=CrmUsersOut)
+async def crm_users(provider: CrmProvider, session: AsyncSession = Depends(get_session),
+                    user: User = Depends(require_access)) -> CrmUsersOut:
+    users = await crm_settings.crm_users_from_store(session, str(user.tenant_id), provider)
+    return CrmUsersOut(items=[CrmUserItem(id=u.id, name=u.name, inner_phone=u.inner_phone) for u in users])
 
 
 @router.put("/{provider}/user-map")

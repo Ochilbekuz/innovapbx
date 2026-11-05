@@ -8,10 +8,13 @@ Fayl yo'li (dialplan `innova-rec-start`): `<recordings_dir>/innova/YYYY/MM/DD/<l
 from __future__ import annotations
 
 import asyncio
+import base64
 import contextlib
 import hashlib
 import hmac
 import logging
+import subprocess
+import tempfile
 import uuid
 import wave
 from collections.abc import Iterable
@@ -31,6 +34,7 @@ log = logging.getLogger(__name__)
 RECORDING_SUBDIR = "innova"
 _LINK_DOMAIN = b"innova-recording-link-v1"
 DEFAULT_LINK_TTL_S = 7 * 24 * 3600
+FFMPEG_BIN = "/usr/bin/ffmpeg"
 
 
 # ------------------------------------------------------------ imzoli havola (sof)
@@ -91,6 +95,50 @@ def wav_duration_s(path: Path) -> int:
 
 def absolute_path(relative: str) -> Path:
     return Path(settings.recordings_dir) / relative
+
+
+# ------------------------------------------------------------ M-CRM §2 — CRM yozuv yuklash
+def best_for_call(recs: list[CallRecording], answered_by: str | None) -> CallRecording | None:
+    """Ko'p oyoqli yozuv (parallel jiringlagan operatorlar) — javob bergan
+    operatorniki ustun, topilmasa ENG UZUNI (m-crm-contract.md §2)."""
+    if not recs:
+        return None
+    if answered_by:
+        for rec in recs:
+            if rec.extension == answered_by:
+                return rec
+    return max(recs, key=lambda rec: rec.duration_s)
+
+
+def _convert_to_mp3(path: Path) -> Path | None:
+    """`ffmpeg` orqali mono ~32kbps MP3; muvaffaqiyatsiz -> `None` (vaqtinchalik
+    fayl o'chiriladi) — chaqiruvchi WAV'ning o'zini yuboradi."""
+    out = Path(tempfile.gettempdir()) / f"innova-crm-{uuid.uuid4().hex}.mp3"
+    try:
+        result = subprocess.run(
+            [FFMPEG_BIN, "-y", "-i", str(path), "-ac", "1", "-b:a", "32k", str(out)],
+            capture_output=True, timeout=30, check=False)
+    except (OSError, subprocess.TimeoutExpired):
+        unlink_file(out)
+        return None
+    if result.returncode != 0 or not out.exists():
+        unlink_file(out)
+        return None
+    return out
+
+
+async def recording_upload_bytes(path: Path) -> tuple[str, str]:
+    """`(FILENAME, base64 FILE_CONTENT)` — MP3'ga o'girib (asosiy yo'l) yoki
+    ffmpeg muvaffaqiyatsiz bo'lsa WAV'ning o'zini (m-crm-contract.md §2)."""
+    mp3_path = await asyncio.to_thread(_convert_to_mp3, path)
+    if mp3_path is not None:
+        try:
+            data = await asyncio.to_thread(mp3_path.read_bytes)
+        finally:
+            await asyncio.to_thread(unlink_file, mp3_path)
+        return f"{path.stem}.mp3", base64.b64encode(data).decode()
+    data = await asyncio.to_thread(path.read_bytes)
+    return f"{path.stem}.wav", base64.b64encode(data).decode()
 
 
 # ------------------------------------------------------------ baza

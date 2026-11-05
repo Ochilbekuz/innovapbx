@@ -5,6 +5,23 @@
   «qo'llandi 05.11.26 19:48 UTC+5». Zona ustiga sichqoncha olib borilsa to'liq nomi chiqadi (`Asia/Tashkent`).
   Ilgari faqat «19:48» edi — qaysi kun va qaysi zona ekani noma'lum edi.
 
+## 1.0.20 — 2026-11-05
+- **Bitrix24 integratsiyasi to'liq qayta ishlandi** (InformUnity darajasi):
+  - Ichki raqamlar endi **Bitrix'dan avtomatik**: profildagi «Внутренний номер» (`UF_PHONE_INNER`) har 10 daqiqada
+    va «Bitrix'dan sinxronlash» tugmasi bilan o'qiladi (faqat faol xodimlar). Qo'lda biriktirish ustun turadi;
+    qo'lda biriktirishni olib tashlasangiz avtomatik moslik darhol qaytadi.
+  - Sinxron hisoboti: PBX'da yo'q ichki raqamlar va bir raqam bir nechta xodimda bo'lgan ziddiyatlar ko'rsatiladi.
+  - Qo'ng'iroq yozuvi Bitrix kartochkasiga **fayl sifatida yuklanadi** (`attachRecord`) — PBX'ga tashqi IP shart emas.
+    `finish` va yozuv yuklash qayta urinishlarda takrorlanmaydi.
+  - **Mas'ul menejerga yo'naltirish**: kiruvchi raqam CRM'da topilsa, avval o'sha mijozning mas'ul xodimi
+    (5–120 s) chaqiriladi; band/DND/oflayn bo'lsa yoki javob bermasa — odatdagi marshrut. Bitrix javob
+    bermasa qo'ng'iroq kutib qolmaydi (1–2 s, fail-open).
+  - Qo'ng'iroq qiluvchi ismi CRM'dan (kompaniya/kontakt nomi) telefonda ko'rinadi.
+  - Bulutli Bitrix + ichki (private) manzil bo'lsa click-to-call ishlamasligi haqida ogohlantirish.
+  - Xodimlar ro'yxati tanlagichi, yangi sozlamalar va to'liq qo'llanma (uz/ru/en).
+- **Holat → Qayta yuklash**: endi faqat administratorlar uchun; **o'chirish tugmasi olib tashlandi**;
+  tasdiqlash uchun hostname o'rniga **`reboot`** so'zi yoziladi.
+
 ## 1.0.19 — 2026-11-04
 - **Yangi yon menyu**: bir vaqtda faqat bitta bo'lim ochiq (akkordeon) — boshqasini ochsangiz oldingisi yig'iladi;
   boshqa bo'limdagi sahifaga o'tilsa o'sha bo'lim o'zi ochiladi.

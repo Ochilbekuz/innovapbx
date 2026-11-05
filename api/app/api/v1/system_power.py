@@ -1,6 +1,6 @@
-"""`GET/POST /api/v1/system/power` — m12-contract.md B2 (qayta yuklash/o'chirish).
-Hostname-tasdiqlash (joriy tizim hostname'i, `network`dagi `GET /network/state`
-javobi bilan BIR XIL manba) va faol qo'ng'iroqlar soni shu qatlamda hisoblanadi
+"""`GET/POST /api/v1/system/power` — m12-contract.md B2 (faqat qayta yuklash).
+Tasdiqlash — qo'lda yozilgan `reboot` so'zi (hostname eslab qolinmaydi, 1.0.20);
+faol qo'ng'iroqlar soni shu qatlamda hisoblanadi
 (netd'da AMI yo'q, `netd/power.py`dagi izohga qarang). Marshrut xaritasida
 YO'Q — fail-closed, faqat `*` (`require_access`)."""
 from __future__ import annotations
@@ -22,6 +22,12 @@ from app.services.netd_errors import call_netd
 router = APIRouter(tags=["system-power"])
 
 _ERROR_STATUS = {"readonly": 409, "invalid_config": 422, "bad_request": 400}
+CONFIRM_WORD = "reboot"
+
+
+def confirm_matches(typed: str) -> bool:
+    """Katta-kichik harf va chetdagi bo'shliq farqi kechiriladi."""
+    return typed.strip().lower() == CONFIRM_WORD
 
 
 async def _call(client: NetdClient, op: str, **kwargs: Any) -> dict[str, Any]:
@@ -48,10 +54,9 @@ async def post_system_power(
     payload: PowerActionIn, session: AsyncSession = Depends(get_session),
     client: NetdClient = Depends(get_netd_client), user: User = Depends(require_access), ami=Depends(get_ami),
 ) -> dict[str, Any]:
-    hostname = await _current_hostname(client)
-    if payload.confirm != hostname:
-        raise ApiError(422, "hostname_mismatch", "Hostname mos kelmadi — qo'lda aniq yozing",
-                        details={"fields": [{"field": "confirm", "message": "hostname mos emas"}]})
+    if not confirm_matches(payload.confirm):
+        raise ApiError(422, "confirm_mismatch", f"Tasdiqlash uchun «{CONFIRM_WORD}» so'zini yozing",
+                        details={"fields": [{"field": "confirm", "message": f"«{CONFIRM_WORD}» yozilmadi"}]})
     active_calls = await active_channels_count(ami)
     result = await _call(client, "power_execute", action=payload.action)
     await record_audit(session, tenant_id=str(user.tenant_id), user_id=str(user.id),

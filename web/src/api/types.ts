@@ -688,7 +688,8 @@ export type TimeFieldError = { field: string; message: string };
 // ─────────────────────── Qayta yuklash/o'chirish (M12 B2) — ../../replica/m12-contract.md §B2 ───────────────────────
 
 export type PowerStatusOut = { hostname: string; active_calls: number | null; readonly_reason: string | null };
-export type PowerActionIn = { action: 'reboot' | 'poweroff'; confirm: string };
+/** Faqat qayta yuklash; `confirm` — qoʻlda yozilgan `reboot` soʻzi (1.0.20). */
+export type PowerActionIn = { action: 'reboot'; confirm: string };
 export type PowerActionOut = { action: string; delay_s: number; scheduled: boolean; active_calls: number | null };
 
 // ─────────────────────── Firewall GUI (M12 B3) — ../../replica/m12-contract.md §B3 ───────────────────────
@@ -1159,6 +1160,20 @@ export type CrmStatus = { state: CrmStatusState; last_ok_at: string | null; last
 export type CrmUserMapSource = 'auto' | 'manual';
 export type CrmUserMapEntry = { extension: string; crm_user_id: string | null; crm_user_name: string | null; source: CrmUserMapSource };
 
+/** Bitrix'dan oxirgi sinxronda topilgan, lekin PBX'da bunday ichki raqam yoʻq (profilga notoʻgʻri yozilgan). */
+export type CrmUnknownInnerEntry = { user_id: string; user_name: string; inner_phone: string };
+/** Bir xil ichki raqam bir nechta Bitrix foydalanuvchisi profilida — avto-moslashuv bunisini hal qila olmaydi. */
+export type CrmSyncConflict = { inner_phone: string; user_names: string[] };
+export type CrmSyncReport = {
+  last_at: string | null;
+  users_total: number;
+  mapped: number;
+  unknown_inner: CrmUnknownInnerEntry[];
+  conflicts: CrmSyncConflict[];
+};
+/** `GET /integrations/crm/{provider}/users` — oxirgi sinxrondan keshlangan Bitrix/amoCRM foydalanuvchisi. */
+export type CrmUser = { id: string; name: string; inner_phone: string | null };
+
 export type BitrixConfig = {
   has_webhook_url: boolean;
   create_lead: boolean;
@@ -1166,6 +1181,21 @@ export type BitrixConfig = {
   default_user_id: string | null;
   application_token_set: boolean;
   hook_token: string;
+  /** Kiruvchi qoʻngʻiroq avval CRM'dagi mas'ul menejerga (ASSIGNED_BY) jiringlasin. */
+  route_to_responsible: boolean;
+  /** Mas'ulga necha soniya jiringlash (5..120), keyin oddiy marshrut. */
+  responsible_ring_s: number;
+  /** Telefon ekraniga CRM'dagi mijoz ismi chiqsin. */
+  set_caller_name: boolean;
+  /** Yozuvni Bitrix24 qoʻngʻiroq kartasiga fayl qilib yuklash. */
+  upload_records: boolean;
+  /** Har 10 daqiqada Bitrix foydalanuvchilari va ichki raqamlarini sinxronlash. */
+  auto_sync_users: boolean;
+  /** Ulangan portal hosti (masalan `firma.bitrix24.ru`) — sir emas. */
+  portal_host: string | null;
+  /** Portal bulutda (*.bitrix24.*). */
+  portal_cloud: boolean;
+  sync: CrmSyncReport | null;
 };
 export type UpdateBitrixPayload = {
   enabled: boolean;
@@ -1175,6 +1205,11 @@ export type UpdateBitrixPayload = {
   popup_max_delay_s: number;
   default_user_id: string | null;
   application_token?: string;
+  route_to_responsible: boolean;
+  responsible_ring_s: number;
+  set_caller_name: boolean;
+  upload_records: boolean;
+  auto_sync_users: boolean;
   updated_at: string;
 };
 

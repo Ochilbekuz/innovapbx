@@ -74,13 +74,13 @@ async def test_get_system_power_reports_hostname_and_active_calls():
 
 
 @pytest.mark.asyncio
-async def test_post_system_power_hostname_mismatch_raises_422_without_calling_power_execute():
+async def test_post_system_power_confirm_mismatch_raises_422_without_calling_power_execute():
     client = _FakeClient(state=_ok(NETWORK_STATE))
-    payload = PowerActionIn(action="reboot", confirm="wrong-host")
+    payload = PowerActionIn(action="reboot", confirm="pbx1")  # hostname endi tasdiq emas
     with pytest.raises(ApiError) as exc:
         await sp.post_system_power(payload, session=_Session(), client=client, user=USER, ami=AMI)
     assert exc.value.status_code == 422
-    assert exc.value.code == "hostname_mismatch"
+    assert exc.value.code == "confirm_mismatch"
 
 
 @pytest.mark.asyncio
@@ -88,7 +88,7 @@ async def test_post_system_power_confirmed_executes_and_records_audit():
     session = _Session()
     client = _FakeClient(state=_ok(NETWORK_STATE),
                           power_execute=_ok({"action": "reboot", "delay_s": 10.0, "scheduled": True}))
-    payload = PowerActionIn(action="reboot", confirm="pbx1")
+    payload = PowerActionIn(action="reboot", confirm=" Reboot ")
     result = await sp.post_system_power(payload, session=session, client=client, user=USER, ami=AMI)
     assert result == {"action": "reboot", "delay_s": 10.0, "scheduled": True, "active_calls": 3}
     assert session.commits == 1
@@ -99,13 +99,19 @@ async def test_post_system_power_confirmed_executes_and_records_audit():
 @pytest.mark.asyncio
 async def test_post_system_power_readonly_raises_409():
     client = _FakeClient(state=_ok(NETWORK_STATE), power_execute=_err("readonly", "Faqat ko'rish"))
-    payload = PowerActionIn(action="poweroff", confirm="pbx1")
+    payload = PowerActionIn(action="reboot", confirm="reboot")
     with pytest.raises(ApiError) as exc:
         await sp.post_system_power(payload, session=_Session(), client=client, user=USER, ami=AMI)
     assert exc.value.status_code == 409
     assert exc.value.code == "readonly"
 
 
-def test_power_action_in_rejects_action_outside_reboot_poweroff():
+@pytest.mark.parametrize("action", ["poweroff", "shutdown -h now"])
+def test_power_action_in_accepts_only_reboot(action):
     with pytest.raises(ValueError):
-        PowerActionIn(action="shutdown -h now", confirm="pbx1")
+        PowerActionIn(action=action, confirm="reboot")
+
+
+@pytest.mark.parametrize("typed,ok", [("reboot", True), ("REBOOT ", True), ("rebot", False), ("pbx1", False)])
+def test_confirm_matches(typed, ok):
+    assert sp.confirm_matches(typed) is ok

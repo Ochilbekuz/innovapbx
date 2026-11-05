@@ -177,12 +177,27 @@ async def test_test_lookup_phonebook_not_found():
 
 
 @pytest.mark.asyncio
-async def test_test_lookup_crm_not_implemented():
+async def test_test_lookup_crm_dispatches_to_lookup_crm_found(monkeypatch):
+    async def fake_lookup_crm(session, tenant_id, num, *, transport=None):
+        return "Ali Valiyev"
+
+    monkeypatch.setattr(cid_lookup, "_lookup_crm", fake_lookup_crm)
     source = _http_source(kind="crm")
-    session = _FakeSession(None)
-    name, ms, error = await cid_lookup.test_lookup(session, "t1", source, "901234567")
+    name, ms, error = await cid_lookup.test_lookup(None, "t1", source, "901234567")
+    assert name == "Ali Valiyev"
+    assert error is None
+
+
+@pytest.mark.asyncio
+async def test_test_lookup_crm_not_found(monkeypatch):
+    async def fake_lookup_crm(session, tenant_id, num, *, transport=None):
+        return None
+
+    monkeypatch.setattr(cid_lookup, "_lookup_crm", fake_lookup_crm)
+    source = _http_source(kind="crm")
+    name, ms, error = await cid_lookup.test_lookup(None, "t1", source, "901234567")
     assert name is None
-    assert error == "crm_not_implemented"
+    assert error == "not_found"
 
 
 @pytest.mark.asyncio
@@ -239,8 +254,78 @@ async def test_lookup_name_http_kind_delegates_to_lookup_http(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_lookup_name_unknown_kind_returns_none():
+async def test_lookup_name_crm_kind_delegates_to_lookup_crm(monkeypatch):
     source = _http_source(kind="crm")
     source.id = "src-lookup-name-3"
+
+    async def fake_lookup_crm(session, tenant_id, num, *, transport=None):
+        return "Crm Nom"
+
+    monkeypatch.setattr(cid_lookup, "_lookup_crm", fake_lookup_crm)
     name = await cid_lookup.lookup_name(None, "t1", source, "901333333")
+    assert name == "Crm Nom"
+
+
+@pytest.mark.asyncio
+async def test_lookup_name_unknown_kind_returns_none():
+    source = _http_source(kind="mystery")
+    source.id = "src-lookup-name-4"
+    name = await cid_lookup.lookup_name(None, "t1", source, "901333334")
     assert name is None
+
+
+# ---------------------------------------------------------------- _lookup_crm (M-CRM §3)
+
+class _DummySub:
+    def __init__(self, sub_id="s1", tenant_id="t1", kind="bitrix24"):
+        self.id = sub_id
+        self.tenant_id = tenant_id
+        self.kind = kind
+
+
+@pytest.mark.asyncio
+async def test_lookup_crm_no_enabled_subscription_returns_none(monkeypatch):
+    from app.services import crm_route
+
+    async def fake_enabled_subscription(session, tenant_id):
+        return None
+
+    monkeypatch.setattr(crm_route, "enabled_subscription", fake_enabled_subscription)
+    name = await cid_lookup._lookup_crm(None, "t1", "901234567")
+    assert name is None
+
+
+@pytest.mark.asyncio
+async def test_lookup_crm_no_webhook_secret_returns_none(monkeypatch):
+    from app.services import crm_route, crm_settings
+
+    async def fake_enabled_subscription(session, tenant_id):
+        return _DummySub()
+
+    async def fake_read_secrets(session, sub):
+        return {}
+
+    monkeypatch.setattr(crm_route, "enabled_subscription", fake_enabled_subscription)
+    monkeypatch.setattr(crm_settings, "read_secrets", fake_read_secrets)
+    name = await cid_lookup._lookup_crm(None, "t1", "901234567")
+    assert name is None
+
+
+@pytest.mark.asyncio
+async def test_lookup_crm_found_delegates_to_route_for_number(monkeypatch):
+    from app.services import crm_route, crm_settings
+
+    async def fake_enabled_subscription(session, tenant_id):
+        return _DummySub()
+
+    async def fake_read_secrets(session, sub):
+        return {"webhook_url": "https://x.bitrix24.ru/rest/1/abc/"}
+
+    async def fake_route_for_number(session, sub, webhook_url, num, *, transport=None, **kw):
+        return crm_route.RouteResult(extension="101", name="Ali Valiyev")
+
+    monkeypatch.setattr(crm_route, "enabled_subscription", fake_enabled_subscription)
+    monkeypatch.setattr(crm_settings, "read_secrets", fake_read_secrets)
+    monkeypatch.setattr(crm_route, "route_for_number", fake_route_for_number)
+    name = await cid_lookup._lookup_crm(None, "t1", "901234567")
+    assert name == "Ali Valiyev"

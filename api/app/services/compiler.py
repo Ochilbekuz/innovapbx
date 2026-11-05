@@ -366,6 +366,16 @@ class DisaSnapshot:
 
 
 @dataclass(frozen=True)
+class CrmRouteSnapshot:
+    """M-CRM §3: Bitrix24 javobkor menejeriga yo'naltirish + chaqiruvchi ismi
+    (`/internal/crm-route/{subscription_id}`, `app/services/crm_route.py`)."""
+    subscription_id: str
+    ring_s: int = 20
+    route: bool = False
+    set_name: bool = True
+
+
+@dataclass(frozen=True)
 class DialplanSnapshot:
     tenant_code: str
     # Tenant (= server, /settings/time) vaqt zonasi — ish vaqti shu zonada tekshiriladi.
@@ -414,6 +424,9 @@ class DialplanSnapshot:
     # marshrutga kirish, ichki xizmat kodlariga yo'l YO'Q).
     day_night: list[DayNightSnapshot] = field(default_factory=list)
     disa: list[DisaSnapshot] = field(default_factory=list)
+    # M-CRM §3: Bitrix24 javobkorga yo'naltirish + chaqiruvchi ismi (tenant bo'yicha
+    # YAGONA yoqilgan obuna — `None` bo'lsa kiruvchi marshrutga hech narsa qo'shilmaydi).
+    crm_route: CrmRouteSnapshot | None = None
 
 
 def dialplan_sha256(dialplan_text: str) -> str:
@@ -1327,6 +1340,46 @@ def _cid_prefix_alert_lines(route: InboundRouteSnapshot) -> list[str]:
     return lines
 
 
+def _crm_route_lines(idx: int, code: str, cr: CrmRouteSnapshot | None, base_url: str, token: str) -> list[str]:
+    """M-CRM §3: CID lookup'dan KEYIN — Bitrix24dan ism (`set_name`) va/yoki
+    javobkor ichki raqami (`route`) olinadi. Javob yo'q/bo'sh -> hech narsa
+    o'zgarmaydi (fail-open, `crm_route.py`/`internal_crmroute.py` o'zi ham shunday)."""
+    if cr is None:
+        return []
+    url = (f"{base_url}/internal/crm-route/{cr.subscription_id}?token={token}"
+           f"&num=${{URIENCODE(${{CALLERID(num)}})}}")
+    lines = [
+        " same => n,Set(CURLOPT(conntimeout)=1)",
+        " same => n,Set(CURLOPT(httptimeout)=2)",
+        f" same => n,Set(INNOVA_CRMRT=${{CURL({url})}})",
+    ]
+    if cr.set_name:
+        lines += [
+            " same => n,Set(INNOVA_CRMRT_NAME=${CUT(INNOVA_CRMRT,|,2)})",
+            f' same => n,GotoIf($["${{INNOVA_CRMRT_NAME}}"=""]?r{idx}_crmrt_noname)',
+            " same => n,Set(CALLERID(name)=${INNOVA_CRMRT_NAME})",
+            f" same => n(r{idx}_crmrt_noname),NoOp(Innova: CRM ism tugadi)",
+        ]
+    if not cr.route:
+        return lines
+    dev = "${DEVICE_STATE(PJSIP/${INNOVA_CRMRT_EXT})}"
+    dnd = feat.realtime_read(code, "${INNOVA_CRMRT_EXT}", "dnd")
+    lines += [
+        " same => n,Set(INNOVA_CRMRT_EXT=${CUT(INNOVA_CRMRT,|,1)})",
+        f' same => n,GotoIf($["${{INNOVA_CRMRT_EXT}}"=""]?r{idx}_crmrt_skip)',
+        f' same => n,GotoIf($["${{FILTER(0-9,${{INNOVA_CRMRT_EXT}})}}"!="${{INNOVA_CRMRT_EXT}}"]?r{idx}_crmrt_skip)',
+        f' same => n,GotoIf($["{dev}"="UNAVAILABLE"]?r{idx}_crmrt_skip)',
+        f' same => n,GotoIf($["{dev}"="INVALID"]?r{idx}_crmrt_skip)',
+        f" same => n,Set(__TRANSFER_CONTEXT={code}-from-internal)",
+        contacts.reset_line(),
+        contacts.add_endpoint_line("${INNOVA_CRMRT_EXT}", when=f'"{dnd}"!="t"'),
+        f' same => n,GotoIf($["${{{contacts.VAR}}}"=""]?r{idx}_crmrt_skip)',
+        *rec.recorded_dial_lines(contacts.TARGETS, str(cr.ring_s), feat.XFER_OPTIONS_HDR),
+        f" same => n(r{idx}_crmrt_skip),NoOp(Innova: CRM yo'naltirish tugadi)",
+    ]
+    return lines
+
+
 def _inbound_route_lines(snapshot: DialplanSnapshot) -> list[str]:
     code = snapshot.tenant_code
     lines = [f"[{code}-from-trunk]"]
@@ -1354,6 +1407,8 @@ def _inbound_route_lines(snapshot: DialplanSnapshot) -> list[str]:
             lines.append(" same => n(matched),NoOp(Innova: callerid mos keldi)")
         lines += _cid_lookup_lines(idx, route, snapshot.internal_api_base_url, snapshot.internal_api_token)
         lines += _cid_prefix_alert_lines(route)
+        lines += _crm_route_lines(idx, code, snapshot.crm_route,
+                                   snapshot.internal_api_base_url, snapshot.internal_api_token)
         lines.append(f" same => n,Goto({code}-dest-{route.target_id},s,1)")
     lines.append("exten => _.,1,NoOp(Innova: mos marshrut topilmadi)")
     lines.append(" same => n,Hangup(1)")

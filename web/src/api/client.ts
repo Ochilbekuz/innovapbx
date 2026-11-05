@@ -30,7 +30,7 @@ import type {
   UpdateAlertSettingsPayload, UpdateSecuritySettingsPayload,
   // M3b — qarang ../../replica/m3b-contract.md
   AmoConfigResult, ApiKey, BitrixConfigResult, CreateApiKeyPayload, CreateWebhookPayload, CreatedApiKey,
-  CreatedWebhook, CrmProvider, CrmTestResult, CrmUserMapEntry, IntegrationsSettings, ListDeliveriesParams, OneCSample,
+  CreatedWebhook, CrmProvider, CrmTestResult, CrmUser, CrmUserMapEntry, IntegrationsSettings, ListDeliveriesParams, OneCSample,
   RecordingSettings, RotatedWebhookSecret, TestWebhookResult, UpdateAmoPayload, UpdateBitrixPayload,
   UpdateCrmUserMapPayload, UpdateIntegrationsSettingsPayload, UpdateRecordingSettingsPayload, UpdateWebhookPayload,
   Webhook, WebhookDelivery,
@@ -321,6 +321,8 @@ export interface ApiClient {
   updateAmoCrmConfig(payload: UpdateAmoPayload): Promise<AmoConfigResult>;
   testCrm(provider: CrmProvider): Promise<CrmTestResult>;
   updateCrmUserMap(provider: CrmProvider, payload: UpdateCrmUserMapPayload): Promise<{ items: CrmUserMapEntry[] }>;
+  listCrmUsers(provider: CrmProvider): Promise<{ items: CrmUser[] }>;
+  syncCrm(provider: CrmProvider): Promise<CrmTestResult>;
 
   // 1C — tayyor namunalar
   listOneCSamples(): Promise<{ items: OneCSample[] }>;

@@ -28,6 +28,25 @@ class CrmUserMapEntryOut(BaseModel):
     source: Literal["auto", "manual"]
 
 
+class UnknownInnerOut(BaseModel):
+    user_id: str
+    user_name: str
+    inner_phone: str
+
+
+class SyncConflictOut(BaseModel):
+    inner_phone: str
+    user_names: list[str]
+
+
+class CrmSyncReportOut(BaseModel):
+    last_at: datetime | None
+    users_total: int
+    mapped: int
+    unknown_inner: list[UnknownInnerOut]
+    conflicts: list[SyncConflictOut]
+
+
 class BitrixConfigOut(BaseModel):
     has_webhook_url: bool
     create_lead: bool
@@ -35,6 +54,15 @@ class BitrixConfigOut(BaseModel):
     default_user_id: str | None
     application_token_set: bool
     hook_token: str
+    # M-CRM §1/§2/§3 — InformUnity «CRM manzili» + yozuv yuklash + foydalanuvchi sinxroni.
+    route_to_responsible: bool
+    responsible_ring_s: int
+    set_caller_name: bool
+    upload_records: bool
+    auto_sync_users: bool
+    portal_host: str | None
+    portal_cloud: bool
+    sync: CrmSyncReportOut | None = None
 
 
 class AmoConfigOut(BaseModel):
@@ -69,6 +97,11 @@ class UpdateBitrixPayload(_CrmPayload):
     create_lead: bool = True
     popup_max_delay_s: int = Field(default=20, ge=0, le=600)
     application_token: str | None = Field(default=None, max_length=200)
+    route_to_responsible: bool = False
+    responsible_ring_s: int = Field(default=20, ge=5, le=120)
+    set_caller_name: bool = True
+    upload_records: bool = True
+    auto_sync_users: bool = True
 
 
 class UpdateAmoPayload(_CrmPayload):
@@ -96,6 +129,16 @@ class CrmTestResult(BaseModel):
     ok: bool
     message: str
     users_loaded: int | None
+
+
+class CrmUserItem(BaseModel):
+    id: str
+    name: str
+    inner_phone: str | None
+
+
+class CrmUsersOut(BaseModel):
+    items: list[CrmUserItem]
 
 
 class OneCSample(BaseModel):

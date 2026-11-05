@@ -7,7 +7,7 @@ import type {
   SipSettings, SipTls, Target, TimeCondition, TimeGroup, Trunk, User,
   VoicemailBox, VoicemailMessage,
   // M3b — qarang ../../replica/m3b-contract.md
-  AmoConfigResult, ApiKey, BitrixConfigResult, IntegrationsSettings, OneCSample, RecordingSettings, Webhook,
+  AmoConfigResult, ApiKey, BitrixConfigResult, CrmUser, IntegrationsSettings, OneCSample, RecordingSettings, Webhook,
   WebhookDelivery,
   // M4a — qarang ../../replica/m4a-contract.md
   Device, DeviceKey, DeviceModel, DiscoveredDevice, ProvisionRequest, ProvisioningSettings,
@@ -570,11 +570,31 @@ export function seedWebhookDeliveries(webhookId: string): WebhookDelivery[] {
 export function seedBitrixConfig(): BitrixConfigResult {
   return {
     enabled: false,
-    config: { has_webhook_url: false, create_lead: true, popup_max_delay_s: 20, default_user_id: null, application_token_set: false, hook_token: 'bx-hook-7f3a9c' },
+    config: {
+      has_webhook_url: false, create_lead: true, popup_max_delay_s: 20, default_user_id: null, application_token_set: false,
+      hook_token: 'bx-hook-7f3a9c', route_to_responsible: false, responsible_ring_s: 20, set_caller_name: true,
+      upload_records: true, auto_sync_users: true, portal_host: null, portal_cloud: false, sync: null,
+    },
     status: { state: 'disabled', last_ok_at: null, last_error: null, unmapped_extensions: [] },
     user_map: [],
     updated_at: '2026-10-27T05:00:00Z',
   };
+}
+
+/**
+ * Demo: Bitrix24 portalidan «sinxronlash» bosilganda keladigan foydalanuvchilar (UF_PHONE_INNER).
+ * 101/102 — PBX ichki raqamiga aniq mos (auto); 199 — PBX'da yoʻq (`unknown_inner`); 103 — ikki
+ * foydalanuvchida bitta ichki raqam (`conflicts`, hal qilinmaydi).
+ */
+export function seedBitrixPortalUsers(): CrmUser[] {
+  return [
+    { id: 'bx-12', name: 'Dilnoza Karimova', inner_phone: '101' },
+    { id: 'bx-7', name: 'Sherzod Yusupov', inner_phone: '102' },
+    { id: 'bx-19', name: 'Anvar Tojiboyev', inner_phone: '199' },
+    { id: 'bx-3', name: 'Aziz Rahimov', inner_phone: '103' },
+    { id: 'bx-21', name: 'Shoxrux Nazarov', inner_phone: '103' },
+    { id: 'bx-30', name: 'Lobar Yoqubova', inner_phone: null },
+  ];
 }
 
 export function seedAmoConfig(): AmoConfigResult {

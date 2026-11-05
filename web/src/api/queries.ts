@@ -126,6 +126,7 @@ export const qk = {
   webhookDeliveries: (id: string, p: ListDeliveriesParams) => ['webhook-deliveries', id, p] as const,
   bitrix24Config: ['crm-bitrix24'] as const,
   amoCrmConfig: ['crm-amocrm'] as const,
+  crmUsers: (provider: CrmProvider) => ['crm-users', provider] as const,
   oneCSamples: ['1c-samples'] as const,
   integrationsSettings: ['integrations-settings'] as const,
   recordingSettings: ['recording-settings'] as const,
@@ -1005,6 +1006,18 @@ export function useUpdateCrmUserMap(provider: CrmProvider) {
   return useMutation({
     mutationFn: (payload: UpdateCrmUserMapPayload) => apiClient.updateCrmUserMap(provider, payload),
     onSuccess: () => invalidate([provider === 'bitrix24' ? qk.bitrix24Config : qk.amoCrmConfig]),
+  });
+}
+/** M3b §5 — oxirgi sinxrondan keshlangan CRM foydalanuvchilari (hali sinxron boʻlmagan boʻlsa boʻsh). */
+export function useCrmUsers(provider: CrmProvider) {
+  return useQuery({ queryKey: qk.crmUsers(provider), queryFn: () => apiClient.listCrmUsers(provider) });
+}
+/** M3b §5 — «Bitrix'dan sinxronlash»: foydalanuvchilar + ichki raqamlar (UF_PHONE_INNER) roʻyxatini hozir yuklaydi. */
+export function useSyncCrm(provider: CrmProvider) {
+  const invalidate = useInvalidate();
+  return useMutation({
+    mutationFn: () => apiClient.syncCrm(provider),
+    onSuccess: () => invalidate([provider === 'bitrix24' ? qk.bitrix24Config : qk.amoCrmConfig, qk.crmUsers(provider)]),
   });
 }
 

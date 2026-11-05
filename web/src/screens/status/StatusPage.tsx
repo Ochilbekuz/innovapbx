@@ -5,6 +5,7 @@ import { Cable, Globe, HardDrive, Power as PowerIcon, Router, Trash2 } from 'luc
 import { useCleanup, useExecutePower, usePreviewCleanup, useSystemPower, useSystemStatus } from '@/api/queries';
 import type { CleanupIn, CleanupResult, DiskCategory, SystemStatus } from '@/api/types';
 import { apiErrorMessage } from '@/api/errors';
+import { usePermission } from '@/auth/permissions';
 import { formatBytes } from '@/screens/backup/backupForms';
 import { closeOnOpenChange } from '@/lib/formHelpers';
 import { diskLevel, trunkHealthLevel } from '@/lib/health';
@@ -23,6 +24,7 @@ export function StatusPage() {
   const { t } = useTranslation('status');
   const { data, isLoading, isError, refetch } = useSystemStatus();
   const [cleanupOpen, setCleanupOpen] = useState(false);
+  const isAdmin = usePermission('*');
 
   if (isLoading || !data) {
     return (
@@ -48,7 +50,7 @@ export function StatusPage() {
         <TrunksCard trunks={data.trunks} />
         <InternetCard internet={data.internet} />
         <SipCard sip={data.sip} />
-        <PowerCard />
+        {isAdmin && <PowerCard />}
       </div>
       <CleanupModal open={cleanupOpen} onClose={() => setCleanupOpen(false)} />
     </AppShellPage>
@@ -197,14 +199,13 @@ function SipCard({ sip }: { sip: SystemStatus['sip'] }) {
   );
 }
 
-type PowerAction = 'reboot' | 'poweroff';
-
-/** Qayta yuklash/oʻchirish — M12 B2 (../../replica/m12-contract.md §B2). Oʻz `/system/power`ini oʻqiydi, `data`dan mustaqil. */
+/** Qayta yuklash — M12 B2 (../../replica/m12-contract.md §B2), faqat admin. Oʻchirish tugmasi yoʻq (1.0.20):
+ * masofadan oʻchirilgan serverni qayta yoqib boʻlmaydi. Oʻz `/system/power`ini oʻqiydi, `data`dan mustaqil. */
 function PowerCard() {
   const { t } = useTranslation('status');
   const toast = useToast();
   const { data: power, isLoading } = useSystemPower();
-  const [action, setAction] = useState<PowerAction | null>(null);
+  const [open, setOpen] = useState(false);
   const executeM = useExecutePower();
 
   if (isLoading || !power) {
@@ -218,9 +219,8 @@ function PowerCard() {
   const locked = power.readonly_reason !== null;
 
   const handleConfirm = (confirm: string) => {
-    if (!action) return;
-    executeM.mutate({ action, confirm }, {
-      onSuccess: (res) => { toast({ kind: 'success', title: t('power.scheduledToast', { delay: res.delay_s }) }); setAction(null); },
+    executeM.mutate({ action: 'reboot', confirm }, {
+      onSuccess: (res) => { toast({ kind: 'success', title: t('power.scheduledToast', { delay: res.delay_s }) }); setOpen(false); },
       onError: (e) => toast({ kind: 'error', title: apiErrorMessage(e) }),
     });
   };
@@ -241,58 +241,55 @@ function PowerCard() {
           <p className="num text-sm text-muted">{t('power.activeCalls', { count: power.active_calls })}</p>
         )}
         <div className="flex gap-2">
-          <Button size="sm" variant="secondary" disabled={locked} onClick={() => setAction('reboot')}>{t('power.rebootButton')}</Button>
-          <Button size="sm" variant="danger" disabled={locked} onClick={() => setAction('poweroff')}>{t('power.poweroffButton')}</Button>
+          <Button size="sm" variant="secondary" disabled={locked} onClick={() => setOpen(true)}>{t('power.rebootButton')}</Button>
         </div>
       </div>
       <PowerConfirmModal
-        action={action}
-        hostname={power.hostname}
+        open={open}
         loading={executeM.isPending}
         onConfirm={handleConfirm}
-        onClose={() => setAction(null)}
+        onClose={() => setOpen(false)}
       />
     </section>
   );
 }
 
-/** Hostname'ni qoʻlda yozdirib tasdiqlatadi (xato bosilib ketmasligi uchun) — `ConfirmUpdateModal` bilan bir xil andoza. */
+const CONFIRM_WORD = 'reboot';
+
+/** `reboot` soʻzini qoʻlda yozdirib tasdiqlatadi (xato bosilib ketmasligi uchun; hostname eslab qolinmaydi). */
 function PowerConfirmModal({
-  action, hostname, loading, onConfirm, onClose,
+  open, loading, onConfirm, onClose,
 }: {
-  action: PowerAction | null;
-  hostname: string;
+  open: boolean;
   loading: boolean;
   onConfirm: (confirm: string) => void;
   onClose: () => void;
 }) {
   const { t } = useTranslation('status');
   const [typed, setTyped] = useState('');
-  const matches = typed.trim() === hostname;
+  const matches = typed.trim().toLowerCase() === CONFIRM_WORD;
 
   const close = () => { setTyped(''); onClose(); };
   const submit = () => { if (matches) onConfirm(typed.trim()); };
 
   return (
     <Modal
-      open={action !== null}
+      open={open}
       onOpenChange={(v) => closeOnOpenChange(v, close)}
-      title={action ? t(`power.modalTitle.${action}`) : ''}
+      title={t('power.modalTitle')}
       footer={
         <>
           <Button variant="ghost" onClick={close}>{t('power.cancel')}</Button>
-          <Button variant={action === 'poweroff' ? 'danger' : 'primary'} loading={loading} disabled={!matches} onClick={submit}>
+          <Button variant="primary" loading={loading} disabled={!matches} onClick={submit}>
             {t('power.confirm')}
           </Button>
         </>
       }
     >
       <div className="flex flex-col gap-4">
-        {action && (
-          <div className="rounded-md border border-warning/30 bg-warning-soft px-3 py-2.5 text-sm text-on-warning-soft">
-            {t(`power.modalWarning.${action}`)}
-          </div>
-        )}
+        <div className="rounded-md border border-warning/30 bg-warning-soft px-3 py-2.5 text-sm text-on-warning-soft">
+          {t('power.modalWarning')}
+        </div>
         <Field label={t('power.confirmHint')} error={typed && !matches ? t('power.confirmMismatch') : undefined}>
           {(a) => (
             <Input {...a} mono placeholder={t('power.confirmPlaceholder')} value={typed} onChange={(e) => setTyped(e.target.value)} autoFocus />

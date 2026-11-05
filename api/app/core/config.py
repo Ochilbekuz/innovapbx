@@ -185,6 +185,11 @@ class Settings(BaseSettings):
     missed_notify_interval_s: float = 5.0
     missed_notify_retry_schedule_s: str = "30,120,600"
 
+    # --- M-CRM §1: Bitrix24 foydalanuvchi sinxroni fon ishi — `auto_sync_users=true`
+    # bo'lgan yoqilgan obunalar uchun (bitta xato boshqalarni to'xtatmaydi).
+    crm_users_sync_enabled: bool = True
+    crm_users_sync_interval_s: float = 600.0
+
     # --- M10 A3: Yandex SpeechKit TTS — baza manzili FAQAT muhitdan (foydalanuvchi
     # kiritmaydi — SSRF yo'q, m10-onlinepbx-contract.md §A3).
     tts_yandex_base: str = "https://tts.api.cloud.yandex.net"

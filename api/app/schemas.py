@@ -1876,8 +1876,10 @@ class PowerStatusOut(BaseModel):
 
 
 class PowerActionIn(BaseModel):
-    action: Literal["reboot", "poweroff"]
-    confirm: str = Field(min_length=1, max_length=253)
+    """Faqat qayta yuklash (o'chirish UI'dan olib tashlangan — masofadan qayta yoqib bo'lmaydi);
+    `confirm` — qo'lda yozilgan `reboot` so'zi."""
+    action: Literal["reboot"]
+    confirm: str = Field(min_length=1, max_length=32)
 
 
 class PowerActionOut(BaseModel):

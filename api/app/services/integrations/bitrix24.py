@@ -22,8 +22,10 @@ from typing import Any
 from urllib.parse import urlsplit
 
 import httpx
+from sqlalchemy import select
 
-from app.db.models import CrmCallLink
+from app.db.models import CallRecording, CrmCallLink
+from app.services import recordings
 from app.services.integrations import crm, ssrf
 from app.services.integrations.crm import CrmCallError, CrmUserInfo, HttpTarget, UserMap
 from app.services.integrations.providers import DeliveryContext, DeliveryResult, register_provider
@@ -66,6 +68,17 @@ def bitrix_time(value: datetime) -> str:
     return value.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S+00:00")
 
 
+def portal_host(webhook_url: str) -> str | None:
+    """Webhook URL'dagi portal host'i (masalan `example.bitrix24.ru`); bo'sh/buzuq -> `None`."""
+    return urlsplit(webhook_url).hostname or None
+
+
+def portal_is_cloud(host: str | None) -> bool:
+    """`*.bitrix24.<tld>` — BULUT portal (`RECORD_URL` faqat ommaga ochiq bo'lsa ishlaydi,
+    shu sabab shaxsiy PBX serverda FOYDALANILMAYDI — doim FILE orqali yuklanadi)."""
+    return bool(host) and ".bitrix24." in f".{host}."
+
+
 def is_late(occurred_at: datetime | None, now: datetime, max_delay_s: int) -> bool:
     return occurred_at is not None and (now - occurred_at).total_seconds() > max_delay_s
 
@@ -83,13 +96,20 @@ def register_params(call: Mapping[str, Any], *, user_id: str, create_lead: bool,
     return params
 
 
-def finish_params(call: Mapping[str, Any], *, call_id: str, user_id: str) -> dict[str, str]:
+def finish_params(call: Mapping[str, Any], *, call_id: str, user_id: str, upload_records: bool) -> dict[str, str]:
+    """M-CRM §2: `upload_records=true` bo'lsa `RECORD_URL` YO'Q — fayl alohida
+    `telephony.externalCall.attachRecord` orqali yuklanadi (ikki marta yubormaslik)."""
     params = {"CALL_ID": call_id, "USER_ID": user_id, "DURATION": str(int(call.get("billsec") or 0)),
               "STATUS_CODE": status_code(call.get("status")), "ADD_TO_CHAT": "1"}
-    record_url = crm.first_recording_url(call)
-    if record_url:
-        params["RECORD_URL"] = record_url
+    if not upload_records:
+        record_url = crm.first_recording_url(call)
+        if record_url:
+            params["RECORD_URL"] = record_url
     return params
+
+
+def attach_params(call_id: str, filename: str, content_b64: str) -> dict[str, str]:
+    return {"CALL_ID": call_id, "FILENAME": filename, "FILE_CONTENT": content_b64}
 
 
 def envelope_failure(code: str, description: str, *, what: str) -> CrmCallError | None:
@@ -150,14 +170,37 @@ class BitrixClient:
                 break
         return found
 
+    async def lines(self) -> list[dict[str, Any]]:
+        result = await self.call("telephony.externalLine.get", {})
+        return [row for row in (result or []) if isinstance(row, dict)]
+
     async def _page(self, start: int | None) -> dict:
-        resp = await crm.http_request(self._target, "POST", f"{self._base}user.get.json", what="user.get",
-                                      data={"start": str(start or 0)})
+        # M-CRM §1: faqat FAOL xodimlar — bo'shatilgan/mehmon/bot hisoblar
+        # avto-xaritaga/sinxron hisobotiga kirmasin.
+        resp = await crm.http_request(
+            self._target, "POST", f"{self._base}user.get.json", what="user.get",
+            data={"start": str(start or 0), "FILTER[ACTIVE]": "true", "FILTER[USER_TYPE]": "employee"})
         body = crm.json_body(resp)
         error = classify(resp.status_code, resp.headers, body, what="user.get")
         if error is not None:
             raise error
         return body if isinstance(body, dict) else {}
+
+
+def lines_to_register(existing: list[dict[str, Any]], dids: list[tuple[str, str]]) -> list[tuple[str, str]]:
+    """M-CRM §1g: allaqachon ro'yxatdagi (`NUMBER`) DID'lar qaytadan QO'SHILMAYDI."""
+    known = {str(row.get("NUMBER")) for row in existing}
+    return [(number, name) for number, name in dids if number and number not in known]
+
+
+async def ensure_lines(client: BitrixClient, dids: list[tuple[str, str]], *, create_lead: bool) -> int:
+    """PBX DID'lari Bitrix "liniya" sifatida (`telephony.externalLine.add`) —
+    chaqiruvchi (`crm_settings.test_connection`) xatoni YUTADI (sinxronni yiqitmasin)."""
+    to_add = lines_to_register(await client.lines(), dids)
+    for number, name in to_add:
+        await client.call("telephony.externalLine.add", {
+            "NUMBER": number, "NAME": name[:50] or number, "CRM_AUTO_CREATE": "1" if create_lead else "0"})
+    return len(to_add)
 
 
 # ------------------------------------------------------------ sozlamalar va oqim
@@ -167,12 +210,14 @@ class BitrixSettings:
     create_lead: bool
     popup_max_delay_s: int
     default_user_id: str | None
+    upload_records: bool = True
 
     @classmethod
     def parse(cls, config: Mapping[str, Any], secrets: Mapping[str, str]) -> BitrixSettings:
         return cls(webhook_url=secrets.get("webhook_url", ""), create_lead=bool(config.get("create_lead", True)),
                    popup_max_delay_s=int(config.get("popup_max_delay_s") or DEFAULT_POPUP_MAX_DELAY_S),
-                   default_user_id=config.get("default_user_id") or None)
+                   default_user_id=config.get("default_user_id") or None,
+                   upload_records=bool(config.get("upload_records", True)))
 
 
 @dataclass
@@ -204,6 +249,23 @@ class Flow:
         self.ctx.session.add(link)
         return link
 
+    async def attach_record(self, link: CrmCallLink) -> None:
+        """M-CRM §2: yozuvni (WAV->MP3) `attachRecord`ga ulaydi; topilmasa — jim
+        o'tkaziladi (xato emas). `finish` ALLAQACHON yozilgan — bu yerdagi xato
+        (tarmoq/limit) qayta urinishda `finish`ni TAKRORLAMAYDI (`on_ended`)."""
+        recs = (await self.ctx.session.execute(select(CallRecording).where(
+            CallRecording.tenant_id == self.ctx.subscription.tenant_id,
+            CallRecording.linkedid == str(self.call.get("id") or ""),
+            CallRecording.deleted_at.is_(None)))).scalars().all()
+        picked = recordings.best_for_call(list(recs), self.call.get("answered_by"))
+        if picked is None:
+            link.record_attached = True
+            return
+        filename, content_b64 = await recordings.recording_upload_bytes(recordings.absolute_path(picked.path))
+        await self.client.call("telephony.externalCall.attachRecord",
+                               attach_params(link.external_call_id, filename, content_b64))
+        link.record_attached = True
+
 
 async def on_ringing(flow: Flow) -> str:
     user = flow.users.user_for(flow.call.get("extension"))
@@ -234,6 +296,10 @@ async def on_answered(flow: Flow) -> str:
 
 
 async def on_ended(flow: Flow) -> str:
+    """M-CRM §2 idempotentlik: `finish` BIR MARTA (`link.finished_at`), yozuv
+    ulash (`attachRecord`) esa `record_attached=false` bo'lguncha QAYTA uriniladi
+    — dispetcher har urinishdan keyin commit qiladi (`dispatch.py`), shu sabab
+    bu ikki holat mustaqil saqlanadi."""
     call = flow.call
     link = await flow.link()
     user = flow.users.user_for(call.get("answered_by"), call.get("extension")) or (link.user_id if link else None)
@@ -242,8 +308,12 @@ async def on_ended(flow: Flow) -> str:
     if link is None:
         started_at = crm.parse_time(call.get("started_at")) or flow.now
         link = await flow.register(user, show=False, started_at=started_at)
-    await flow.client.call("telephony.externalcall.finish", finish_params(call, call_id=link.external_call_id,
-                                                                          user_id=user))
+    if link.finished_at is None:
+        await flow.client.call("telephony.externalcall.finish", finish_params(
+            call, call_id=link.external_call_id, user_id=user, upload_records=flow.settings.upload_records))
+        link.finished_at = flow.now
+    if flow.settings.upload_records and not link.record_attached:
+        await flow.attach_record(link)
     return f"finish:{link.external_call_id}"
 
 
