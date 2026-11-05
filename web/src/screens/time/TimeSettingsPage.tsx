@@ -46,11 +46,13 @@ function TimeLoadingState({ title, error, onRetry, t }: { title: string; error: 
 }
 
 function TimeForm({
-  draft, errors, locked, onChange, t,
+  draft, errors, locked, ntpUnavailable, onChange, t,
 }: {
   draft: TimeDraft;
   errors: TimeFieldError[];
   locked: boolean;
+  /** Serverda NTP ishlay olmaydi (LXC/konteyner) — yoqishga ruxsat yo'q, o'chirishga bor. */
+  ntpUnavailable: boolean;
   onChange: (patch: Partial<TimeDraft>) => void;
   t: TFunc;
 }) {
@@ -76,7 +78,7 @@ function TimeForm({
         onCheckedChange={(v) => onChange({ ntpEnabled: v })}
         label={t('ntpEnabledLabel')}
         description={t('ntpEnabledDescription')}
-        disabled={locked}
+        disabled={locked || (ntpUnavailable && !draft.ntpEnabled)}
       />
 
       <Field label={t('ntpServersLabel')} hint={t('ntpServersHint', { max: MAX_NTP_SERVERS, pool: pool[0] })} error={errorFor(errors, 'ntp_servers')}>
@@ -152,13 +154,19 @@ function useTimeDraft(state: TimeStateOut | undefined) {
   return [draft, patch] as const;
 }
 
-function Banners({ readonlyReason, hasErrors, t }: { readonlyReason: string | null; hasErrors: boolean; t: TFunc }) {
+const WARNING_BANNER = 'rounded-md border border-warning/30 bg-warning-soft px-3 py-2.5 text-sm text-on-warning-soft';
+
+function Banners({ readonlyReason, ntpUnavailableReason, hasErrors, t }: {
+  readonlyReason: string | null;
+  ntpUnavailableReason: string | null;
+  hasErrors: boolean;
+  t: TFunc;
+}) {
   return (
     <>
-      {readonlyReason !== null && (
-        <div className="rounded-md border border-warning/30 bg-warning-soft px-3 py-2.5 text-sm text-on-warning-soft">
-          {t('readonlyBanner', { reason: readonlyReason })}
-        </div>
+      {readonlyReason !== null && <div className={WARNING_BANNER}>{t('readonlyBanner', { reason: readonlyReason })}</div>}
+      {readonlyReason === null && ntpUnavailableReason !== null && (
+        <div className={WARNING_BANNER}>{t('ntpUnavailableBanner', { reason: ntpUnavailableReason })}</div>
       )}
       {hasErrors && (
         <div className="rounded-md border border-danger/25 bg-danger-soft px-3 py-2.5 text-sm text-on-danger-soft">{t('errorsBanner')}</div>
@@ -180,6 +188,7 @@ export function TimeSettingsPage() {
   }
 
   const locked = state.readonly_reason !== null;
+  const ntpUnavailable = state.ntp_unavailable_reason !== null;
   const handleChange = (p: Partial<TimeDraft>) => {
     setErrors([]);
     patchDraft(p);
@@ -188,9 +197,9 @@ export function TimeSettingsPage() {
   return (
     <AppShellPage title={t('title')}>
       <div className="flex flex-col gap-4">
-        <Banners readonlyReason={state.readonly_reason} hasErrors={errors.length > 0} t={t} />
-        <ClockPanel state={state} fetchedAt={dataUpdatedAt} canSync={!locked} syncing={actions.syncing} onSync={actions.sync} t={t} />
-        <TimeForm draft={draft} errors={errors} locked={locked} onChange={handleChange} t={t} />
+        <Banners readonlyReason={state.readonly_reason} ntpUnavailableReason={state.ntp_unavailable_reason} hasErrors={errors.length > 0} t={t} />
+        <ClockPanel state={state} fetchedAt={dataUpdatedAt} canSync={!locked && !ntpUnavailable} syncing={actions.syncing} onSync={actions.sync} t={t} />
+        <TimeForm draft={draft} errors={errors} locked={locked} ntpUnavailable={ntpUnavailable} onChange={handleChange} t={t} />
         {!locked && (
           <div>
             <Button variant="primary" loading={actions.saving} onClick={() => actions.save(draft)}>{t('save')}</Button>

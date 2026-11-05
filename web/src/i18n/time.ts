@@ -6,6 +6,7 @@ export const uz = {
   loadFailed: 'Yuklab boʻlmadi.',
   retry: 'Qayta urinish',
   readonlyBanner: 'Sana/vaqt sozlamalari faqat koʻrish uchun: {{reason}}',
+  ntpUnavailableBanner: 'NTP yoqib boʻlmaydi: {{reason}}',
 
   serverTimeLabel: 'Server vaqti',
   ntpOff: 'NTP oʻchiq — vaqt internet bilan sinxronlanmaydi',
@@ -46,6 +47,7 @@ export const ru = {
   loadFailed: 'Не удалось загрузить.',
   retry: 'Повторить',
   readonlyBanner: 'Настройки даты/времени только для просмотра: {{reason}}',
+  ntpUnavailableBanner: 'NTP нельзя включить: {{reason}}',
 
   serverTimeLabel: 'Время сервера',
   ntpOff: 'NTP выключен — время не синхронизируется с интернетом',
@@ -86,6 +88,7 @@ export const en = {
   loadFailed: 'Could not load.',
   retry: 'Retry',
   readonlyBanner: 'Date/time settings are read-only: {{reason}}',
+  ntpUnavailableBanner: 'NTP cannot be enabled: {{reason}}',
 
   serverTimeLabel: 'Server time',
   ntpOff: 'NTP is off — time is not synced with the internet',

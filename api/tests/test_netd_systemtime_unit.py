@@ -25,6 +25,8 @@ from app.netd.systemtime import (
 
 TIMESYNCD_UNIT = "/lib/systemd/system/systemd-timesyncd.service"
 SHOW_TIMESYNC = ["timedatectl", "show-timesync"]
+DETECT_CONTAINER = ("systemd-detect-virt", "--container")
+NTP_OFF = "Timezone=Asia/Tashkent\nNTP=no\nNTPSynchronized=no\n"
 TIMESYNC_REPLY = "ServerName=0.asia.pool.ntp.org\nServerAddress=1.2.3.4\nNTPMessage={ Leap=0, Stratum=2 }\n"
 
 
@@ -236,12 +238,13 @@ async def test_apply_with_ntp_restarts_timesyncd_to_pick_new_servers():
 
 @pytest.mark.asyncio
 async def test_apply_failed_set_timezone_raises_and_stops():
-    executor = FakeExecutor(failing=(("timedatectl", "set-timezone", "Asia/Tashkent"),))
+    executor = FakeExecutor(files={TIMESYNCD_UNIT: ""}, failing=(("timedatectl", "set-timezone", "Asia/Tashkent"),
+                                                                  DETECT_CONTAINER))
     service = TimeService(executor, readonly=False, now_fn=_clock())
     with pytest.raises(NetdError) as exc:
         await service.apply(_config())
     assert exc.value.code == "command_failed"
-    assert executor.commands == [["timedatectl", "set-timezone", "Asia/Tashkent"]]
+    assert executor.commands == [list(DETECT_CONTAINER), ["timedatectl", "set-timezone", "Asia/Tashkent"]]
 
 
 @pytest.mark.asyncio
@@ -316,10 +319,10 @@ async def test_sync_now_chrony_restarts_chrony():
 
 
 @pytest.mark.asyncio
-async def test_sync_now_without_sync_service_unsupported():
+async def test_sync_now_without_sync_service_unavailable():
     with pytest.raises(NetdError) as exc:
         await _sync_service(FakeExecutor()).sync_now()
-    assert exc.value.code == "unsupported"
+    assert exc.value.code == "ntp_unavailable"
 
 
 @pytest.mark.asyncio
@@ -331,8 +334,90 @@ async def test_sync_now_failed_restart_raises_command_failed():
 
 
 def test_state_reads_fit_inside_api_client_timeout():
-    """`state()` ikki o'qish buyrug'ini ketma-ket kutadi; jami API→netd mijoz chegarasidan oshsa
+    """`state()` uchta o'qish buyrug'ini (show, show-timesync, detect-virt) ketma-ket kutadi; jami API→netd mijoz chegarasidan oshsa
     mijoz uziladi va sahifa «yuklab bo'lmadi» bo'ladi."""
     from app.netd.systemtime import READ_TIMEOUT_S
     from app.services.netd_client import NetdClient
-    assert 2 * READ_TIMEOUT_S < NetdClient("/x").timeout
+    assert 3 * READ_TIMEOUT_S < NetdClient("/x").timeout
+
+
+# ------------------------------------------------------------- NTP imkonsiz holatlar
+# 2026-11-05: Proxmox LXC'da «NTP yoqilgan» saqlanmasdi — `timedatectl set-ntp true` rc=0,
+# lekin systemd-timesyncd `ConditionVirtualization=!container` tufayli ishga tushmaydi
+# (NTP=no qoladi), panel esa «Saqlandi» deb jim turardi.
+
+def _lxc_executor(**kwargs):
+    return FakeExecutor(files={TIMESYNCD_UNIT: ""}, outputs={DETECT_CONTAINER: "lxc\n",
+                                                            ("timedatectl", "show"): NTP_OFF}, **kwargs)
+
+
+@pytest.mark.asyncio
+async def test_state_in_container_explains_why_ntp_is_unavailable():
+    state = await TimeService(_lxc_executor(), readonly=False, now_fn=_clock()).state()
+    assert state["ntp_enabled"] is False
+    assert "lxc" in state["ntp_unavailable_reason"]
+    assert "host" in state["ntp_unavailable_reason"]
+
+
+@pytest.mark.asyncio
+async def test_state_on_vm_has_no_ntp_unavailable_reason():
+    # Haqiqiy `systemd-detect-virt --container` konteyner bo'lmasa "none" + rc=1 qaytaradi.
+    executor = FakeExecutor(files={TIMESYNCD_UNIT: ""}, failing=(DETECT_CONTAINER,))
+    state = await TimeService(executor, readonly=False, now_fn=_clock()).state()
+    assert state["ntp_unavailable_reason"] is None
+
+
+@pytest.mark.asyncio
+async def test_state_without_sync_service_explains_ntp_is_unavailable():
+    executor = FakeExecutor()
+    state = await TimeService(executor, readonly=False, now_fn=_clock()).state()
+    assert "timesyncd" in state["ntp_unavailable_reason"]
+    assert list(DETECT_CONTAINER) not in executor.commands
+
+
+@pytest.mark.asyncio
+async def test_apply_enabling_ntp_in_container_is_rejected_before_any_change():
+    executor = _lxc_executor()
+    with pytest.raises(NetdError) as exc:
+        await TimeService(executor, readonly=False, now_fn=_clock()).apply(_config(ntp_enabled=True))
+    assert exc.value.code == "ntp_unavailable"
+    assert "lxc" in exc.value.message
+    assert executor.commands == [list(DETECT_CONTAINER)]
+    assert TIMESYNCD_CONF_PATH not in executor.files
+
+
+@pytest.mark.asyncio
+async def test_apply_timezone_without_ntp_in_container_still_works():
+    executor = _lxc_executor()
+    await TimeService(executor, readonly=False, now_fn=_clock()).apply(_config(ntp_enabled=False))
+    assert ["timedatectl", "set-timezone", "Asia/Tashkent"] in executor.commands
+    assert ["timedatectl", "set-ntp", "false"] in executor.commands
+
+
+@pytest.mark.asyncio
+async def test_apply_raises_when_ntp_service_does_not_come_up():
+    """Konteyner emas, lekin xizmat baribir ishga tushmadi (masalan CAP_SYS_TIME yo'q) —
+    jim «Saqlandi» emas, aniq xato."""
+    executor = FakeExecutor(files={TIMESYNCD_UNIT: ""}, failing=(DETECT_CONTAINER,),
+                            outputs={("timedatectl", "show"): NTP_OFF})
+    service = TimeService(executor, readonly=False, now_fn=_clock(), sleep_fn=_no_sleep)
+    with pytest.raises(NetdError) as exc:
+        await service.apply(_config(ntp_enabled=True))
+    assert exc.value.code == "ntp_not_started"
+    assert "systemd-timesyncd" in exc.value.message
+    assert ["systemctl", "restart", "systemd-timesyncd"] in executor.commands
+
+
+@pytest.mark.asyncio
+async def test_apply_ntp_succeeds_once_service_reports_active():
+    executor = FakeExecutor(files={TIMESYNCD_UNIT: ""}, failing=(DETECT_CONTAINER,))
+    state = await TimeService(executor, readonly=False, now_fn=_clock(), sleep_fn=_no_sleep).apply(
+        _config(ntp_enabled=True))
+    assert state["ntp_enabled"] is True
+
+
+@pytest.mark.asyncio
+async def test_sync_now_in_container_says_ntp_unavailable_not_disabled():
+    with pytest.raises(NetdError) as exc:
+        await TimeService(_lxc_executor(), readonly=False, now_fn=_clock(), sleep_fn=_no_sleep).sync_now()
+    assert exc.value.code == "ntp_unavailable"

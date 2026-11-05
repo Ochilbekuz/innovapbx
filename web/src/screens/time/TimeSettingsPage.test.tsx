@@ -78,4 +78,27 @@ describe('TimeSettingsPage', () => {
     await user.click(screen.getByRole('button', { name: 'Saqlash' }));
     await waitFor(() => expect(screen.getByRole('button', { name: 'Hozir sinxronlash' })).toHaveProperty('disabled', true));
   });
+
+  it("konteynerda (LXC) NTP'ni yoqib bo'lmasa — sababi koʻrinadi va tugma yopiq", async () => {
+    await loginAs(client, 'admin');
+    await client.applyTime({ timezone: 'Asia/Tashkent', ntp_servers: [], ntp_enabled: false });
+    const real = await client.systemTime();
+    vi.spyOn(client, 'systemTime').mockResolvedValue({
+      ...real, ntp_unavailable_reason: 'Server konteyner ichida (lxc) ishlayapti — soatni host boshqaradi',
+    });
+    renderPage(<ToastProvider><TimeSettingsPage /></ToastProvider>);
+    expect(await screen.findByText(/konteyner ichida \(lxc\)/)).toBeTruthy();
+    expect(screen.getByRole('switch', { name: 'NTP yoqilgan' })).toHaveProperty('disabled', true);
+  });
+
+  it("server NTP'ni yoqa olmasa — jim «Saqlandi» emas, sababi bilan xato", async () => {
+    const user = userEvent.setup();
+    await openPage();
+    vi.spyOn(client, 'applyTime').mockRejectedValue(
+      new ApiError(502, { code: 'ntp_not_started', message: 'NTP yoqilmadi: xizmat ishga tushmadi' }),
+    );
+    await user.click(screen.getByRole('button', { name: 'Saqlash' }));
+    expect(await screen.findByText(/NTP yoqilmadi/)).toBeTruthy();
+    expect(screen.queryByText('Saqlandi')).toBeNull();
+  });
 });

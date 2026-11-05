@@ -129,6 +129,8 @@ def test_is_symlink_detection(tmp_path):
     ["ping", "-c", "4", "-W", "2", "-4", "1.1.1.1"],
     ["ping", "-c", "1", "-W", "5", "-6", "2001:db8::1"],
     ["ping", "-c", "10", "-W", "1", "google.com"],
+    # Sana/vaqt — konteyner (LXC) aniqlash: NTP u yerda ishlamaydi
+    ["systemd-detect-virt", "--container"],
 ])
 async def test_run_accepts_allowlisted_argv_for_new_binaries(argv, monkeypatch):
     # XAVF: bu buyruqlar HAQIQIY bajarilsa host qayta yuklanadi/o'chadi (2026-11-04 dev/bot
@@ -160,6 +162,8 @@ async def test_run_accepts_allowlisted_argv_for_new_binaries(argv, monkeypatch):
     ["systemctl", "stop", "sshd"],
     ["systemctl", "restart", "sshd"],
     ["systemctl", "restart", "systemd-timesyncd", "asterisk"],
+    ["systemd-detect-virt"],
+    ["systemd-detect-virt", "--container", "--quiet"],
     ["timedatectl", "show-timesync", "--all"],
     ["systemctl", "reboot", "--now"],
     ["nft", "flush", "ruleset"],

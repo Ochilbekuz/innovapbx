@@ -40,7 +40,8 @@ COMPOSE_WEB_ARGV = [
 ]
 
 ALLOWED_BINARIES = frozenset(
-    {"ip", "ifup", "ifdown", "hostname", "timedatectl", "systemctl", "nft", "sshd", "ss", "docker", "ping"})
+    {"ip", "ifup", "ifdown", "hostname", "timedatectl", "systemctl", "nft", "sshd", "ss", "docker", "ping",
+     "systemd-detect-virt"})
 
 _TIMEZONE_RE = re.compile(r"^[A-Za-z0-9_+\-/]{1,64}$")
 
@@ -164,6 +165,8 @@ _ARGV_GUARDS: dict[str, Callable[[list[str]], bool]] = {
     "ss": _ss_argv_ok,
     "docker": _docker_argv_ok,
     "ping": _ping_argv_ok,
+    # Sana/vaqt: konteyner (LXC) aniqlash — faqat o'qish, yagona argv.
+    "systemd-detect-virt": lambda args: args == ["--container"],
 }
 
 

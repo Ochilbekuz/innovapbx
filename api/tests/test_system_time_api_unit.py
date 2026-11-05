@@ -185,10 +185,22 @@ async def test_sync_system_time_returns_state_and_audits():
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("code,status", [("sync_failed", 502), ("ntp_disabled", 409), ("unsupported", 409)])
+@pytest.mark.parametrize("code,status", [("sync_failed", 502), ("ntp_disabled", 409), ("ntp_unavailable", 409)])
 async def test_sync_system_time_error_statuses(code, status):
     client = _FakeClient(time_sync=_err(code))
     with pytest.raises(ApiError) as exc:
         await st.sync_system_time(session=_Session(), client=client, user=USER)
     assert exc.value.status_code == status
     assert exc.value.code == code
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("code,status", [("ntp_unavailable", 409), ("ntp_not_started", 502)])
+async def test_put_system_time_ntp_errors_reach_user_instead_of_silent_save(code, status):
+    """LXC'da NTP saqlanmasdi, panel esa «Saqlandi» derdi (2026-11-05) — endi xato foydalanuvchiga boradi."""
+    session = _Session()
+    client = _FakeClient(time_apply=_err(code))
+    with pytest.raises(ApiError) as exc:
+        await st.put_system_time(_config(), session=session, client=client, user=USER, ami=None)
+    assert (exc.value.status_code, exc.value.code) == (status, code)
+    assert session.commits == 0

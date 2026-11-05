@@ -11,7 +11,7 @@ import json
 from typing import Any
 
 from app.netd.ping import ping_timeout_s
-from app.netd.systemtime import SYNC_WAIT_SECONDS
+from app.netd.systemtime import NTP_ACTIVE_WAIT_SECONDS, SYNC_WAIT_SECONDS
 
 
 class NetdUnavailableError(Exception):
@@ -65,7 +65,8 @@ class NetdClient:
         return await self.call("time_state")
 
     async def time_apply(self, config: dict[str, Any]) -> dict[str, Any]:
-        return await self.call("time_apply", config=config)
+        # NTP yoqilsa netd xizmat ishga tushishini `NTP_ACTIVE_WAIT_SECONDS`gacha kutadi.
+        return await self.call("time_apply", config=config, timeout_s=self.timeout + NTP_ACTIVE_WAIT_SECONDS)
 
     async def time_sync(self) -> dict[str, Any]:
         # netd NTP javobini `SYNC_WAIT_SECONDS`gacha kutadi — mijoz undan uzoqroq kutsin.

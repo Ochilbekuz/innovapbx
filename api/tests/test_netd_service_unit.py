@@ -289,20 +289,19 @@ async def test_time_state_delegates_to_time_service():
 async def test_time_apply_delegates_to_time_service():
     executor = _ifupdown_executor()
     service = NetdService(executor, _settings(), now_fn=_clock())
-    config = SimpleNamespace(timezone="Asia/Tashkent", ntp_servers=[], ntp_enabled=True)
+    config = SimpleNamespace(timezone="Asia/Tashkent", ntp_servers=[], ntp_enabled=False)
     await service.time_apply(config)
     assert ["timedatectl", "set-timezone", "Asia/Tashkent"] in executor.commands
 
 
 @pytest.mark.asyncio
 async def test_time_sync_delegates_to_time_service():
-    # Soxta `timedatectl show` bo'sh (NTP=yes emas) -> TimeService.sync_now `ntp_disabled`.
+    # Soxta host'da sinxron xizmat (timesyncd/chrony) yo'q -> TimeService.sync_now `ntp_unavailable`.
     executor = _ifupdown_executor()
     service = NetdService(executor, _settings(), now_fn=_clock())
     with pytest.raises(NetdError) as exc:
         await service.time_sync()
-    assert exc.value.code == "ntp_disabled"
-    assert ["timedatectl", "show"] in executor.commands
+    assert exc.value.code == "ntp_unavailable"
 
 
 @pytest.mark.asyncio

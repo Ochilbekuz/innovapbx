@@ -791,6 +791,8 @@ export type TimeStateOut = {
   ntp_servers: string[];
   synced: boolean;
   backend: string;
+  /** Bu serverda NTP'ni yoqib bo'lmasligi sababi (LXC/konteyner, xizmat yo'q); null — mumkin. */
+  ntp_unavailable_reason: string | null;
   readonly_reason: string | null;
   /** Admin ro'yxati bo'sh bo'lsa ishlatiladigan mintaqaviy pool (`FallbackNTP=`). */
   default_ntp_servers: string[];

@@ -2033,6 +2033,8 @@ class TimeStateOut(BaseModel):
     # NTP javobi kelgan server (timesyncd); javob yo'q / chrony — None.
     sync_server: str | None = None
     backend: str
+    # Bu serverda NTP'ni yoqib bo'lmasligi sababi (konteyner/LXC, xizmat o'rnatilmagan); None — mumkin.
+    ntp_unavailable_reason: str | None = None
     readonly_reason: str | None
     # PUT: vaqt zonasi o'zgarib dialplan qayta qo'llangan bo'lsa — natija.
     apply: ApplyResult | None = None

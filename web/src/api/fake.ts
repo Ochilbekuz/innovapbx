@@ -1758,7 +1758,7 @@ export function createFakeClient(
   function buildTimeState(): TimeStateOut {
     return {
       now_utc: new Date().toISOString(), timezone: timeTimezone, ntp_enabled: timeNtpEnabled,
-      ntp_servers: timeNtpServers, synced: timeNtpEnabled, backend: 'timesyncd', readonly_reason: null,
+      ntp_servers: timeNtpServers, synced: timeNtpEnabled, backend: 'timesyncd', ntp_unavailable_reason: null, readonly_reason: null,
       default_ntp_servers: defaultNtpServers(timeTimezone),
       sync_server: timeNtpEnabled ? (timeNtpServers[0] ?? defaultNtpServers(timeTimezone)[0] ?? null) : null,
     };

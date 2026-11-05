@@ -45,6 +45,8 @@ SYNC_WAIT_SECONDS = 10.0
 _SYNC_POLL_SECONDS = 0.5
 READ_TIMEOUT_S = 3.0
 
+NTP_ACTIVE_WAIT_SECONDS = 5.0
+
 logger = logging.getLogger("netd")
 _SYNC_UNITS = {"timesyncd": "systemd-timesyncd", "chrony": "chrony"}
 
@@ -144,6 +146,19 @@ def parse_timedatectl_show(text: str) -> dict[str, str]:
     return props
 
 
+def ntp_unavailable_reason(backend: str, container: str | None) -> str | None:
+    """NTP'ni bu serverda yoqib BO'LMASLIGI sababi (None — yoqsa bo'ladi).
+    systemd-timesyncd unit'ida `ConditionVirtualization=!container`: LXC/Docker ichida
+    `timedatectl set-ntp true` xatosiz o'tadi, lekin xizmat hech qachon ishga tushmaydi."""
+    if backend == "none":
+        return "Serverda vaqt sinxronlash xizmati (systemd-timesyncd yoki chrony) o'rnatilmagan"
+    if backend == "timesyncd" and container:
+        return (f"Server konteyner ichida ({container}) ishlayapti — systemd-timesyncd konteynerda ishga "
+                "tushmaydi, soatni host boshqaradi. NTP'ni host serverda (masalan Proxmox) yoqing; "
+                "vaqt zonasini bu yerda tanlash mumkin.")
+    return None
+
+
 def detect_backend(executor: Executor) -> str:
     if executor.exists(_CHRONY_CONF_PATH):
         return "chrony"
@@ -187,6 +202,25 @@ class TimeService:
     async def _timesync_server(self) -> str | None:
         return ntp_reply_server(await self._read(["timedatectl", "show-timesync"]) or "")
 
+    async def _container(self) -> str | None:
+        """`systemd-detect-virt --container` — konteyner turi (`lxc`, `docker`...) yoki None
+        (konteyner emas: chiqish "none" + rc=1)."""
+        name = (await self._read(["systemd-detect-virt", "--container"]) or "").strip()
+        return None if name in ("", "none") else name
+
+    async def _ntp_unavailable_reason(self, backend: str) -> str | None:
+        container = await self._container() if backend == "timesyncd" else None
+        return ntp_unavailable_reason(backend, container)
+
+    async def _ntp_backend(self) -> str:
+        """NTP sinxron xizmati (`timesyncd`/`chrony`); bu serverda NTP'ni yoqib
+        bo'lmasa — `ntp_unavailable` (sababi bilan)."""
+        backend = detect_backend(self.executor)
+        reason = await self._ntp_unavailable_reason(backend)
+        if reason:
+            raise NetdError("ntp_unavailable", reason)
+        return backend
+
     async def state(self) -> dict[str, Any]:
         props = await self._props()
         tz = props.get("Timezone") or "UTC"
@@ -200,6 +234,7 @@ class TimeService:
             "synced": props.get("NTPSynchronized") == "yes",
             "sync_server": await self._timesync_server() if backend == "timesyncd" else None,
             "backend": backend,
+            "ntp_unavailable_reason": await self._ntp_unavailable_reason(backend),
             "readonly_reason": self._readonly_reason(),
         }
 
@@ -214,11 +249,8 @@ class TimeService:
             raise NetdError("command_failed", f"{' '.join(argv)}: {result.stderr.strip() or 'xato'}")
         return result
 
-    async def _restart_sync_unit(self) -> None:
-        unit = _SYNC_UNITS.get(detect_backend(self.executor))
-        if unit is None:
-            raise NetdError("unsupported", "Serverda vaqt sinxronlash xizmati (timesyncd/chrony) topilmadi")
-        await self._must_run(["systemctl", "restart", unit])
+    async def _restart_sync_unit(self, backend: str) -> None:
+        await self._must_run(["systemctl", "restart", _SYNC_UNITS[backend]])
 
     async def apply(self, config: Any) -> dict[str, Any]:
         self._ensure_writable()
@@ -226,23 +258,37 @@ class TimeService:
         if not result.ok:
             raise NetdError("invalid_config", "Sana/vaqt sozlamasi yaroqsiz",
                              [{"field": e.field, "message": e.message} for e in result.errors])
+        # NTP'ni yoqib bo'lmasa — hech narsa o'zgartirilmasdan oldin rad etiladi.
+        backend = await self._ntp_backend() if config.ntp_enabled else None
         await self._must_run(["timedatectl", "set-timezone", config.timezone])
         self.executor.write_text_atomic(TIMESYNCD_CONF_PATH, render_timesyncd_conf(
             list(config.ntp_servers or []), default_ntp_servers(config.timezone)))
         await self._must_run(["timedatectl", "set-ntp", "true" if config.ntp_enabled else "false"])
-        if config.ntp_enabled and detect_backend(self.executor) in _SYNC_UNITS:
+        if backend:
             # Yangi server ro'yxati faqat qayta ishga tushganda o'qiladi.
-            await self._restart_sync_unit()
+            await self._restart_sync_unit(backend)
+            await self._wait_ntp_active()
         return await self.state()
+
+    async def _wait_ntp_active(self) -> None:
+        """`set-ntp true` rc=0 — xizmat ishga tushdi degani EMAS; `NTP=yes` bo'lguncha kutadi,
+        bo'lmasa jim «saqlandi» o'rniga aniq xato."""
+        for _ in range(int(NTP_ACTIVE_WAIT_SECONDS / _SYNC_POLL_SECONDS)):
+            if (await self._props()).get("NTP") == "yes":
+                return
+            await self._sleep(_SYNC_POLL_SECONDS)
+        raise NetdError("ntp_not_started", "NTP yoqilmadi: vaqt sinxronlash xizmati (systemd-timesyncd/chrony) "
+                                           "ishga tushmadi — serverda `systemctl status systemd-timesyncd` ni tekshiring")
 
     async def sync_now(self) -> dict[str, Any]:
         """«Hozir sinxronlash»: xizmatni qayta ishga tushirib, timesyncd'da NTP
         serverdan haqiqiy JAVOB kelguncha (`SYNC_WAIT_SECONDS`) kutadi."""
         self._ensure_writable()
+        backend = await self._ntp_backend()
         if (await self._props()).get("NTP") != "yes":
             raise NetdError("ntp_disabled", "Avval NTP sinxronlashni yoqing va saqlang")
-        await self._restart_sync_unit()
-        if detect_backend(self.executor) == "timesyncd" and not await self._wait_ntp_reply():
+        await self._restart_sync_unit(backend)
+        if backend == "timesyncd" and not await self._wait_ntp_reply():
             raise NetdError("sync_failed", "NTP serverdan javob kelmadi — internet va UDP 123 portini tekshiring")
         return await self.state()
 

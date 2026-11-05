@@ -1,5 +1,14 @@
 # O'zgarishlar tarixi
 
+## 1.0.23 — 2026-11-05
+- **«Sana va vaqt»: NTP endi jim «saqlanmaydi»**. Ilgari NTP yoqilganda `timedatectl set-ntp true` muvaffaqiyat
+  qaytarardi, panel «Saqlandi» derdi, lekin sinxron xizmat ishga tushmasdi va tugma qayta o'chib qolardi.
+  Endi saqlashdan keyin NTP haqiqatan yoqilgani (≤5 s) tekshiriladi; yoqilmasa — aniq xato chiqadi.
+- **Konteyner/LXC (masalan Proxmox LXC) serverlar**: `systemd-timesyncd` konteynerda ishlamaydi (soatni host
+  boshqaradi). Panel buni aniqlaydi (`systemd-detect-virt --container`), sababini ogohlantirishda ko'rsatadi va
+  NTP tugmasi hamda «Hozir sinxronlash» yopiladi. Vaqt zonasini tanlash avvalgidek ishlaydi. NTP'ni host serverda yoqing.
+- Sinxron xizmat (timesyncd/chrony) o'rnatilmagan serverda ham NTP yoqishga urinish endi tushunarli sabab bilan rad etiladi.
+
 ## 1.0.22 — 2026-11-05
 - **Yuqori panelda jonli soat**: sana, vaqt (soniyasi bilan) va zona siljishi (masalan `05.11.2026 14:03:21 UTC+5`)
   har soniya yangilanadi — tizim vaqt zonasida («Sana va vaqt» sozlamasi), brauzer zonasida emas. Hamma
