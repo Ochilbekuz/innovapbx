@@ -128,16 +128,18 @@ async def _lookup_crm(
 ) -> str | None:
     """M-CRM §3: tenant'ning YOQILGAN bitrix24 obunasi orqali — obuna/webhook
     yo'q bo'lsa `None` (fail-open, `crm_route.py` o'zi ham fail-open)."""
-    from app.services import crm_route  # kechiktirilgan — aylanma importsiz
+    from app.services import crm_route, crm_settings  # kechiktirilgan — aylanma importsiz
     from app.services.crm_settings import read_secrets
+    from app.services.integrations.bitrix24 import BitrixSettings
 
     sub = await crm_route.enabled_subscription(session, tenant_id)
     if sub is None:
         return None
-    webhook_url = (await read_secrets(session, sub)).get("webhook_url", "")
-    if not webhook_url:
+    secrets = await read_secrets(session, sub)
+    if not crm_settings.is_configured(sub.kind, sub.config or {}, secrets):
         return None
-    result = await crm_route.route_for_number(session, sub, webhook_url, num, transport=transport)
+    settings = BitrixSettings.parse(sub.config or {}, secrets)
+    result = await crm_route.route_for_number(session, sub, settings, num, transport=transport)
     return result.name
 
 

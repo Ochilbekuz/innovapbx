@@ -13,10 +13,18 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_ami, get_session, require_access
 from app.api.v1.integrations import check_webhook_url
+from app.api.v1.settings import get_settings_row
 from app.core.errors import ApiError
 from app.core.optimistic import check_not_stale
 from app.db.models import IntegrationSubscription, User
 from app.schemas_crm import (
+    BitrixConnectIn,
+    BitrixConnectOut,
+    BitrixConnectPollOut,
+    BitrixDisconnectOut,
+    BitrixLicenseOut,
+    BitrixSetupOut,
+    BitrixSetupResultOut,
     CrmConfigResult,
     CrmProvider,
     CrmTestResult,
@@ -26,11 +34,11 @@ from app.schemas_crm import (
     UpdateBitrixPayload,
     UpdateCrmUserMapPayload,
 )
-from app.services import crm_settings
+from app.services import bitrix_oauth_flow, crm_settings
 from app.services.apply import AmiLike, apply_config
 from app.services.audit import record_audit
 from app.services.crm_settings import Changes
-from app.services.integrations import amocrm, bitrix24
+from app.services.integrations import amocrm, bitrix24, bitrix_broker
 
 router = APIRouter(prefix="/integrations/crm", tags=["integrations"])
 
@@ -126,6 +134,77 @@ async def update_amocrm(payload: UpdateAmoPayload, session: AsyncSession = Depen
     sub = await _subscription(session, user, "amocrm")
     check_not_stale(sub.updated_at, payload.updated_at)
     return await _save(session, user, sub, await amo_changes(payload))
+
+
+# ------------------------------------------------------------ Bitrix OAuth (bitrix-oauth-shartnoma.md §2)
+# ESKARTIRISH (shartnoma hujjati `/api/v1/crm/bitrix24/...` deb yozadi — bu REAL mavjud routerning
+# haqiqiy yo'li `/api/v1/integrations/crm/bitrix24/...` (web frontend ham shu yo'ldan foydalanadi);
+# shartnomadagi yo'l — hujjat qisqartmasi, haqiqiy (mavjud) router shu yerda kengaytiriladi.
+def _setup_out(result: bitrix_oauth_flow.SetupResult) -> BitrixSetupOut:
+    return BitrixSetupOut(lines=result.lines, default_line=result.default_line, event_bound=result.event_bound,
+                          users_synced=result.users_synced, warnings=result.warnings)
+
+
+async def _public_base_url(session: AsyncSession, tenant_id: str) -> str | None:
+    row = await get_settings_row(session, tenant_id)
+    return str((row.integrations or {}).get("public_base_url") or "") or None
+
+
+@router.post("/bitrix24/connect", response_model=BitrixConnectOut)
+async def bitrix_connect(payload: BitrixConnectIn, session: AsyncSession = Depends(get_session),
+                         user: User = Depends(require_access)) -> BitrixConnectOut:
+    sub = await _subscription(session, user, "bitrix24")
+    try:
+        authorize_url = await bitrix_oauth_flow.connect(session, sub, payload.domain, user_id=str(user.id))
+    except bitrix_broker.BrokerError as exc:
+        status, code, message = bitrix_oauth_flow.connect_error_detail(exc)
+        raise ApiError(status, code, message) from exc
+    await session.commit()
+    return BitrixConnectOut(authorize_url=authorize_url)
+
+
+@router.post("/bitrix24/connect/poll", response_model=BitrixConnectPollOut)
+async def bitrix_connect_poll(session: AsyncSession = Depends(get_session),
+                              user: User = Depends(require_access)) -> BitrixConnectPollOut:
+    sub = await _subscription(session, user, "bitrix24")
+    public_base_url = await _public_base_url(session, str(user.tenant_id))
+    result = await bitrix_oauth_flow.poll(session, sub, user_id=str(user.id), public_base_url=public_base_url)
+    await session.commit()
+    return BitrixConnectPollOut(status=result.status, code=result.code, message=result.message,
+                                setup=_setup_out(result.setup) if result.setup else None)
+
+
+@router.post("/bitrix24/setup", response_model=BitrixSetupResultOut)
+async def bitrix_setup(session: AsyncSession = Depends(get_session),
+                       user: User = Depends(require_access)) -> BitrixSetupResultOut:
+    sub = await _subscription(session, user, "bitrix24")
+    public_base_url = await _public_base_url(session, str(user.tenant_id))
+    try:
+        result = await bitrix_oauth_flow.run_setup(session, sub, user_id=str(user.id),
+                                                   public_base_url=public_base_url)
+    except crm_settings.CrmCallError as exc:
+        raise ApiError(409, "setup_failed", exc.result.error or "Sozlash muvaffaqiyatsiz") from exc
+    await session.commit()
+    return BitrixSetupResultOut(setup=_setup_out(result))
+
+
+@router.post("/bitrix24/disconnect", response_model=BitrixDisconnectOut)
+async def bitrix_disconnect(session: AsyncSession = Depends(get_session),
+                            user: User = Depends(require_access)) -> BitrixDisconnectOut:
+    sub = await _subscription(session, user, "bitrix24")
+    public_base_url = await _public_base_url(session, str(user.tenant_id))
+    await bitrix_oauth_flow.disconnect(session, sub, user_id=str(user.id), public_base_url=public_base_url)
+    await session.commit()
+    return BitrixDisconnectOut(ok=True)
+
+
+@router.get("/bitrix24/license", response_model=BitrixLicenseOut)
+async def bitrix_license(session: AsyncSession = Depends(get_session),
+                         user: User = Depends(require_access)) -> BitrixLicenseOut:
+    sub = await _subscription(session, user, "bitrix24")
+    info = await bitrix_oauth_flow.license_info(session, sub)
+    await session.commit()  # birinchi o'qishda yaratilgan qator saqlansin (get_crm bilan BIR XIL qolip)
+    return BitrixLicenseOut(**info)
 
 
 # ------------------------------------------------------------ test va xarita

@@ -80,7 +80,16 @@ Menu: **System → Integrations**, with seven tabs: **Overview**, **API keys**, 
 5. Retry a failed delivery from the log with **Resend**.
 6. Rotate the signing secret with **Rotate secret** if needed (the old one stops working).
 
-### Connect Bitrix24
+### Connect Bitrix24 — the “Connect” button (recommended)
+1. On the **Bitrix24** tab, enter the portal address in **Portal domain** (e.g. `company.bitrix24.kz`) and click **Connect**.
+2. In the Bitrix window that opens, sign in as a portal **administrator** and allow access — the window closes by itself.
+3. The rest is automatic: lines are discovered, the **default outbound line** is set to Innova PBX, the click-to-call event
+   is bound and employees are synced. The “Setup result” card shows the outcome; if you see a warning, click **Reconfigure**.
+4. Click-to-call requires a public URL in **Settings**.
+5. The Bitrix24 integration is licensed: a **14-day free trial** per portal (once), then 1, 3, 6 or 12 months.
+   See **System → License**. When the term ends, the Bitrix24 link stops; the PBX keeps working.
+
+### Connect Bitrix24 — via webhook (legacy)
 1. On the **Bitrix24** tab, turn on **Enable Bitrix24 integration**.
 2. In the Bitrix24 admin panel, create **Applications → Webhooks → Inbound webhook**, selecting at
    least these scopes: `telephony`, `crm`, `user`/`user_basic`. Enter the resulting address into the

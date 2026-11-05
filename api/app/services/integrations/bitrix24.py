@@ -26,7 +26,7 @@ from sqlalchemy import select
 
 from app.db.models import CallRecording, CrmCallLink
 from app.services import recordings
-from app.services.integrations import crm, ssrf
+from app.services.integrations import bitrix_broker, crm, ssrf
 from app.services.integrations.crm import CrmCallError, CrmUserInfo, HttpTarget, UserMap
 from app.services.integrations.providers import DeliveryContext, DeliveryResult, register_provider
 
@@ -142,21 +142,73 @@ def user_info(raw: Mapping[str, Any]) -> CrmUserInfo:
     return CrmUserInfo(id=str(raw.get("ID")), name=name or str(raw.get("EMAIL") or raw.get("ID")), inner_phone=inner)
 
 
+# ------------------------------------------------------------ OAuth konteksti
+@dataclass(frozen=True)
+class OAuthContext:
+    """OAuth rejimi: `ulanish_id`/`ulanish_sir` — broker (`bitrix_broker.py`) orqali
+    `access_token`/`client_endpoint` olish/yangilash uchun. `url_check` — har
+    chaqiruvda `client_endpoint`ga qo'llanadi (broker buzilsa ham SSRF himoyasi)."""
+    ulanish_id: str
+    ulanish_sir: str
+    url_check: Callable[[str], None] = ssrf.check_url_default
+    transport: httpx.AsyncBaseTransport | None = None
+
+
+def is_expired_token(status: int, body: Any) -> bool:
+    """HTTP 401 YOKI tana ichidagi `EXPIRED_TOKEN` — Bitrix ikkisini ham ishlatadi."""
+    if status == 401:
+        return True
+    code = str((body or {}).get("error") or "").upper() if isinstance(body, dict) else ""
+    return code == "EXPIRED_TOKEN"
+
+
 # ------------------------------------------------------------ REST mijoz
 class BitrixClient:
-    def __init__(self, webhook_url: str, target: HttpTarget) -> None:
-        self._base = webhook_url.rstrip("/") + "/"
+    def __init__(self, webhook_url: str, target: HttpTarget, oauth: OAuthContext | None = None) -> None:
+        self._base = webhook_url.rstrip("/") + "/" if webhook_url else ""
         self._target = target
+        self._oauth = oauth
+        self._token: str | None = None
 
-    async def call(self, method: str, params: Mapping[str, str]) -> Any:
-        """Form-encoded POST `<webhook>/<method>.json`; muvaffaqiyat → `result` maydoni."""
-        resp = await crm.http_request(self._target, "POST", f"{self._base}{method}.json", what=method,
-                                      data=dict(params))
+    async def _resolve(self, *, force: bool = False) -> str:
+        """Vebhuk: saqlangan baza o'zgarmaydi. OAuth: brokerdan token (keshlangan,
+        `force=True` — majburiy yangilash), `client_endpoint` HAR DOIM SSRF tekshiriladi."""
+        if self._oauth is None:
+            return self._base
+        try:
+            token = await bitrix_broker.get_token(self._oauth.ulanish_id, self._oauth.ulanish_sir,
+                                                  transport=self._oauth.transport, force=force)
+        except bitrix_broker.BrokerError as exc:
+            raise bitrix_broker.to_crm_failure(exc) from exc
+        base = token.client_endpoint.rstrip("/") + "/"
+        try:
+            self._oauth.url_check(base)
+        except ssrf.UrlForbidden as exc:
+            raise crm.failure(f"url_forbidden:{exc.reason}", permanent=True) from exc
+        self._token = token.access_token
+        return base
+
+    async def _send(self, base: str, method: str, data: Mapping[str, str]) -> tuple[int, Any, CrmCallError | None]:
+        resp = await crm.http_request(self._target, "POST", f"{base}{method}.json", what=method, data=dict(data))
         body = crm.json_body(resp)
-        error = classify(resp.status_code, resp.headers, body, what=method)
+        return resp.status_code, body, classify(resp.status_code, resp.headers, body, what=method)
+
+    async def _request(self, method: str, params: Mapping[str, str]) -> dict[str, Any]:
+        """Vebhuk: `classify()` natijasi shu holicha. OAuth: token tugagan bo'lsa
+        BIR MARTA majburiy yangilanadi va qaytadan so'raladi (ikkinchi muvaffaqiyatsizlik — xato)."""
+        base = await self._resolve()
+        data = {**params, "auth": self._token} if self._oauth is not None else dict(params)
+        status, body, error = await self._send(base, method, data)
+        if error is not None and self._oauth is not None and is_expired_token(status, body):
+            base = await self._resolve(force=True)
+            status, body, error = await self._send(base, method, {**params, "auth": self._token})
         if error is not None:
             raise error
-        return body.get("result") if isinstance(body, dict) else None
+        return body if isinstance(body, dict) else {}
+
+    async def call(self, method: str, params: Mapping[str, str]) -> Any:
+        """Form-encoded POST `<baza>/<method>.json`; muvaffaqiyat → `result` maydoni."""
+        return (await self._request(method, params)).get("result")
 
     async def users(self) -> list[CrmUserInfo]:
         """`user.get` sahifalab (50 tadan, `next`), ko'pi bilan `USER_PAGES_MAX` sahifa."""
@@ -177,14 +229,8 @@ class BitrixClient:
     async def _page(self, start: int | None) -> dict:
         # M-CRM §1: faqat FAOL xodimlar — bo'shatilgan/mehmon/bot hisoblar
         # avto-xaritaga/sinxron hisobotiga kirmasin.
-        resp = await crm.http_request(
-            self._target, "POST", f"{self._base}user.get.json", what="user.get",
-            data={"start": str(start or 0), "FILTER[ACTIVE]": "true", "FILTER[USER_TYPE]": "employee"})
-        body = crm.json_body(resp)
-        error = classify(resp.status_code, resp.headers, body, what="user.get")
-        if error is not None:
-            raise error
-        return body if isinstance(body, dict) else {}
+        return await self._request("user.get", {"start": str(start or 0), "FILTER[ACTIVE]": "true",
+                                                 "FILTER[USER_TYPE]": "employee"})
 
 
 def lines_to_register(existing: list[dict[str, Any]], dids: list[tuple[str, str]]) -> list[tuple[str, str]]:
@@ -211,13 +257,26 @@ class BitrixSettings:
     popup_max_delay_s: int
     default_user_id: str | None
     upload_records: bool = True
+    # bitrix-oauth-shartnoma.md §3: `auth_mode` yo'q/`"webhook"` — eski rejim o'zgarmaydi;
+    # `"oauth"` — `ulanish_id`/`ulanish_sir` orqali broker (`bitrix_broker.py`).
+    auth_mode: str = "webhook"
+    ulanish_id: str = ""
+    ulanish_sir: str = ""
 
     @classmethod
     def parse(cls, config: Mapping[str, Any], secrets: Mapping[str, str]) -> BitrixSettings:
         return cls(webhook_url=secrets.get("webhook_url", ""), create_lead=bool(config.get("create_lead", True)),
                    popup_max_delay_s=int(config.get("popup_max_delay_s") or DEFAULT_POPUP_MAX_DELAY_S),
                    default_user_id=config.get("default_user_id") or None,
-                   upload_records=bool(config.get("upload_records", True)))
+                   upload_records=bool(config.get("upload_records", True)),
+                   auth_mode=str(config.get("auth_mode") or "webhook"),
+                   ulanish_id=secrets.get("ulanish_id", ""), ulanish_sir=secrets.get("ulanish_sir", ""))
+
+    @property
+    def configured(self) -> bool:
+        if self.auth_mode == "oauth":
+            return bool(self.ulanish_id and self.ulanish_sir)
+        return bool(self.webhook_url)
 
 
 @dataclass
@@ -323,6 +382,23 @@ HANDLERS: dict[str, Callable[[Flow], Awaitable[str]]] = {
 
 
 # ------------------------------------------------------------ yetkazuvchi
+def make_client(subscription_id: str, settings: BitrixSettings, *, limiter: crm.RateLimiter,
+                transport: httpx.AsyncBaseTransport | None = None,
+                url_check: Callable[[str], None] = ssrf.check_url_default) -> BitrixClient:
+    """YAGONA qurilish nuqtasi (item 3: 3 ta chaqiruvchi — `Bitrix24Provider`, `crm_settings.py`,
+    `crm_route.py` — shu orqali o'tadi): vebhuk — URL bitta marta SSRF tekshiriladi (taqiq → doimiy
+    xato); OAuth — `BitrixClient` o'zi HAR chaqiruvda `client_endpoint`ni tekshiradi (`_resolve`)."""
+    target = HttpTarget(limiter, subscription_id, transport)
+    if settings.auth_mode == "oauth":
+        return BitrixClient("", target, OAuthContext(settings.ulanish_id, settings.ulanish_sir,
+                                                      url_check=url_check, transport=transport))
+    try:
+        url_check(settings.webhook_url)
+    except ssrf.UrlForbidden as exc:
+        raise crm.failure(f"url_forbidden:{exc.reason}", permanent=True) from exc
+    return BitrixClient(settings.webhook_url, target)
+
+
 class Bitrix24Provider:
     def __init__(self, *, url_check: Callable[[str], None] = ssrf.check_url_default,
                  transport: httpx.AsyncBaseTransport | None = None, limiter: crm.RateLimiter = LIMITER,
@@ -330,12 +406,16 @@ class Bitrix24Provider:
         self._url_check, self._transport, self._limiter, self._clock = url_check, transport, limiter, clock
 
     def client(self, subscription_id: str, webhook_url: str) -> BitrixClient:
-        """Ruxsat etilgan URL uchun mijoz (SSRF har yuborishda — DNS rebinding); taqiq → doimiy xato."""
-        try:
-            self._url_check(webhook_url)
-        except ssrf.UrlForbidden as exc:
-            raise crm.failure(f"url_forbidden:{exc.reason}", permanent=True) from exc
-        return BitrixClient(webhook_url, HttpTarget(self._limiter, subscription_id, self._transport))
+        """Vebhuk rejimi — orqaga moslik (eski imzo, mavjud testlar/chaqiruvchilar)."""
+        return make_client(subscription_id, BitrixSettings(webhook_url=webhook_url, create_lead=True,
+                                                            popup_max_delay_s=DEFAULT_POPUP_MAX_DELAY_S,
+                                                            default_user_id=None),
+                           limiter=self._limiter, transport=self._transport, url_check=self._url_check)
+
+    def client_for(self, subscription_id: str, settings: BitrixSettings) -> BitrixClient:
+        """Ikki rejimli yagona nuqta — `deliver()`/`crm_settings.py` shu orqali."""
+        return make_client(subscription_id, settings, limiter=self._limiter, transport=self._transport,
+                           url_check=self._url_check)
 
     async def deliver(self, ctx: DeliveryContext) -> DeliveryResult:
         handler = HANDLERS.get(ctx.event.type)
@@ -344,10 +424,10 @@ class Bitrix24Provider:
         sub = ctx.subscription
         config = BitrixSettings.parse(sub.config, crm.load_secrets(sub.secret))
         try:
-            if not config.webhook_url:
-                raise crm.failure("not_configured: webhook URL yo'q", permanent=True)
+            if not config.configured:
+                raise crm.failure("not_configured: ulanish ma'lumotlari yo'q", permanent=True)
             users = await crm.load_user_map(ctx.session, sub.tenant_id, KIND, config.default_user_id)
-            flow = Flow(self.client(sub.id, config.webhook_url), ctx, config, users, self._clock())
+            flow = Flow(self.client_for(sub.id, config), ctx, config, users, self._clock())
             summary = await handler(flow)
         except CrmCallError as exc:
             return exc.result

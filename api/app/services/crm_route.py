@@ -23,9 +23,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import CrmUserMap, Extension, IntegrationSubscription
 from app.services.cid_lookup import TTLCache, sanitize_name
-from app.services.integrations import crm
-from app.services.integrations.bitrix24 import BitrixClient
-from app.services.integrations.crm import CrmCallError, HttpTarget
+from app.services.integrations import bitrix24, crm
+from app.services.integrations.bitrix24 import BitrixClient, BitrixSettings
+from app.services.integrations.crm import CrmCallError
 
 TIMEOUT_S = 2.0
 CACHE_TTL_S = 60
@@ -81,9 +81,9 @@ async def enabled_subscription(session: AsyncSession, tenant_id: str) -> Integra
         IntegrationSubscription.enabled.is_(True)))).scalar_one_or_none()
 
 
-async def _lookup(session: AsyncSession, sub: IntegrationSubscription, webhook_url: str, number: str,
+async def _lookup(session: AsyncSession, sub: IntegrationSubscription, settings: BitrixSettings, number: str,
                   *, transport: Any = None) -> RouteResult:
-    client = BitrixClient(webhook_url, HttpTarget(LIMITER, f"crmroute:{sub.id}", transport))
+    client = bitrix24.make_client(str(sub.id), settings, limiter=LIMITER, transport=transport)
     entity = await search_entity(client, number)
     if entity is None:
         return RouteResult()
@@ -93,15 +93,15 @@ async def _lookup(session: AsyncSession, sub: IntegrationSubscription, webhook_u
     return RouteResult(ext, name)
 
 
-async def route_for_number(session: AsyncSession, sub: IntegrationSubscription, webhook_url: str, number: str,
-                           *, transport: Any = None, clock: Any = time.monotonic) -> RouteResult:
+async def route_for_number(session: AsyncSession, sub: IntegrationSubscription, settings: BitrixSettings,
+                           number: str, *, transport: Any = None, clock: Any = time.monotonic) -> RouteResult:
     """TTLCache (60s) + umumiy `TIMEOUT_S` muddat + FAIL-OPEN (xato -> bo'sh natija)."""
     key = (str(sub.id), number)
     hit, cached = cache.get(key)
     if hit and cached is not None:
         return _decode(cached)
     try:
-        result = await asyncio.wait_for(_lookup(session, sub, webhook_url, number, transport=transport), TIMEOUT_S)
+        result = await asyncio.wait_for(_lookup(session, sub, settings, number, transport=transport), TIMEOUT_S)
     except (CrmCallError, TimeoutError, asyncio.TimeoutError, Exception):  # noqa: BLE001 — fail-open shart
         result = RouteResult()
     cache.set(key, format_result(result), CACHE_TTL_S)

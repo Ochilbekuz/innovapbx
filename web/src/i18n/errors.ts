@@ -113,6 +113,10 @@ export const uz = {
   update_busy: 'Boshqa yangilanish amali hali ketmoqda — birozdan keyin qayta urinib koʻring.',
   update_not_available: "Hozircha yangi versiya yoʻq.",
   update_version_mismatch: 'Versiya mos kelmadi — sahifa eskirgan boʻlishi mumkin, holat yangilandi.',
+  // Bitrix OAuth ulash — qarang ../../bitrix-oauth-shartnoma.md §2
+  invalid_domain: 'Portal domeni notoʻgʻri — masalan kompaniya.bitrix24.kz.',
+  app_not_installed: 'Bu portalda Innova PBX ilovasi oʻrnatilmagan — avval Bitrix24 ilovalar doʻkonidan oʻrnating.',
+  broker_unreachable: 'Ulanish serveriga yetib boʻlmadi — birozdan keyin qayta urinib koʻring.',
 };
 
 export const ru = {
@@ -227,6 +231,10 @@ export const ru = {
   update_busy: 'Другое действие обновления уже выполняется — попробуйте позже.',
   update_not_available: 'Новой версии пока нет.',
   update_version_mismatch: 'Версия не совпадает — страница устарела, статус обновлён.',
+  // Bitrix OAuth — см. ../../bitrix-oauth-shartnoma.md §2
+  invalid_domain: 'Неверный домен портала — например company.bitrix24.kz.',
+  app_not_installed: 'На этом портале приложение Innova PBX не установлено — сначала установите его из каталога Bitrix24.',
+  broker_unreachable: 'Не удалось связаться с сервером подключения — попробуйте позже.',
 };
 
 export const en = {
@@ -341,4 +349,8 @@ export const en = {
   update_busy: 'Another update action is already running — try again shortly.',
   update_not_available: 'No new version available yet.',
   update_version_mismatch: 'Version mismatch — this page was stale, status refreshed.',
+  // Bitrix OAuth — see ../../bitrix-oauth-shartnoma.md §2
+  invalid_domain: 'Invalid portal domain — e.g. company.bitrix24.kz.',
+  app_not_installed: 'The Innova PBX app is not installed on this portal — install it from the Bitrix24 app store first.',
+  broker_unreachable: 'Could not reach the connection server — try again shortly.',
 };

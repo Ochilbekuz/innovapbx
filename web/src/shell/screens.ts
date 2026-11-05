@@ -98,7 +98,7 @@ export const SCREENS: ScreenDef[] = [
   { id: 'network', reconId: 'S38', path: '/settings/network', icon: icon(EthernetPort), group: 'system', full: true },
   { id: 'featurecodes', reconId: 'S24', path: '/settings/feature-codes', icon: icon(Hash), group: 'system', full: true },
   { id: 'integrations', reconId: 'S15', path: '/settings/integrations', icon: icon(Plug), group: 'system', full: true },
-  { id: 'license', reconId: 'S19', path: '/settings/license', icon: icon(BadgeCheck), group: 'system' },
+  { id: 'license', reconId: 'S19', path: '/settings/license', icon: icon(BadgeCheck), group: 'system', full: true },
   { id: 'users', reconId: 'S31', path: '/settings/users', icon: icon(UserCog), group: 'system', full: true },
   // M11 — qarang ../../replica/m11-update-contract.md. S-raqam yo'q (M8 `network`dagi kabi yangi qo'shilgan).
   { id: 'update', reconId: 'S45', path: '/settings/update', icon: icon(RefreshCw), group: 'system', full: true },

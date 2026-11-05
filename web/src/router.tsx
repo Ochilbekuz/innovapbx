@@ -38,6 +38,7 @@ import { DevicesPage } from '@/screens/devices/DevicesPage';
 import { BackupPage } from '@/screens/backup/BackupPage';
 import { MigrationPage } from '@/screens/migration/MigrationPage';
 import { StatusPage } from '@/screens/status/StatusPage';
+import { LicensePage } from '@/screens/license/LicensePage';
 import { NetworkPage } from '@/screens/network/NetworkPage';
 import { AnnouncementsPage } from '@/screens/announcements/AnnouncementsPage';
 import { MiscPage } from '@/screens/misc/MiscPage';
@@ -91,6 +92,7 @@ const FULL_PAGES: Record<string, ComponentType> = {
   backup: BackupPage,
   migration: MigrationPage,
   status: StatusPage,
+  license: LicensePage,
   network: NetworkPage,
   announcements: AnnouncementsPage,
   misc: MiscPage,

@@ -38,6 +38,7 @@ import * as followme from './followme';
 import * as campaigns from './campaigns';
 import * as status from './status';
 import * as network from './network';
+import * as license from './license';
 import * as docs from './docs';
 
 type AnyObj = Record<string, unknown>;
@@ -56,7 +57,7 @@ const NAMESPACES: Record<string, { uz: AnyObj; ru: AnyObj; en: AnyObj }> = {
   extensions, ringgroups, trunks, routes, audio, ivr, outbound, queues, timegroups,
   voicemail, notify, featurecodes, conferences, blacklist,
   users, me, live, analytics, security, alerts, integrations, recordings, devices, backup, migration, followme, campaigns,
-  status, network,
+  status, network, license,
   docs,
 };
 

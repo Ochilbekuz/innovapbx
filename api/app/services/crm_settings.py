@@ -52,7 +52,7 @@ def new_hook_token() -> str:
 
 def is_configured(provider: str, config: Mapping[str, Any], secrets: Mapping[str, str]) -> bool:
     if provider == "bitrix24":
-        return bool(secrets.get("webhook_url"))
+        return bitrix24.BitrixSettings.parse(config, secrets).configured
     return bool(config.get("base_url")) and bool(secrets.get("token"))
 
 
@@ -78,6 +78,7 @@ def config_out(provider: str, config: Mapping[str, Any], secrets: Mapping[str, s
     if provider == "bitrix24":
         host = bitrix24.portal_host(secrets.get("webhook_url", ""))
         sync = config.get("sync")
+        auth_mode = config.get("auth_mode") or None
         return BitrixConfigOut(
             has_webhook_url=bool(secrets.get("webhook_url")), create_lead=bool(config.get("create_lead", True)),
             popup_max_delay_s=int(config.get("popup_max_delay_s", bitrix24.DEFAULT_POPUP_MAX_DELAY_S)),
@@ -89,7 +90,9 @@ def config_out(provider: str, config: Mapping[str, Any], secrets: Mapping[str, s
             upload_records=bool(config.get("upload_records", True)),
             auto_sync_users=bool(config.get("auto_sync_users", True)),
             portal_host=host, portal_cloud=bitrix24.portal_is_cloud(host),
-            sync=CrmSyncReportOut(**sync) if isinstance(sync, dict) else None)
+            sync=CrmSyncReportOut(**sync) if isinstance(sync, dict) else None,
+            auth_mode=auth_mode, domain=config.get("domain") or None, member_id=config.get("member_id") or None,
+            connected=auth_mode == "oauth" and bool(secrets.get("ulanish_id")))
     return AmoConfigOut(base_url=str(config.get("base_url") or ""), token_set=bool(secrets.get("token")),
                         unsorted_for_unknown=bool(config.get("unsorted_for_unknown", True)),
                         default_user_id=config.get("default_user_id"))
@@ -232,7 +235,8 @@ async def refresh_auto_map(session: AsyncSession, tenant_id: str, provider: str,
 
 async def fetch_users(sub: IntegrationSubscription, secrets: Mapping[str, str]) -> list[CrmUserInfo]:
     if sub.kind == "bitrix24":
-        return await bitrix24.PROVIDER.client(str(sub.id), secrets.get("webhook_url", "")).users()
+        config = bitrix24.BitrixSettings.parse(sub.config or {}, secrets)
+        return await bitrix24.PROVIDER.client_for(str(sub.id), config).users()
     config = amocrm.AmoSettings.parse(sub.config or {}, secrets)
     return await amocrm.PROVIDER.client(str(sub.id), config).users()
 
@@ -256,6 +260,14 @@ async def test_connection(session: AsyncSession, sub: IntegrationSubscription) -
                                           f" (avto-xarita: {auto})", users_loaded=len(users))
 
 
+async def tenant_dids(session: AsyncSession, tenant_id: str) -> list[tuple[str, str]]:
+    """Yoqilgan kiruvchi yo'nalishlar DID'lari — Bitrix "liniya" ro'yxati uchun
+    (`_sync_extras` va OAuth `bitrix_oauth_flow.run_setup` BIR XIL yadro, dryer)."""
+    rows = (await session.execute(select(InboundRoute.name, InboundRoute.did).where(
+        InboundRoute.tenant_id == tenant_id, InboundRoute.enabled, InboundRoute.did != ""))).all()
+    return [(did, name) for name, did in rows]
+
+
 async def _sync_extras(session: AsyncSession, sub: IntegrationSubscription, secrets: Mapping[str, str],
                        users: list[CrmUserInfo]) -> None:
     """`/sync`+fon ishi+`/test` BIR XIL yadro orqali ham bajaradi: 1c (hisobot) va
@@ -267,12 +279,10 @@ async def _sync_extras(session: AsyncSession, sub: IntegrationSubscription, secr
         CrmUserMap.source == "manual"))).scalars().all())
     report = build_sync_report(users, numbers, manual, datetime.now(timezone.utc))
     sub.config = {**(sub.config or {}), "sync": report}
-    dids = (await session.execute(select(InboundRoute.name, InboundRoute.did).where(
-        InboundRoute.tenant_id == sub.tenant_id, InboundRoute.enabled, InboundRoute.did != ""))).all()
-    client = bitrix24.PROVIDER.client(str(sub.id), secrets.get("webhook_url", ""))
+    dids = await tenant_dids(session, str(sub.tenant_id))
+    client = bitrix24.PROVIDER.client_for(str(sub.id), bitrix24.BitrixSettings.parse(sub.config or {}, secrets))
     try:
-        await bitrix24.ensure_lines(client, [(did, name) for name, did in dids],
-                                    create_lead=bool(sub.config.get("create_lead", True)))
+        await bitrix24.ensure_lines(client, dids, create_lead=bool(sub.config.get("create_lead", True)))
     except Exception:  # noqa: BLE001 — 1g: liniya ro'yxati MUHIM EMAS, sinxron davom etadi
         pass
 

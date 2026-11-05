@@ -53,6 +53,27 @@ def token_matches(expected: str | None, given: str | None) -> bool:
     return hmac.compare_digest(expected.encode(), given.encode())
 
 
+def member_matches(expected: str | None, given: str | None) -> bool:
+    """OAuth rejimi: `auth[member_id]` saqlangan `config.member_id` bilan ANIQ mos kelishi SHART
+    (bo'sh = bo'sh emas — `token_matches` bilan BIR XIL qoida)."""
+    return bool(expected) and expected == given
+
+
+def hook_auth_ok(auth_mode: str | None, config: Mapping[str, object], secrets: Mapping[str, str],
+                 form: Mapping[str, str]) -> bool:
+    """Vebhuk rejimi (`auth_mode` yo'q/`webhook`) — O'ZGARMAGAN (`application_token` tekshiruvi).
+    OAuth rejimida `member_id` MAJBURIY mos kelishi; `application_token` saqlangan bo'lsa — qo'shimcha
+    HMAC tekshiruv (bo'lmasa — Bitrix bu maydonni bermasligi mumkin, member_id yetarli)."""
+    if auth_mode != "oauth":
+        return token_matches(secrets.get("application_token"), form.get("auth[application_token]"))
+    if not member_matches(config.get("member_id"), form.get("auth[member_id]")):
+        return False
+    app_token = secrets.get("application_token")
+    if app_token:
+        return token_matches(app_token, form.get("auth[application_token]"))
+    return True
+
+
 async def hook_subscription(session: AsyncSession, hook_token: str) -> IntegrationSubscription:
     sub = (await session.execute(select(IntegrationSubscription).where(
         IntegrationSubscription.kind == PROVIDER,
@@ -93,7 +114,7 @@ async def bitrix_call_start(hook_token: str, request: Request, session: AsyncSes
     sub = await hook_subscription(session, hook_token)
     form = {k: str(v) for k, v in (await request.form()).items()}
     secrets = await read_secrets(session, sub)
-    if not token_matches(secrets.get("application_token"), form.get("auth[application_token]")):
+    if not hook_auth_ok(str((sub.config or {}).get("auth_mode") or ""), sub.config or {}, secrets, form):
         raise ApiError(403, "forbidden", "application_token noto'g'ri")
     if form.get("event", "").upper() != START_EVENT:
         return JSONResponse(status_code=200, content={"ignored": True})

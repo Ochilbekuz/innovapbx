@@ -1,5 +1,16 @@
 # O'zgarishlar tarixi
 
+## 1.0.27 — 2026-11-05
+- **Bitrix24 — bir tugma bilan ulash** (OnlinePBX kabi): Integratsiyalar → Bitrix24 tabida portal domenini yozib
+  **Ulash**ni bosing → Bitrix oynasida administrator sifatida kiring → qolgani avtomatik: liniyalar, **standart chiquvchi
+  liniya** (Innova PBX), click-to-call hodisasi (`ONEXTERNALCALLSTART`), xodimlar sinxroni. Natija kartasi, **Qayta sozlash**, **Uzish**.
+- Ulash OAuth orqali — vebhuk yaratish shart emas. Tokenlarni markaziy litsenziya serveri (lic.uzmik.uz) beradi va yangilaydi;
+  `client_secret` PBX’da saqlanmaydi. Eski vebhuk usuli «Qoʻshimcha» boʻlimida ishlashda davom etadi.
+- **Litsenziya sahifasi** (Tizim → Litsenziya): Bitrix24 integratsiyasi holati — 14 kun bepul sinov (portal uchun bir marta),
+  keyin 1/3/6/12 oy; qolgan kunlar. Muddat tugasa Bitrix24 aloqasi toʻxtaydi, PBX ishlashda davom etadi.
+- Xavfsizlik: OAuth rejimida Bitrix hodisasi `member_id` mos kelsagina qabul qilinadi (+ `application_token`, saqlangan boʻlsa).
+- Qoʻllanma (uz/ru/en): «Bitrix24 ulash — Ulash tugmasi» boʻlimi.
+
 ## 1.0.26 — 2026-11-05
 - **Profil endi hammada shakllanadi**: «Mening kabinetim» ichki raqami bo'lmagan foydalanuvchida (masalan, admin) faqat
   «Ichki raqam bog'lanmagan» yozuvini ko'rsatardi — 2FA yoqib ham, parolni o'zgartirib ham bo'lmasdi. Endi har kimda

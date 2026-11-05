@@ -592,6 +592,7 @@ export function seedBitrixConfig(): BitrixConfigResult {
       has_webhook_url: false, create_lead: true, popup_max_delay_s: 20, default_user_id: null, application_token_set: false,
       hook_token: 'bx-hook-7f3a9c', route_to_responsible: false, responsible_ring_s: 20, set_caller_name: true,
       upload_records: true, auto_sync_users: true, portal_host: null, portal_cloud: false, sync: null,
+      auth_mode: null, domain: null, member_id: null, connected: false,
     },
     status: { state: 'disabled', last_ok_at: null, last_error: null, unmapped_extensions: [] },
     user_map: [],

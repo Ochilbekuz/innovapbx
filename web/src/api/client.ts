@@ -29,7 +29,8 @@ import type {
   SecurityEvent, SecuritySettings, SecurityStats, SecurityStatsParams, TestAlertResult, TollBlock,
   UpdateAlertSettingsPayload, UpdateSecuritySettingsPayload,
   // M3b — qarang ../../replica/m3b-contract.md
-  AmoConfigResult, ApiKey, BitrixConfigResult, CreateApiKeyPayload, CreateWebhookPayload, CreatedApiKey,
+  AmoConfigResult, ApiKey, Bitrix24ConnectResult, Bitrix24LicenseResult, Bitrix24PollResult, Bitrix24SetupResult,
+  BitrixConfigResult, CreateApiKeyPayload, CreateWebhookPayload, CreatedApiKey,
   CreatedWebhook, CrmProvider, CrmTestResult, CrmUser, CrmUserMapEntry, IntegrationsSettings, ListDeliveriesParams, OneCSample,
   RecordingSettings, RotatedWebhookSecret, TestWebhookResult, UpdateAmoPayload, UpdateBitrixPayload,
   UpdateCrmUserMapPayload, UpdateIntegrationsSettingsPayload, UpdateRecordingSettingsPayload, UpdateWebhookPayload,
@@ -325,6 +326,13 @@ export interface ApiClient {
   updateCrmUserMap(provider: CrmProvider, payload: UpdateCrmUserMapPayload): Promise<{ items: CrmUserMapEntry[] }>;
   listCrmUsers(provider: CrmProvider): Promise<{ items: CrmUser[] }>;
   syncCrm(provider: CrmProvider): Promise<CrmTestResult>;
+
+  // Bitrix OAuth ulash — shartnoma §2 (bitrix-oauth-shartnoma.md)
+  connectBitrix24(domain: string): Promise<Bitrix24ConnectResult>;
+  pollBitrix24Connect(): Promise<Bitrix24PollResult>;
+  setupBitrix24(): Promise<Bitrix24SetupResult>;
+  disconnectBitrix24(): Promise<void>;
+  bitrix24License(): Promise<Bitrix24LicenseResult>;
 
   // 1C — tayyor namunalar
   listOneCSamples(): Promise<{ items: OneCSample[] }>;

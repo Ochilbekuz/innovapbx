@@ -63,6 +63,11 @@ class BitrixConfigOut(BaseModel):
     portal_host: str | None
     portal_cloud: bool
     sync: CrmSyncReportOut | None = None
+    # Bitrix OAuth (bitrix-oauth-shartnoma.md §2/§3) — vebhuk rejimida hammasi `None`/`False`.
+    auth_mode: Literal["oauth", "webhook"] | None = None
+    domain: str | None = None
+    member_id: str | None = None
+    connected: bool = False
 
 
 class AmoConfigOut(BaseModel):
@@ -144,3 +149,42 @@ class CrmUsersOut(BaseModel):
 class OneCSample(BaseModel):
     name: str
     title: str
+
+
+# ------------------------------------------------------------ Bitrix OAuth (bitrix-oauth-shartnoma.md §2)
+class BitrixConnectIn(BaseModel):
+    domain: str = Field(min_length=1, max_length=200)
+
+
+class BitrixConnectOut(BaseModel):
+    authorize_url: str
+
+
+class BitrixSetupOut(BaseModel):
+    lines: int
+    default_line: bool
+    event_bound: bool
+    users_synced: int
+    warnings: list[str]
+
+
+class BitrixSetupResultOut(BaseModel):
+    """`POST .../bitrix24/setup` javobi (shartnoma §2: `{setup:{...}}`)."""
+    setup: BitrixSetupOut
+
+
+class BitrixConnectPollOut(BaseModel):
+    status: Literal["pending", "error", "connected"]
+    code: str | None = None
+    message: str | None = None
+    setup: BitrixSetupOut | None = None
+
+
+class BitrixDisconnectOut(BaseModel):
+    ok: bool
+
+
+class BitrixLicenseOut(BaseModel):
+    connected: bool
+    license: dict | None = None
+    error: str | None = None

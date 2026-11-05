@@ -81,7 +81,16 @@ administrator) ruxsati bor foydalanuvchi oʻzgartira oladi — boshqalarga «Faq
 5. Muvaffaqiyatsiz yetkazishni jurnalda **Qayta yuborish** bilan qayta urining.
 6. Kerak boʻlsa **Sirni almashtirish** bilan imzo sirini yangilang (eskisi endi ishlamaydi).
 
-### Bitrix24 ulash
+### Bitrix24 ulash — «Ulash» tugmasi (tavsiya etiladi)
+1. **Bitrix24** tabida **Portal domeni** maydoniga portal manzilini yozing (masalan `kompaniya.bitrix24.kz`) va **Ulash**ni bosing.
+2. Ochilgan Bitrix oynasida portal **administratori** sifatida tizimga kiring va ruxsat bering — oyna oʻzi yopiladi.
+3. Qolgani avtomatik: liniyalar topiladi, **standart chiquvchi liniya** Innova PBX’ga oʻrnatiladi, click-to-call hodisasi
+   ulanadi, xodimlar sinxronlanadi. Natija «Sozlash natijasi» kartasida koʻrinadi; ogohlantirish chiqsa — **Qayta sozlash**.
+4. Click-to-call uchun **Sozlamalar**da ommaviy (public) URL kiritilgan boʻlishi kerak.
+5. Bitrix24 integratsiyasi litsenziyalanadi: portal uchun **14 kun bepul sinov** (bir marta), keyin 1, 3, 6 yoki 12 oy.
+   Holat **Tizim → Litsenziya** sahifasida. Muddat tugasa Bitrix24 bilan aloqa toʻxtaydi, PBX esa ishlashda davom etadi.
+
+### Bitrix24 ulash — vebhuk orqali (eski usul)
 1. **Bitrix24** tabida **Bitrix24 integratsiyasini yoqish**ni belgilang.
 2. Bitrix24 administrator panelida **Dasturlar → Vebhuklar → Kiruvchi vebhuk** yarating, kamida shu
    ruxsatlarni (scope) belgilang: `telephony`, `crm`, `user`/`user_basic`. Olingan manzilni **Kiruvchi

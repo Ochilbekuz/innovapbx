@@ -277,10 +277,11 @@ async def test_lookup_name_unknown_kind_returns_none():
 # ---------------------------------------------------------------- _lookup_crm (M-CRM §3)
 
 class _DummySub:
-    def __init__(self, sub_id="s1", tenant_id="t1", kind="bitrix24"):
+    def __init__(self, sub_id="s1", tenant_id="t1", kind="bitrix24", config=None):
         self.id = sub_id
         self.tenant_id = tenant_id
         self.kind = kind
+        self.config = config if config is not None else {}
 
 
 @pytest.mark.asyncio

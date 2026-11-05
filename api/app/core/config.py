@@ -172,6 +172,12 @@ class Settings(BaseSettings):
     # serverlar uchun tekshiruv o'chirilgan (orqaga moslik).
     setup_code: str = Field(default="")
 
+    # --- Bitrix24 OAuth: markaziy broker (lic.uzmik.uz, `bitrix-oauth-shartnoma.md`).
+    # `client_secret` FAQAT brokerda — bu yerda faqat broker manzili va `boshla`
+    # so'rovidagi o'rnatish identifikatori (bu PBX nusxasini brokerga tanitadi).
+    bitrix_broker_url: str = Field(default="https://lic.uzmik.uz")
+    innova_id: str = Field(default="")
+
     # --- M10 A1: qayta chaqirish vidjeti (S17) — fon dialer `vm_notify_enabled`
     # BILAN BIR XIL qolip; `public_base_url` — admin `Widget.embed_snippet`
     # qurish uchun (bo'sh = UI'da ogohlantirish, 409 EMAS).

@@ -78,7 +78,7 @@ export function IntegrationsPage() {
         { value: 'overview', label: t('tabs.overview'), content: <OverviewTab onNavigate={setTab} /> },
         { value: 'apiKeys', label: t('tabs.apiKeys'), content: <ApiKeysTab canManage={canManage} /> },
         { value: 'webhooks', label: t('tabs.webhooks'), content: <WebhooksTab canManage={canManage} /> },
-        { value: 'bitrix24', label: t('tabs.bitrix24'), content: <CrmTab provider="bitrix24" canManage={canManage} /> },
+        { value: 'bitrix24', label: t('tabs.bitrix24'), content: <CrmTab provider="bitrix24" canManage={canManage} onGoToSettings={() => setTab('settings')} /> },
         { value: 'amocrm', label: t('tabs.amocrm'), content: <CrmTab provider="amocrm" canManage={canManage} /> },
         { value: 'onec', label: t('tabs.onec'), content: <OneCTab /> },
         { value: 'settings', label: t('tabs.settings'), content: <SettingsTab canManage={canManage} /> },

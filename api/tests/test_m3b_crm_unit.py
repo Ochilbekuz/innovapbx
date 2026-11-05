@@ -870,13 +870,19 @@ async def test_fetch_users_uses_provider_clients(monkeypatch):
         async def users(self):
             return [CrmUserInfo("1", "x")]
 
-    class Provider:
+    class BitrixProvider:
+        def client_for(self, sub_id, arg):
+            seen.append((sub_id, arg))
+            return Client(arg)
+
+    class AmoProvider:
         def client(self, sub_id, arg):
             seen.append((sub_id, arg))
             return Client(arg)
 
-    monkeypatch.setattr(bitrix24, "PROVIDER", Provider())
-    monkeypatch.setattr(amocrm, "PROVIDER", Provider())
+    monkeypatch.setattr(bitrix24, "PROVIDER", BitrixProvider())
+    monkeypatch.setattr(amocrm, "PROVIDER", AmoProvider())
     assert len(await crm_settings.fetch_users(_sub(), {"webhook_url": HOOK})) == 1
     await crm_settings.fetch_users(_sub("amocrm", config=AMO_CONFIG), {"token": "t"})
-    assert seen[0] == ("s1", HOOK) and seen[1][1] == amocrm.AmoSettings("http://10.0.0.8", "t", True, "1")
+    assert seen[0] == ("s1", bitrix24.BitrixSettings.parse(_sub().config, {"webhook_url": HOOK}))
+    assert seen[1][1] == amocrm.AmoSettings("http://10.0.0.8", "t", True, "1")

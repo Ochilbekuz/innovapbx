@@ -29,7 +29,8 @@ import type {
   SecurityEvent, SecuritySettings, SecurityStats, SecurityStatsParams, TestAlertResult, TollBlock,
   UpdateAlertSettingsPayload, UpdateSecuritySettingsPayload,
   // M3b — qarang ../../replica/m3b-contract.md
-  AmoConfigResult, ApiKey, BitrixConfigResult, CreateApiKeyPayload, CreateWebhookPayload, CreatedApiKey,
+  AmoConfigResult, ApiKey, Bitrix24ConnectResult, Bitrix24LicenseResult, Bitrix24PollResult, Bitrix24SetupResult,
+  BitrixConfigResult, CreateApiKeyPayload, CreateWebhookPayload, CreatedApiKey,
   CreatedWebhook, CrmProvider, CrmTestResult, CrmUser, CrmUserMapEntry, IntegrationsSettings, ListDeliveriesParams,
   OneCSample, RecordingSettings, RotatedWebhookSecret, TestWebhookResult, UpdateAmoPayload, UpdateBitrixPayload,
   UpdateCrmUserMapPayload, UpdateIntegrationsSettingsPayload, UpdateRecordingSettingsPayload, UpdateWebhookPayload,
@@ -348,6 +349,13 @@ export const realClient: ApiClient = {
   updateCrmUserMap: (provider: CrmProvider, payload: UpdateCrmUserMapPayload) => request<{ items: CrmUserMapEntry[] }>(`/integrations/crm/${provider}/user-map`, { method: 'PUT', body: payload }),
   listCrmUsers: (provider: CrmProvider) => request<{ items: CrmUser[] }>(`/integrations/crm/${provider}/users`),
   syncCrm: (provider: CrmProvider) => request<CrmTestResult>(`/integrations/crm/${provider}/sync`, { method: 'POST' }),
+
+  // Bitrix OAuth ulash — shartnoma §2 (bitrix-oauth-shartnoma.md)
+  connectBitrix24: (domain: string) => request<Bitrix24ConnectResult>('/integrations/crm/bitrix24/connect', { method: 'POST', body: { domain } }),
+  pollBitrix24Connect: () => request<Bitrix24PollResult>('/integrations/crm/bitrix24/connect/poll', { method: 'POST' }),
+  setupBitrix24: () => request<Bitrix24SetupResult>('/integrations/crm/bitrix24/setup', { method: 'POST' }),
+  disconnectBitrix24: () => request<void>('/integrations/crm/bitrix24/disconnect', { method: 'POST' }),
+  bitrix24License: () => request<Bitrix24LicenseResult>('/integrations/crm/bitrix24/license'),
 
   // 1C — tayyor namunalar (../../replica/m3b-contract.md §5 — "1C")
   listOneCSamples: () => request<{ items: OneCSample[] }>('/integrations/1c/samples'),

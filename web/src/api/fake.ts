@@ -5,7 +5,7 @@ import type { FollowMe, FollowMeInfo, FollowMeTarget, QrProvisioning, UpdateFoll
 import type {
   CreateDayNightPayload, CreateDisaPayload, DayNight, Disa, UpdateDayNightPayload, UpdateDisaPayload,
 } from './types';
-import { buildBitrixSyncPlan, parseBitrixPortalHost } from '@/domain/crm';
+import { buildBitrixSyncPlan, computeBitrix24License, normalizeBitrixDomain, parseBitrixPortalHost } from '@/domain/crm';
 import { defaultFollowMe, sameFollowMe } from '@/domain/followMe';
 import { generateSipPassword, validateSipPassword, type SipPasswordIssue } from '@/domain/sipPassword';
 import { normalizeFollowMe } from './fakeFollowMe';
@@ -153,6 +153,9 @@ import type {
   FirewallConfigIn, FirewallLastResult, FirewallPending, FirewallServiceOut, FirewallStateOut, FirewallValidateOut,
   // M12 B4 — Kirish (SSH va veb-panel)
   AccessStateOut, AccessSshApplyIn, AccessWebApplyIn, AccessConfirmPublicResult, AccessPending,
+  // Bitrix OAuth ulash — qarang ../../../bitrix-oauth-shartnoma.md
+  Bitrix24ConnectErrorCode, Bitrix24ConnectResult, Bitrix24License, Bitrix24LicenseResult, Bitrix24PollResult,
+  Bitrix24Setup, Bitrix24SetupResult, Bitrix24SetupWarning,
 } from './types';
 import { API_KEY_SCOPES, DEVICE_VENDORS, EXTENSIONS_CSV_COLUMNS, WEBHOOK_EVENTS, WEBRTC_CODECS } from './types';
 
@@ -412,6 +415,38 @@ export function createFakeClient(
   /** M3b §5 — oxirgi "Bitrix'dan sinxronlash"da keshlangan portal foydalanuvchilari. */
   let bitrixUsers: CrmUser[] = [];
 
+  // Bitrix OAuth ulash (shartnoma: bitrix-oauth-shartnoma.md §2) — demo holat mashinasi.
+  /** "Ulash" bosilgandan keyin `connect/poll` necha marta chaqirilgan — 2-chaqiriqda "ulandi" deb hisoblanadi. */
+  let bitrixOauthPollCount = 0;
+  let bitrixOauthPending = false;
+  /** Sinov boshlangan sana (`YYYY-MM-DD`) — faqat ulangandan keyin to'ldiriladi, uzilganda ham saqlanadi (bir martalik sinov). */
+  let bitrixTrialStart: string | null = null;
+  let bitrixPaidUntil: string | null = null;
+  let bitrixBlocked = false;
+
+  function todayStr(): string {
+    return new Date().toISOString().slice(0, 10);
+  }
+
+  function currentBitrix24License(): Bitrix24License | null {
+    if (!bitrixTrialStart) return null;
+    return computeBitrix24License({
+      domain: bitrixConfig.config.domain ?? '',
+      sinov_boshlandi: bitrixTrialStart,
+      tolov_tugash: bitrixPaidUntil,
+      blocked: bitrixBlocked,
+      today: todayStr(),
+    });
+  }
+
+  /** `connect/poll`/`setup` — demo sozlash natijasi: xodimlar sinxronlanadi, ommaviy URL bo'lmasa `public_url_missing`. */
+  function runBitrix24Setup(): Bitrix24Setup {
+    bitrixUsers = seedBitrixPortalUsers();
+    const hasPublicUrl = !!integrationsSettingsCore.public_base_url;
+    const warnings: Bitrix24SetupWarning[] = hasPublicUrl ? [] : ['public_url_missing'];
+    return { lines: 3, default_line: true, event_bound: hasPublicUrl, users_synced: bitrixUsers.filter((u) => u.inner_phone).length, warnings };
+  }
+
   /** M3b §5 — manual moslashuvlarni saqlab qolgan holda `bitrixConfig.user_map`ni portal foydalanuvchilariga moslaydi. */
   function bitrixManualExtensions(): string[] {
     return bitrixConfig.user_map.filter((e) => e.source === 'manual').map((e) => e.extension);
@@ -419,7 +454,7 @@ export function createFakeClient(
 
   /** M3b §5 — "Bitrix'dan sinxronlash": portal foydalanuvchilarini (demo) yuklaydi, avto-moslashuvni qayta quradi. */
   function runBitrixSync(): CrmTestResult {
-    if (!bitrixConfig.config.has_webhook_url) err(422, 'not_configured', 'Avval ulanish maʼlumotlarini saqlang.');
+    if (!bitrixConfig.config.has_webhook_url && !bitrixConfig.config.connected) err(422, 'not_configured', 'Avval ulanish maʼlumotlarini saqlang.');
     bitrixUsers = seedBitrixPortalUsers();
     const plan = buildBitrixSyncPlan(bitrixUsers, extensions.map((e) => e.number), bitrixManualExtensions());
     const manualByExt = new Map(bitrixConfig.user_map.filter((e) => e.source === 'manual').map((e) => [e.extension, e]));
@@ -5306,6 +5341,69 @@ export function createFakeClient(
       amoConfig = { ...amoConfig, user_map: next };
       auditAdd('update', `crm_${provider}_user_map`, null, provider, {});
       return { items: next };
+    },
+
+    // Bitrix OAuth ulash — qarang ../../../bitrix-oauth-shartnoma.md §2
+    async connectBitrix24(domain: string): Promise<Bitrix24ConnectResult> {
+      await delay(200);
+      requireManage('system.manage');
+      const host = normalizeBitrixDomain(domain);
+      if (!host) err(422, 'invalid_domain' satisfies Bitrix24ConnectErrorCode, 'Portal domeni notoʻgʻri.');
+      if (host.includes('notinstalled')) err(404, 'app_not_installed' satisfies Bitrix24ConnectErrorCode, 'Bu portalda ilova oʻrnatilmagan.');
+      if (host.includes('offline')) err(502, 'broker_unreachable' satisfies Bitrix24ConnectErrorCode, 'Ulanish serveriga yetib bo‘lmadi.');
+      bitrixOauthPending = true;
+      bitrixOauthPollCount = 0;
+      bitrixConfig = { ...bitrixConfig, config: { ...bitrixConfig.config, domain: host } };
+      return { authorize_url: `https://${host}/oauth/authorize/?client_id=demo&state=demo` };
+    },
+
+    async pollBitrix24Connect(): Promise<Bitrix24PollResult> {
+      await delay(100);
+      requireManage('system.manage');
+      if (!bitrixOauthPending) return { status: 'error', code: 'broker_unreachable', message: 'Ulash boshlanmagan — qayta urining.' };
+      bitrixOauthPollCount += 1;
+      if (bitrixOauthPollCount < 2) return { status: 'pending' };
+      bitrixOauthPending = false;
+      bitrixTrialStart ??= todayStr();
+      bitrixBlocked = false;
+      bitrixConfig = {
+        ...bitrixConfig,
+        enabled: true,
+        config: { ...bitrixConfig.config, auth_mode: 'oauth', member_id: 'demo-member-1', connected: true },
+        status: { ...bitrixConfig.status, state: 'ok', last_ok_at: new Date().toISOString(), last_error: null },
+      };
+      const setup = runBitrix24Setup();
+      auditAdd('update', 'crm_bitrix24_oauth_connect', null, 'Bitrix24', {});
+      return { status: 'connected', setup };
+    },
+
+    async setupBitrix24(): Promise<Bitrix24SetupResult> {
+      await delay(300);
+      requireManage('system.manage');
+      if (!bitrixConfig.config.connected) err(422, 'not_configured', 'Avval Bitrix24 bilan ulaning.');
+      const setup = runBitrix24Setup();
+      auditAdd('update', 'crm_bitrix24_oauth_setup', null, 'Bitrix24', {});
+      return { setup };
+    },
+
+    async disconnectBitrix24(): Promise<void> {
+      await delay(200);
+      requireManage('system.manage');
+      bitrixOauthPending = false;
+      bitrixConfig = {
+        ...bitrixConfig,
+        enabled: bitrixConfig.config.has_webhook_url,
+        config: { ...bitrixConfig.config, auth_mode: bitrixConfig.config.has_webhook_url ? 'webhook' : null, domain: null, member_id: null, connected: false },
+        status: { ...bitrixConfig.status, state: bitrixConfig.config.has_webhook_url ? 'ok' : 'disabled' },
+      };
+      auditAdd('update', 'crm_bitrix24_oauth_disconnect', null, 'Bitrix24', {});
+    },
+
+    async bitrix24License(): Promise<Bitrix24LicenseResult> {
+      await delay();
+      requireManage('system.manage');
+      if (!bitrixConfig.config.connected) return { connected: false, license: null, error: null };
+      return { connected: true, license: currentBitrix24License(), error: null };
     },
 
     // 1C — tayyor namunalar

@@ -40,6 +40,7 @@ import * as firewall from './firewall';
 import * as followme from './followme';
 import * as integrations from './integrations';
 import * as ivr from './ivr';
+import * as license from './license';
 import * as live from './live';
 import * as me from './me';
 import * as migration from './migration';
@@ -78,7 +79,7 @@ const LANGS: Lang[] = ['uz', 'ru', 'en'];
 const RESOURCES: Record<string, Record<Lang, AnyObj>> = {
   access, alerts, analytics, announcements, audio, audit, auth, backup, blacklist, callback, calls, campaigns,
   cidsources, common, conferences, dashboard, daynight, devices, disa, docs, errors, extensions, featurecodes,
-  firewall, followme, integrations, ivr, live, me, migration, misc, missedcalls, network, notify, outbound,
+  firewall, followme, integrations, ivr, license, live, me, migration, misc, missedcalls, network, notify, outbound,
   paging, parking, phonebook, pinsets, quality, queues, recordings, revisions, ringgroups, routes, security,
   setup, shell, sip, status, time, timegroups, trunks, update, users, voicemail,
 };

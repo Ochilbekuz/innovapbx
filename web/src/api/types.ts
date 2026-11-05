@@ -1328,6 +1328,9 @@ export type CrmSyncReport = {
 /** `GET /integrations/crm/{provider}/users` — oxirgi sinxrondan keshlangan Bitrix/amoCRM foydalanuvchisi. */
 export type CrmUser = { id: string; name: string; inner_phone: string | null };
 
+/** Bitrix24 ulanish usuli: OAuth («Ulash» tugmasi, lic.uzmik.uz broker) yoki eski vebhuk. `null` — hali hech biri. */
+export type Bitrix24AuthMode = 'oauth' | 'webhook' | null;
+
 export type BitrixConfig = {
   has_webhook_url: boolean;
   create_lead: boolean;
@@ -1350,7 +1353,45 @@ export type BitrixConfig = {
   /** Portal bulutda (*.bitrix24.*). */
   portal_cloud: boolean;
   sync: CrmSyncReport | null;
+  /** OAuth ulash: `null`/`"webhook"` — eski usul, `"oauth"` — «Ulash» orqali (shartnoma §2/§3). */
+  auth_mode: Bitrix24AuthMode;
+  /** OAuth portal domeni (masalan `firma.bitrix24.kz`), faqat `auth_mode==='oauth'` bo'lsa to'ldirilgan. */
+  domain: string | null;
+  /** Bitrix `member_id` — brokerda ulanishni aniqlash uchun. */
+  member_id: string | null;
+  /** OAuth orqali ulanib, brokerda faol ulanish bor (shartnoma §2: `connected`). */
+  connected: boolean;
 };
+
+/** `POST .../bitrix24/connect` javobi: popup shu URL'ga yo'naltiriladi. */
+export type Bitrix24ConnectResult = { authorize_url: string };
+/** Shartnoma §2: `connect`/`connect/poll` xato kodlari. */
+export type Bitrix24ConnectErrorCode = 'invalid_domain' | 'app_not_installed' | 'broker_unreachable';
+/** `connect/poll` va `setup` javobidagi ogohlantirish kodlari. */
+export type Bitrix24SetupWarning = 'public_url_missing' | 'default_line_failed' | 'event_bind_failed' | 'lines_failed' | 'users_failed';
+export type Bitrix24Setup = { lines: number; default_line: boolean; event_bound: boolean; users_synced: number; warnings: Bitrix24SetupWarning[] };
+/** `POST .../bitrix24/connect/poll` javobi (uch holat — birlashtirilgan union). */
+export type Bitrix24PollResult =
+  | { status: 'pending' }
+  | { status: 'error'; code: Bitrix24ConnectErrorCode; message: string }
+  | { status: 'connected'; setup: Bitrix24Setup };
+/** `POST .../bitrix24/setup` — qayta sozlash javobi. */
+export type Bitrix24SetupResult = { setup: Bitrix24Setup };
+
+/** Shartnoma §1 — `litsenziya` obyekti holatlari. */
+export type Bitrix24LicenseState = 'sinov' | 'faol' | 'imtiyoz' | 'tugagan' | 'bloklangan';
+export type Bitrix24LicenseTarif = { kod: string; kun?: number; oy?: number };
+export type Bitrix24License = {
+  holat: Bitrix24LicenseState;
+  tugash: string | null;
+  qolgan_kun: number;
+  sinov_tugash: string;
+  tolov_tugash: string | null;
+  domain: string;
+  tariflar: Bitrix24LicenseTarif[];
+};
+/** `GET .../bitrix24/license` javobi. */
+export type Bitrix24LicenseResult = { connected: boolean; license: Bitrix24License | null; error: string | null };
 export type UpdateBitrixPayload = {
   enabled: boolean;
   /** Berilmasa — mavjud qiymat saqlanadi (secret-like, faqat qayta kiritilganda almashadi). */

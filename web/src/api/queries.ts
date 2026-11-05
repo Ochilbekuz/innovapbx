@@ -129,6 +129,7 @@ export const qk = {
   bitrix24Config: ['crm-bitrix24'] as const,
   amoCrmConfig: ['crm-amocrm'] as const,
   crmUsers: (provider: CrmProvider) => ['crm-users', provider] as const,
+  bitrix24License: ['crm-bitrix24-license'] as const,
   oneCSamples: ['1c-samples'] as const,
   integrationsSettings: ['integrations-settings'] as const,
   recordingSettings: ['recording-settings'] as const,
@@ -1022,6 +1023,36 @@ export function useSyncCrm(provider: CrmProvider) {
     mutationFn: () => apiClient.syncCrm(provider),
     onSuccess: () => invalidate([provider === 'bitrix24' ? qk.bitrix24Config : qk.amoCrmConfig, qk.crmUsers(provider)]),
   });
+}
+
+// Bitrix OAuth ulash — qarang ../../../bitrix-oauth-shartnoma.md §2. `connect/poll` `useMutation` orqali
+// (CrmTab.tsx 2 soniyalik intervalni oʻzi boshqaradi, 5 daqiqalik chegara bilan — `useQuery` ichki pollingi mos kelmaydi).
+export function useConnectBitrix24() {
+  return useMutation({ mutationFn: (domain: string) => apiClient.connectBitrix24(domain) });
+}
+export function usePollBitrix24Connect() {
+  const invalidate = useInvalidate();
+  return useMutation({
+    mutationFn: () => apiClient.pollBitrix24Connect(),
+    onSuccess: (result) => { if (result.status === 'connected') invalidate([qk.bitrix24Config, qk.bitrix24License]); },
+  });
+}
+export function useSetupBitrix24() {
+  const invalidate = useInvalidate();
+  return useMutation({
+    mutationFn: () => apiClient.setupBitrix24(),
+    onSuccess: () => invalidate([qk.bitrix24Config]),
+  });
+}
+export function useDisconnectBitrix24() {
+  const invalidate = useInvalidate();
+  return useMutation({
+    mutationFn: () => apiClient.disconnectBitrix24(),
+    onSuccess: () => invalidate([qk.bitrix24Config, qk.bitrix24License]),
+  });
+}
+export function useBitrix24License(enabled: boolean) {
+  return useQuery({ queryKey: qk.bitrix24License, queryFn: () => apiClient.bitrix24License(), enabled });
 }
 
 export function useOneCSamples() {
