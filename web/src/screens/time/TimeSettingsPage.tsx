@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { apiErrorMessage, isApiError } from '@/api/errors';
 import { useApplyTime, useSyncTime, useSystemTime } from '@/api/queries';
+import { useSession } from '@/api/session';
 import type { TimeConfigIn, TimeFieldError, TimeStateOut } from '@/api/types';
 import { defaultNtpServers, formatInZone, MAX_NTP_SERVERS } from '@/domain/systemTime';
 import { applyToast } from '@/lib/applyToast';
@@ -112,7 +113,16 @@ function useTimeActions(onFieldErrors: (errors: TimeFieldError[]) => void, t: TF
     applyM.mutate(draftToConfig(draft), {
       onSuccess: (res) => {
         toast({ kind: 'success', title: t('savedToast') });
-        if (res.apply) toast(applyToast(res.apply, t('pbxTimezoneApplied')));
+        if (res.apply) {
+          toast(applyToast(res.apply, t('pbxTimezoneApplied')));
+          // Zona haqiqatan o'zgargan (`res.apply` faqat shunda keladi,
+          // `app/api/v1/system_time.py::_move_pbx_timezone`) — sessiyadagi
+          // foydalanuvchini yangilaymiz, shunda `@/lib/time::tenantTz()` (har
+          // chaqiruvda sessiyadan jonli o'qiydi, keshlanmaydi) panel bo'ylab
+          // DARHOL yangi zonani ko'rsatadi — sahifani qayta yuklash shart emas.
+          const user = useSession.getState().user;
+          if (user) useSession.getState().setUser({ ...user, timezone: res.timezone });
+        }
       },
       onError: (e) => {
         const fields = fieldErrors(e);

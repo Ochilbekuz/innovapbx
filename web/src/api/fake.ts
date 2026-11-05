@@ -467,6 +467,9 @@ export function createFakeClient(
   let discoveredDevices = seedDiscoveredDevices();
   let provisionRequests = seedProvisionRequests();
   let provisioningSettingsCore = seedProvisioningSettings();
+  // Haqiqiy backend: admin provizioning zonasini ANIQ oʻzgartirmaguncha, u tizim (Tenant)
+  // vaqt zonasiga bogʻlangan (`app/services/prov_settings.py::effective_timezone`).
+  let provisioningTimezoneCustomized = false;
   const deviceModels = seedDeviceModels();
   /** Shartnomada aniq son yoʻq — demo qiymat; backend bilan solishtirish kerak (shartnoma §5 "max_contacts"). */
   const MAX_CONTACTS_PER_EXTENSION = 2;
@@ -894,7 +897,8 @@ export function createFakeClient(
     const totp = totpByUser.get(mu.id);
     return {
       id: mu.id, login: mu.username, full_name: mu.full_name, role: mu.role,
-      permissions: permissionsForRole(mu.role), language: mu.language, must_change_password: mu.must_change_password,
+      permissions: permissionsForRole(mu.role), language: mu.language, timezone: timeTimezone,
+      must_change_password: mu.must_change_password,
       extension: mu.extension,
       totp_enabled: !!totp?.enabled,
       must_enroll_2fa: require2fa(mu) && !totp?.enabled,
@@ -1467,6 +1471,22 @@ export function createFakeClient(
     return { id: m.id, name: m.name };
   }
 
+  /** 0037 (Queues FreePBX parity) — navbat audio FK'lari (periodic/join/agent e'lon). */
+  function resolveQueueAudio(id: string | null | undefined, field: string): Audio | null {
+    if (!id) return null;
+    const a = audioList.find((x) => x.id === id);
+    if (!a) err(404, 'not_found', 'Audio fayl topilmadi.', { field });
+    return a;
+  }
+
+  /** 0037 — IVR chiqish nishoni (breakout), ixtiyoriy, har qanday manzil turi. */
+  function resolveBreakoutTarget(id: string | null | undefined): Target | null {
+    if (!id) return null;
+    const t = findTargetAnyKind(id);
+    if (!t) err(404, 'not_found', 'Manzil topilmadi — oʻchirilgan boʻlishi mumkin.', { field: 'breakout_target_id' });
+    return t;
+  }
+
   function resolveMohFiles(fileIds: string[]): Audio[] {
     return fileIds.map((fid) => {
       const a = audioList.find((x) => x.id === fid);
@@ -1923,7 +1943,11 @@ export function createFakeClient(
     async setup(payload: SetupPayload): Promise<AuthResult> {
       await delay();
       if (!needed) err(409, 'setup_done', 'Sozlash allaqachon bajarilgan.');
-      const user: User = { id: 'u-admin', login: payload.admin.login, full_name: payload.admin.full_name, role: 'admin', permissions: SEED_ADMIN.permissions, language: payload.language };
+      timeTimezone = payload.timezone;
+      const user: User = {
+        id: 'u-admin', login: payload.admin.login, full_name: payload.admin.full_name, role: 'admin',
+        permissions: SEED_ADMIN.permissions, language: payload.language, timezone: payload.timezone,
+      };
       needed = false;
       createdAdmin = { login: payload.admin.login, password: payload.admin.password, user };
       users = [...users, {
@@ -2566,6 +2590,15 @@ export function createFakeClient(
         id: randomId('rg'), name: payload.name, number: payload.number ?? null, strategy: payload.strategy,
         ring_seconds: payload.ring_seconds, members, no_answer_target: noAnswerTarget,
         callerid_prefix: payload.callerid_prefix ?? null, updated_at: now,
+        // 0038 (FreePBX Ring Groups parity).
+        announcement: resolveQueueAudio(payload.announcement_audio_id, 'announcement_audio_id'),
+        ring_strategy_sound: payload.ring_strategy_sound ?? 'ring',
+        moh_class: resolveMohClass(payload.moh_class_id),
+        alert_info: payload.alert_info ?? null,
+        skip_busy_agent: payload.skip_busy_agent ?? false,
+        confirm_calls: payload.confirm_calls ?? false,
+        remote_announce: resolveQueueAudio(payload.remote_announce_audio_id, 'remote_announce_audio_id'),
+        recording_policy: payload.recording_policy ?? 'dontcare',
       };
       ringGroups = [...ringGroups, item];
       return { item, apply: apply(`Qoʻngʻiroq guruhi «${item.name}» qoʻshildi`, payload.name) };
@@ -2586,6 +2619,27 @@ export function createFakeClient(
         strategy: payload.strategy ?? cur.strategy, ring_seconds: payload.ring_seconds ?? cur.ring_seconds,
         members, no_answer_target: noAnswerTarget, callerid_prefix: payload.callerid_prefix !== undefined ? payload.callerid_prefix : cur.callerid_prefix,
         updated_at: now,
+        // 0038 (FreePBX Ring Groups parity) — `_clear` bayrog'i yangi qiymatdan ustun.
+        announcement: payload.announcement_audio_id_clear
+          ? null
+          : payload.announcement_audio_id !== undefined
+            ? resolveQueueAudio(payload.announcement_audio_id, 'announcement_audio_id')
+            : cur.announcement,
+        ring_strategy_sound: payload.ring_strategy_sound ?? cur.ring_strategy_sound,
+        moh_class: payload.moh_class_id_clear
+          ? null
+          : payload.moh_class_id !== undefined
+            ? resolveMohClass(payload.moh_class_id)
+            : cur.moh_class,
+        alert_info: payload.alert_info_clear ? null : payload.alert_info !== undefined ? payload.alert_info : cur.alert_info,
+        skip_busy_agent: payload.skip_busy_agent ?? cur.skip_busy_agent,
+        confirm_calls: payload.confirm_calls ?? cur.confirm_calls,
+        remote_announce: payload.remote_announce_audio_id_clear
+          ? null
+          : payload.remote_announce_audio_id !== undefined
+            ? resolveQueueAudio(payload.remote_announce_audio_id, 'remote_announce_audio_id')
+            : cur.remote_announce,
+        recording_policy: payload.recording_policy ?? cur.recording_policy,
       };
       ringGroups = ringGroups.map((r) => (r.id === id ? item : r));
       return { item, apply: apply(`Qoʻngʻiroq guruhi «${item.name}» tahrirlandi`, payload.name) };
@@ -2631,6 +2685,32 @@ export function createFakeClient(
         announce_frequency_seconds: payload.announce_frequency_seconds, sla_seconds: payload.sla_seconds, join_empty: payload.join_empty,
         record: payload.record, members, timeout_target: timeoutTarget, live: { waiting: 0, members_online: 0 },
         moh_class: mohClass, updated_at: now,
+        // 0037 (Queues FreePBX parity).
+        skip_busy_agents: payload.skip_busy_agents ?? true,
+        weight: payload.weight ?? 0,
+        autofill: payload.autofill ?? false,
+        report_hold_time: payload.report_hold_time ?? false,
+        member_delay_seconds: payload.member_delay_seconds ?? 0,
+        penalty_members_limit: payload.penalty_members_limit ?? 0,
+        auto_pause: payload.auto_pause ?? 'no',
+        auto_pause_delay_seconds: payload.auto_pause_delay_seconds ?? 0,
+        auto_pause_busy: payload.auto_pause_busy ?? false,
+        auto_pause_unavail: payload.auto_pause_unavail ?? false,
+        agent_timeout_restart: payload.agent_timeout_restart ?? false,
+        max_wait_mode: payload.max_wait_mode ?? 'strict',
+        leave_when_empty: payload.leave_when_empty ?? 'no',
+        announce_position_limit: payload.announce_position_limit ?? 10,
+        announce_hold_time: payload.announce_hold_time ?? 'yes',
+        min_announce_frequency_seconds: payload.min_announce_frequency_seconds ?? 15,
+        periodic_announce_frequency_seconds: payload.periodic_announce_frequency_seconds ?? 0,
+        ring_mode: payload.ring_mode ?? 'moh',
+        mark_answered_elsewhere: payload.mark_answered_elsewhere ?? false,
+        cid_name_prefix: payload.cid_name_prefix ?? null,
+        alert_info: payload.alert_info ?? null,
+        periodic_announce_audio: resolveQueueAudio(payload.periodic_announce_audio_id, 'periodic_announce_audio_id'),
+        join_announcement_audio: resolveQueueAudio(payload.join_announcement_audio_id, 'join_announcement_audio_id'),
+        agent_announcement_audio: resolveQueueAudio(payload.agent_announcement_audio_id, 'agent_announcement_audio_id'),
+        breakout_target: resolveBreakoutTarget(payload.breakout_target_id),
       };
       queues = [...queues, item];
       return { item, apply: apply(`Navbat «${item.name}» qoʻshildi`, payload.name) };
@@ -2657,6 +2737,28 @@ export function createFakeClient(
           })
         : cur.members;
       const mohClass = payload.moh_class_id !== undefined ? resolveMohClass(payload.moh_class_id) : cur.moh_class;
+      // 0037 (Queues FreePBX parity) — `*_clear` bayroqlari ixtiyoriy maydonni
+      // ataylab `null`ga tushirish uchun (inbound_routes'dagi bilan bir xil naqsh).
+      const periodicAudio = payload.periodic_announce_audio_id_clear
+        ? null
+        : payload.periodic_announce_audio_id !== undefined
+          ? resolveQueueAudio(payload.periodic_announce_audio_id, 'periodic_announce_audio_id')
+          : cur.periodic_announce_audio;
+      const joinAudio = payload.join_announcement_audio_id_clear
+        ? null
+        : payload.join_announcement_audio_id !== undefined
+          ? resolveQueueAudio(payload.join_announcement_audio_id, 'join_announcement_audio_id')
+          : cur.join_announcement_audio;
+      const agentAudio = payload.agent_announcement_audio_id_clear
+        ? null
+        : payload.agent_announcement_audio_id !== undefined
+          ? resolveQueueAudio(payload.agent_announcement_audio_id, 'agent_announcement_audio_id')
+          : cur.agent_announcement_audio;
+      const breakoutTarget = payload.breakout_target_id_clear
+        ? null
+        : payload.breakout_target_id !== undefined
+          ? resolveBreakoutTarget(payload.breakout_target_id)
+          : cur.breakout_target;
       const item: Queue = {
         ...cur, name: payload.name ?? cur.name, number: payload.number !== undefined ? payload.number : cur.number,
         strategy: payload.strategy ?? cur.strategy, agent_ring_seconds: payload.agent_ring_seconds ?? cur.agent_ring_seconds,
@@ -2665,6 +2767,32 @@ export function createFakeClient(
         announce_position: payload.announce_position ?? cur.announce_position, announce_frequency_seconds: payload.announce_frequency_seconds ?? cur.announce_frequency_seconds,
         sla_seconds: payload.sla_seconds ?? cur.sla_seconds, join_empty: payload.join_empty ?? cur.join_empty, record: payload.record ?? cur.record,
         members, timeout_target: timeoutTarget, moh_class: mohClass, updated_at: now,
+        // 0037 (Queues FreePBX parity).
+        skip_busy_agents: payload.skip_busy_agents ?? cur.skip_busy_agents,
+        weight: payload.weight ?? cur.weight,
+        autofill: payload.autofill ?? cur.autofill,
+        report_hold_time: payload.report_hold_time ?? cur.report_hold_time,
+        member_delay_seconds: payload.member_delay_seconds ?? cur.member_delay_seconds,
+        penalty_members_limit: payload.penalty_members_limit ?? cur.penalty_members_limit,
+        auto_pause: payload.auto_pause ?? cur.auto_pause,
+        auto_pause_delay_seconds: payload.auto_pause_delay_seconds ?? cur.auto_pause_delay_seconds,
+        auto_pause_busy: payload.auto_pause_busy ?? cur.auto_pause_busy,
+        auto_pause_unavail: payload.auto_pause_unavail ?? cur.auto_pause_unavail,
+        agent_timeout_restart: payload.agent_timeout_restart ?? cur.agent_timeout_restart,
+        max_wait_mode: payload.max_wait_mode ?? cur.max_wait_mode,
+        leave_when_empty: payload.leave_when_empty ?? cur.leave_when_empty,
+        announce_position_limit: payload.announce_position_limit ?? cur.announce_position_limit,
+        announce_hold_time: payload.announce_hold_time ?? cur.announce_hold_time,
+        min_announce_frequency_seconds: payload.min_announce_frequency_seconds ?? cur.min_announce_frequency_seconds,
+        periodic_announce_frequency_seconds: payload.periodic_announce_frequency_seconds ?? cur.periodic_announce_frequency_seconds,
+        ring_mode: payload.ring_mode ?? cur.ring_mode,
+        mark_answered_elsewhere: payload.mark_answered_elsewhere ?? cur.mark_answered_elsewhere,
+        cid_name_prefix: payload.cid_name_prefix_clear ? null : payload.cid_name_prefix ?? cur.cid_name_prefix,
+        alert_info: payload.alert_info_clear ? null : payload.alert_info ?? cur.alert_info,
+        periodic_announce_audio: periodicAudio,
+        join_announcement_audio: joinAudio,
+        agent_announcement_audio: agentAudio,
+        breakout_target: breakoutTarget,
       };
       queues = queues.map((q) => (q.id === id ? item : q));
       return { item, apply: apply(`Navbat «${item.name}» tahrirlandi`, payload.name) };
@@ -2990,6 +3118,13 @@ export function createFakeClient(
       timeTimezone = payload.timezone;
       timeNtpServers = payload.ntp_servers;
       timeNtpEnabled = payload.ntp_enabled;
+      // Haqiqiy backend `tenant.timezone`ni o'zgartiradi — shu yerda ham joriy
+      // foydalanuvchiga ko'chiramiz, chunki `@/lib/time` uni sessiyadan o'qiydi.
+      if (tzChanged && currentUser) currentUser = { ...currentUser, timezone: timeTimezone };
+      // Provizioning zonasini admin ANIQ oʻzgartirmagan boʻlsa — tizim zonasiga ergashadi.
+      if (tzChanged && !provisioningTimezoneCustomized) {
+        provisioningSettingsCore = { ...provisioningSettingsCore, timezone: timeTimezone };
+      }
       auditAdd('update', 'system_time', null, 'Sana va vaqt sozlamalari', {});
       return { ...buildTimeState(), apply: tzChanged ? apply(`Vaqt zonasi: ${payload.timezone}`) : null };
     },
@@ -3196,7 +3331,7 @@ export function createFakeClient(
       requireManage('routes.manage');
       const files = resolveMohFiles(payload.file_ids);
       const now = new Date().toISOString();
-      const item: MohClass = { id: randomId('moh'), name: payload.name, shuffle: payload.shuffle, files, updated_at: now };
+      const item: MohClass = { id: randomId('moh'), name: payload.name, shuffle: payload.shuffle, is_default: false, files, updated_at: now };
       mohClasses = [...mohClasses, item];
       return { item, apply: apply(`Kutish musiqasi sinfi «${item.name}» qoʻshildi`, payload.name) };
     },
@@ -3209,7 +3344,12 @@ export function createFakeClient(
       if (payload.updated_at !== cur.updated_at) err(409, 'stale', 'Bu sinf boshqa joyda oʻzgartirilgan. Sahifani yangilang.');
       const files = payload.file_ids ? resolveMohFiles(payload.file_ids) : cur.files;
       const now = new Date().toISOString();
-      const item: MohClass = { ...cur, name: payload.name ?? cur.name, shuffle: payload.shuffle ?? cur.shuffle, files, updated_at: now };
+      // "Asosiy qilish" — faqat `true` qabul qilinadi, avvalgi asosiy avtomatik bekor bo'ladi (api/app/api/v1/moh_classes.py::_make_default bilan bir xil qoida).
+      if (payload.is_default) mohClasses = mohClasses.map((m) => ({ ...m, is_default: false }));
+      const item: MohClass = {
+        ...cur, name: payload.name ?? cur.name, shuffle: payload.shuffle ?? cur.shuffle,
+        is_default: payload.is_default ? true : cur.is_default, files, updated_at: now,
+      };
       mohClasses = mohClasses.map((m) => (m.id === id ? item : m));
       return { item, apply: apply(`Kutish musiqasi sinfi «${item.name}» tahrirlandi`, payload.name) };
     },
@@ -3219,7 +3359,7 @@ export function createFakeClient(
       requireManage('routes.manage');
       const cur = mohClasses.find((m) => m.id === id);
       if (!cur) err(404, 'not_found', 'Kutish musiqasi sinfi topilmadi.');
-      if (cur.name === 'default') err(409, 'in_use', '«default» sinfini oʻchirib boʻlmaydi.', { details: { usages: [{ kind: 'moh_class', id: cur.id, label: cur.name, field: 'name' }] } });
+      if (cur.is_default) err(409, 'in_use', `«${cur.name}» hozirgi asosiy sinf — avval boshqa sinfni asosiy qiling.`, { details: { usages: [{ kind: 'moh_class', id: cur.id, label: cur.name, field: 'is_default' }] } });
       const usages = queues.filter((q) => q.moh_class?.id === id).map((q) => ({ kind: 'queue', id: q.id, label: q.name, field: 'moh_class_id' }));
       if (usages.length > 0) err(409, 'in_use', `«${cur.name}» hali ishlatilmoqda.`, { details: { usages } });
       mohClasses = mohClasses.filter((m) => m.id !== id);
@@ -5277,6 +5417,7 @@ export function createFakeClient(
         }
       }
       if (payload.admin_password) auditAdd('update', 'provisioning_settings', null, 'Provizioning sozlamalari', { admin_password: ['***', '***'] });
+      if (payload.timezone !== undefined) provisioningTimezoneCustomized = true;
       provisioningSettingsCore = {
         ...provisioningSettingsCore,
         allowed_networks: payload.allowed_networks ?? provisioningSettingsCore.allowed_networks,

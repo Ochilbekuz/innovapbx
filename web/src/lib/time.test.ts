@@ -1,5 +1,9 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
+import { useSession } from '@/api/session';
+import type { User } from '@/api/types';
 import { formatDateTime, formatTime, formatUptime, tenantDate, tenantDateTimeIso, tzOffsetLabel } from './time';
+
+const SOME_USER: User = { id: 'u1', login: 'admin', full_name: 'Admin', role: 'admin', permissions: ['*'], language: 'uz', timezone: 'Asia/Tashkent' };
 
 describe('time', () => {
   it.each([
@@ -51,5 +55,30 @@ describe('time', () => {
     expect(tenantDateTimeIso('2026-11-03', '00:00')).toBe('2026-11-02T19:00:00.000Z');
     expect(tenantDateTimeIso('2026-11-03', '23:59', true)).toBe('2026-11-03T18:59:59.999Z');
     expect(tenantDateTimeIso('2026-11-03', '')).toBe('2026-11-02T19:00:00.000Z');
+  });
+
+  describe('yozgi vaqtli zona (DST) — har qanday zona uchun to\'g\'ri, doimiy +05:00 taxmin qilinmaydi', () => {
+    it('tenantDateTimeIso — New York yozda (EDT, UTC-4) va qishda (EST, UTC-5) har xil siljish bilan hisoblaydi', () => {
+      expect(tenantDateTimeIso('2026-07-01', '09:00', false, 'America/New_York')).toBe('2026-07-01T13:00:00.000Z');
+      expect(tenantDateTimeIso('2026-01-15', '09:00', false, 'America/New_York')).toBe('2026-01-15T14:00:00.000Z');
+    });
+
+    it('tzOffsetLabel — New York yozda UTC-4, qishda UTC-5', () => {
+      expect(tzOffsetLabel('2026-07-01T12:00:00Z', 'America/New_York')).toBe('UTC-4');
+      expect(tzOffsetLabel('2026-01-15T12:00:00Z', 'America/New_York')).toBe('UTC-5');
+    });
+  });
+
+  describe('tenantTz — sessiyadagi foydalanuvchi zonasidan dinamik o\'qiydi', () => {
+    afterEach(() => useSession.setState({ user: null }));
+
+    it('sessiyada boshqa zona bo\'lsa — shu zonada ko\'rsatadi (Toshkent qattiq yozilmagan)', () => {
+      useSession.setState({ user: { ...SOME_USER, timezone: 'America/New_York' } });
+      expect(formatTime('2026-01-15T14:00:00Z')).toContain('09:00');
+    });
+
+    it('sessiya hali yuklanmagan bo\'lsa — xavfsiz sukut (Asia/Tashkent)', () => {
+      expect(formatTime('2026-10-27T13:19:31Z')).toContain('18:19');
+    });
   });
 });

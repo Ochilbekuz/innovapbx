@@ -112,3 +112,10 @@ def test_calls_csv_local_time_header_and_formula_guard():
     assert rows[1][0] == "2026-11-03 10:00:00"
     assert rows[1][3] == "'=HYPERLINK(\"x\")"
     assert rows[1][10] == "Sotuv" and rows[1][11] == "1"
+
+
+def test_calls_csv_uses_given_tenant_timezone():
+    """Sukut "Asia/Tashkent" emas — chaqiruvchi bergan tenant zonasiga bog'lanadi (M-task A)."""
+    text = calls_csv([_call()], tenant_timezone="Europe/Moscow")
+    rows = list(csv.reader(io.StringIO(text.lstrip("﻿"))))
+    assert rows[1][0] == "2026-11-03 08:00:00"

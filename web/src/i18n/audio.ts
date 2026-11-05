@@ -26,9 +26,13 @@ export const uz = {
     defaultBadge: 'Asosiy', shuffleBadge: 'aralash',
     fileCount: '{{count}} ta fayl',
     editAriaLabel: '{{name}}ni tahrirlash', deleteAriaLabel: '{{name}}ni oʻchirish',
-    cannotDeleteDefault: '«default» sinfini oʻchirib boʻlmaydi',
+    setDefault: 'Asosiy qilish', setDefaultAriaLabel: '{{name}}ni asosiy qilish',
+    cannotDeleteDefault: 'Asosiy sinfni oʻchirib boʻlmaydi — avval boshqa sinfni asosiy qiling',
     empty: 'Hali kutish musiqasi sinfi yoʻq.',
-    toast: { added: '«{{name}}» qoʻshildi', saved: '«{{name}}» saqlandi', deleted: '{{name}} oʻchirildi', deleteFailed: 'Oʻchirib boʻlmadi' },
+    toast: {
+      added: '«{{name}}» qoʻshildi', saved: '«{{name}}» saqlandi', deleted: '{{name}} oʻchirildi', deleteFailed: 'Oʻchirib boʻlmadi',
+      defaultSet: '«{{name}}» asosiy kutish musiqasi qilindi',
+    },
     deleteModal: { title: '{{name}}ni oʻchirish', usagePrefix: '«{{name}}» hali ishlatilmoqda:', body: '«{{name}}» butunlay oʻchiriladi.' },
     drawer: {
       newTitle: 'Yangi kutish musiqasi sinfi', editTitle: '{{name}}ni tahrirlash',
@@ -76,9 +80,13 @@ export const ru = {
     defaultBadge: 'Основной', shuffleBadge: 'вперемешку',
     fileCount: 'Файлов: {{count}}',
     editAriaLabel: 'Редактировать {{name}}', deleteAriaLabel: 'Удалить {{name}}',
-    cannotDeleteDefault: 'Класс «default» удалить нельзя',
+    setDefault: 'Сделать основным', setDefaultAriaLabel: 'Сделать {{name}} основным',
+    cannotDeleteDefault: 'Основной класс удалить нельзя — сначала сделайте основным другой класс',
     empty: 'Классов музыки ожидания пока нет.',
-    toast: { added: '«{{name}}» добавлен', saved: '«{{name}}» сохранён', deleted: '{{name}} удалён', deleteFailed: 'Не удалось удалить' },
+    toast: {
+      added: '«{{name}}» добавлен', saved: '«{{name}}» сохранён', deleted: '{{name}} удалён', deleteFailed: 'Не удалось удалить',
+      defaultSet: '«{{name}}» стал основной музыкой ожидания',
+    },
     deleteModal: { title: 'Удаление {{name}}', usagePrefix: '«{{name}}» ещё используется:', body: '«{{name}}» будет удалён полностью.' },
     drawer: {
       newTitle: 'Новый класс музыки ожидания', editTitle: 'Редактирование {{name}}',
@@ -126,9 +134,13 @@ export const en = {
     defaultBadge: 'Default', shuffleBadge: 'shuffled',
     fileCount: '{{count}} files',
     editAriaLabel: 'Edit {{name}}', deleteAriaLabel: 'Delete {{name}}',
-    cannotDeleteDefault: 'The "default" class cannot be deleted',
+    setDefault: 'Set as default', setDefaultAriaLabel: 'Set {{name}} as default',
+    cannotDeleteDefault: 'The default class cannot be deleted — set another class as default first',
     empty: 'No music-on-hold classes yet.',
-    toast: { added: '"{{name}}" added', saved: '"{{name}}" saved', deleted: '{{name}} deleted', deleteFailed: 'Could not delete' },
+    toast: {
+      added: '"{{name}}" added', saved: '"{{name}}" saved', deleted: '{{name}} deleted', deleteFailed: 'Could not delete',
+      defaultSet: '"{{name}}" is now the default music on hold',
+    },
     deleteModal: { title: 'Delete {{name}}', usagePrefix: '"{{name}}" is still in use:', body: '"{{name}}" will be permanently deleted.' },
     drawer: {
       newTitle: 'New music-on-hold class', editTitle: 'Edit {{name}}',

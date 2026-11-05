@@ -4,21 +4,24 @@ import { Download, Trash2 } from 'lucide-react';
 import { apiClient } from '@/api';
 import { useDeleteRecording } from '@/api/queries';
 import type { Call, CallRecordingRef } from '@/api/types';
-import { formatDurationSec, TENANT_TZ } from '@/lib/time';
+import { formatDurationSec, tenantTz } from '@/lib/time';
 import { fmt, playIcon, RateButton, usePlayback } from '@/pbx/AudioPlayer';
 import { Button } from '@/ui/Button';
 import { Modal } from '@/ui/Dialog';
 import { useToast } from '@/ui/Toast';
 
 // `sv-SE` — tilga bogʻliq boʻlmagan «YYYY-MM-DD HH:MM:SS» shakli (fayl nomi interfeys tiliga qarab oʻzgarmasin).
-const FILE_STAMP = new Intl.DateTimeFormat('sv-SE', {
-  timeZone: TENANT_TZ, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit',
-});
+// Har chaqiruvda qayta tuziladi (modul yuklanganda emas) — tenant zonasi keyinroq o'zgarsa ham to'g'ri bo'lishi uchun.
+function fileStamp(): Intl.DateTimeFormat {
+  return new Intl.DateTimeFormat('sv-SE', {
+    timeZone: tenantTz(), year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit',
+  });
+}
 const fileSafeNumber = (n: string) => n.replace(/[^0-9A-Za-z+]/g, '') || 'nomalum';
 
-/** Yuklab olinadigan fayl nomi asosi: `2026-11-03_01-12-35_<kimdan>_<kimga>` (Toshkent vaqti). */
+/** Yuklab olinadigan fayl nomi asosi: `2026-11-03_01-12-35_<kimdan>_<kimga>` (tenant vaqt zonasida). */
 export function recordingFileBase(call: Pick<Call, 'started_at' | 'src' | 'dst'>): string {
-  const stamp = FILE_STAMP.format(new Date(call.started_at)).replace(' ', '_').replace(/:/g, '-');
+  const stamp = fileStamp().format(new Date(call.started_at)).replace(' ', '_').replace(/:/g, '-');
   return `${stamp}_${fileSafeNumber(call.src)}_${fileSafeNumber(call.dst)}`;
 }
 

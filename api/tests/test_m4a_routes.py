@@ -28,7 +28,7 @@ from app.services.prov_settings import ProvSettings
 from tests.test_m4a_services import TID, TOKEN, FakeSession, _device, _ext, _key, _request, _tp
 
 NOW = datetime(2026, 10, 29, 12, 0, tzinfo=timezone.utc)
-USER = SimpleNamespace(id="u1", tenant_id=TID)
+USER = SimpleNamespace(id="u1", tenant_id=TID, tenant=SimpleNamespace(timezone="Asia/Tashkent"))
 DEV_ID = "22222222-2222-2222-2222-222222222222"
 
 

@@ -1,5 +1,23 @@
 # O'zgarishlar tarixi
 
+## 1.0.21 — 2026-11-05
+- **Kutish musiqasi → «Asosiy qilish»**: istalgan sinfni asosiy qilish mumkin (ilgari faqat «default» nomli sinf
+  edi va u Asterisk'ga ulanmagan edi). Asosiy sinf endi haqiqatda ishlaydi: MOH sinfi tanlanmagan navbatlar, park
+  va oddiy hold shu musiqani eshittiradi. Asosiy sinf bo'sh bo'lsa — zahira ohang qoladi. «default» sinf nomini ham
+  o'zgartirish mumkin; faqat hozirgi asosiy sinfni o'chirib bo'lmaydi.
+- **Vaqt zonasi hamma joyda «Sana va vaqt» sozlamasiga bog'landi**: panel (qo'ng'iroqlar, CDR, jurnallar), CDR
+  qidiruvidagi sana oralig'i va telefonlar provizioningi endi qattiq «Asia/Tashkent» emas, tizim zonasini ishlatadi.
+  Zona almashtirilganda panel darhol yangilanadi. Provizioningda zonani qo'lda tanlagan bo'lsangiz — o'sha saqlanadi.
+- **Navbatlar — FreePBX andozasi to'ldirildi**: og'irlik (weight), autofill, kutish vaqtini agentga aytish,
+  a'zo kechikishi, penalty chegarasi, avto-pauza (yoq/hamma/kechikish/band/mavjud emas), timeout qayta boshlash,
+  maksimal kutish rejimi, bo'sh bo'lsa chiqish, pozitsiya e'loni (yes/no/limit/more), kutish vaqti e'loni (once),
+  davriy e'lon, qo'shilish/agent e'loni audiosi, band agentlarga jiringlamaslik, CID nom prefiksi, Alert-Info va boshqalar.
+  Forma FreePBX kabi bo'limlarga ajratildi; FreePBX'dan ko'chirishda yangi maydonlar ham import qilinadi.
+- **Ring group — FreePBX andozasi to'ldirildi**: strategiyalar (firstavailable/firstnotonphone va prim variantlari),
+  e'lon, jiringlash o'rniga musiqa (MOH sinfi), Alert-Info, band a'zoni o'tkazib yuborish, tashqi raqamlarda
+  qo'ng'iroqni tasdiqlash (+ e'lon), CID prefiksi endi haqiqatda ishlaydi, yozib olish siyosati. Forma 5 bo'limga bo'lindi.
+- Ataylab qo'shilmagan maydonlar va sabablari qo'llanmada (Navbatlar / Ring group bo'limlari).
+
 ## 1.0.20 — 2026-11-05
 - Yuqori paneldagi **Dialplan reviziyasi belgisi** endi faqat soatni emas, **sana, vaqt va vaqt zonasini** ko'rsatadi:
   «qo'llandi 05.11.26 19:48 UTC+5». Zona ustiga sichqoncha olib borilsa to'liq nomi chiqadi (`Asia/Tashkent`).

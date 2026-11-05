@@ -84,7 +84,10 @@ export const uz = {
 
   settings: {
     title: 'Provizioning sozlamalari',
-    language: 'Til', timezone: 'Vaqt zonasi', ntpServer: 'NTP server',
+    language: 'Til', timezone: 'Vaqt zonasi',
+    timezoneHint: 'Sukut boʻyicha tizim vaqt zonasiga bogʻlangan ("Sana va vaqt" sahifasi); bu yerda oʻzgartirsangiz — faqat apparatlar uchun oʻz holicha qoladi.',
+    timezoneSearchPlaceholder: 'Shahar yoki UTC+05 boʻyicha qidirish', timezoneNoMatch: 'Mos zona topilmadi',
+    ntpServer: 'NTP server',
     sipTransport: 'SIP transport', sipServerHost: 'SIP server hosti', sipServerHostHint: 'Boʻsh boʻlsa — ochiq (public) manzil hostidan olinadi.',
     allowedNetworks: 'Ruxsat etilgan tarmoqlar (CIDR)', allowedNetworksHint: 'Har qatorda bitta tarmoq, masalan 10.0.0.0/8. Boʻsh — hammasiga ruxsat.',
     adminPassword: 'Apparat admin paroli', adminPasswordHint: 'Bir martalik kiritish — saqlangandan keyin qayta koʻrsatilmaydi.',
@@ -187,7 +190,10 @@ export const ru = {
 
   settings: {
     title: 'Настройки провижининга',
-    language: 'Язык', timezone: 'Часовой пояс', ntpServer: 'NTP-сервер',
+    language: 'Язык', timezone: 'Часовой пояс',
+    timezoneHint: 'По умолчанию привязан к системному часовому поясу (страница «Дата и время»); изменение здесь действует только для аппаратов.',
+    timezoneSearchPlaceholder: 'Поиск по городу или UTC+05', timezoneNoMatch: 'Часовой пояс не найден',
+    ntpServer: 'NTP-сервер',
     sipTransport: 'SIP транспорт', sipServerHost: 'Хост SIP-сервера', sipServerHostHint: 'Если пусто — берётся хост публичного адреса.',
     allowedNetworks: 'Разрешённые сети (CIDR)', allowedNetworksHint: 'По одной сети на строку, например 10.0.0.0/8. Пусто — разрешено всем.',
     adminPassword: 'Пароль администратора аппарата', adminPasswordHint: 'Вводится один раз — после сохранения не показывается повторно.',
@@ -290,7 +296,10 @@ export const en = {
 
   settings: {
     title: 'Provisioning settings',
-    language: 'Language', timezone: 'Timezone', ntpServer: 'NTP server',
+    language: 'Language', timezone: 'Timezone',
+    timezoneHint: 'Bound to the system timezone by default ("Date & time" page); changing it here only affects devices.',
+    timezoneSearchPlaceholder: 'Search by city or UTC+05', timezoneNoMatch: 'No matching timezone',
+    ntpServer: 'NTP server',
     sipTransport: 'SIP transport', sipServerHost: 'SIP server host', sipServerHostHint: "Empty — uses the public base URL's host.",
     allowedNetworks: 'Allowed networks (CIDR)', allowedNetworksHint: 'One network per line, e.g. 10.0.0.0/8. Empty — allow everyone.',
     adminPassword: 'Device admin password', adminPasswordHint: 'Entered once — not shown again after it is saved.',

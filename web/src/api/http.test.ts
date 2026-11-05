@@ -3,7 +3,7 @@ import { request, requestBlob, requestMultipart } from './http';
 import { useSession } from './session';
 import type { User } from './types';
 
-const USER: User = { id: 'u-1', login: 'admin', full_name: 'Admin', role: 'admin', permissions: ['pbx.manage'], language: 'uz' };
+const USER: User = { id: 'u-1', login: 'admin', full_name: 'Admin', role: 'admin', permissions: ['pbx.manage'], language: 'uz', timezone: 'Asia/Tashkent' };
 
 function jsonResponse(status: number, body: unknown): Response {
   return new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });

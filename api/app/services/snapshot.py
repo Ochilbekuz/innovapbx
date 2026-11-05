@@ -237,6 +237,17 @@ async def build_snapshot(session: AsyncSession, tenant_id: str) -> DialplanSnaps
                     )
                     for m in rg.members
                 ),
+                # 0038 (FreePBX Ring Groups parity): `callerid_prefix` BUNDAN
+                # OLDIN ham bor edi, LEKIN dialplan'ga ulanmagan edi.
+                callerid_prefix=rg.callerid_prefix,
+                announcement_audio_id=rg.announcement_audio_id,
+                ring_strategy_sound=rg.ring_strategy_sound,
+                moh_class_name=rg.moh_class.name if rg.moh_class else None,
+                alert_info=rg.alert_info,
+                skip_busy_agent=rg.skip_busy_agent,
+                confirm_calls=rg.confirm_calls,
+                remote_announce_audio_id=rg.remote_announce_audio_id,
+                recording_policy=rg.recording_policy,
             )
             for rg in ring_groups
         ],
@@ -244,6 +255,14 @@ async def build_snapshot(session: AsyncSession, tenant_id: str) -> DialplanSnaps
             QueueSnapshot(
                 id=str(q.id), target_id=str(q.target_id), name=q.name,
                 max_wait_seconds=q.max_wait_seconds, timeout_target_id=str(q.timeout_target_id),
+                ring_mode=q.ring_mode, mark_answered_elsewhere=q.mark_answered_elsewhere,
+                cid_name_prefix=q.cid_name_prefix, alert_info=q.alert_info,
+                join_announcement_audio_id=(
+                    str(q.join_announcement_audio_file_id) if q.join_announcement_audio_file_id else None
+                ),
+                agent_announcement_audio_id=(
+                    str(q.agent_announcement_audio_file_id) if q.agent_announcement_audio_file_id else None
+                ),
             )
             for q in queues
         ],

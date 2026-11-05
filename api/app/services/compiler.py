@@ -109,13 +109,13 @@ def _dp_num_opt(value: str | None, *, field: str) -> str:
 _ALERT_INFO_RE = re.compile(r"^[A-Za-z0-9=<>:;/._@-]{1,128}$")
 
 
-def _dp_alert_info(value: str | None) -> str:
+def _dp_alert_info(value: str | None, *, field_name: str = "inbound_route.alert_info") -> str:
     value = value or ""
     if not value:
         return ""
     if not _ALERT_INFO_RE.fullmatch(value):
-        raise CompileError(f"inbound_route.alert_info: Asterisk dialplan uchun yaroqsiz qiymat: {value!r}",
-                            code="bad_dialplan_value", details={"field": "inbound_route.alert_info"})
+        raise CompileError(f"{field_name}: Asterisk dialplan uchun yaroqsiz qiymat: {value!r}",
+                            code="bad_dialplan_value", details={"field": field_name})
     return value
 
 
@@ -211,10 +211,26 @@ class RingGroupSnapshot:
     id: str
     target_id: str
     name: str
-    strategy: str  # ringall|hunt|memoryhunt
+    # ringall|ringall-prim|hunt|hunt-prim|memoryhunt|memoryhunt-prim|
+    # firstavailable|firstnotonphone (FreePBX Ring Groups parity, 0038).
+    strategy: str
     ring_seconds: int
     no_answer_target_id: str
     members: tuple[RingGroupMemberSnapshot, ...] = ()
+    # 0038: FreePBX Ring Groups qo'shimcha maydonlari. Sukut qiymatlar
+    # HOZIRGI dialplan chiqishini O'ZGARTIRMAYDI (hisobot: docs/qollanma/ringgroups.md).
+    announcement_audio_id: str | None = None
+    ring_strategy_sound: str = "ring"  # ring|moh
+    moh_class_name: str | None = None
+    alert_info: str | None = None
+    skip_busy_agent: bool = False
+    confirm_calls: bool = False
+    remote_announce_audio_id: str | None = None
+    recording_policy: str = "dontcare"  # dontcare|force|no
+    # ESLATMA: `callerid_prefix` 0001'dan beri DB/schema/API'da BOR edi, LEKIN
+    # dialplan'ga hech qachon ULANMAGAN edi (0038 — endi ulandi, pastdagi
+    # `_cid_prefix_alert_lines` BILAN BIR XIL naqsh, inbound_route.cid_name_prefix).
+    callerid_prefix: str | None = None
 
 
 # -------------------------------------------------------------- M1b: chiquvchi
@@ -264,6 +280,16 @@ class QueueSnapshot:
     name: str
     max_wait_seconds: int
     timeout_target_id: str
+    # 0037 (Queues FreePBX parity — hisobot: `docs/qollanma/queues.md`). Faqat
+    # DIALPLAN KOMPILYATSIYA vaqtida kerak bo'lgan maydonlar (qolgan yangi
+    # maydonlar sof realtime ustun — `asterisk_queues` view'dan o'qiladi,
+    # qayta kompilyatsiya shart emas).
+    ring_mode: str = "moh"
+    mark_answered_elsewhere: bool = False
+    cid_name_prefix: str | None = None
+    alert_info: str | None = None
+    join_announcement_audio_id: str | None = None
+    agent_announcement_audio_id: str | None = None
 
 
 @dataclass(frozen=True)
@@ -573,17 +599,99 @@ def _ivr_dest_lines(code: str, ivr: IvrSnapshot, audio_paths: dict[str, str]) ->
     return lines
 
 
-def _ring_group_dest_lines(code: str, rg: RingGroupSnapshot) -> list[str]:
+_RG_PRIM_SUFFIX = "-prim"
+
+
+def _rg_base_strategy(strategy: str) -> str:
+    """`-prim` qo'shimchasini olib tashlaydi (dial to'plamlari shakli bir xil —
+    farq faqat BIRINCHI a'zo band bo'lganda, pastda `_rg_prim_guard_lines`)."""
+    if strategy.endswith(_RG_PRIM_SUFFIX):
+        return strategy[: -len(_RG_PRIM_SUFFIX)]
+    return strategy
+
+
+def _rg_options(code: str, rg: RingGroupSnapshot, audio_paths: dict[str, str]) -> feat.RingGroupDialOptions:
+    remote_path = audio_paths.get(rg.remote_announce_audio_id, "") if rg.remote_announce_audio_id else None
+    return feat.RingGroupDialOptions(
+        skip_busy_agent=rg.skip_busy_agent,
+        alert_info=_dp_alert_info(rg.alert_info, field_name="ring_group.alert_info") or None,
+        moh_class_name=rg.moh_class_name if rg.ring_strategy_sound == "moh" else None,
+        confirm_calls=rg.confirm_calls,
+        remote_announce_path=remote_path,
+    )
+
+
+def _rg_prim_guard_lines(
+    code: str, primary: tuple[str, bool], rounds: list[list], ring_seconds: int,
+    options: feat.RingGroupDialOptions,
+) -> list[str]:
+    """`-prim`: BIRINCHI a'zo (ichki) band bo'lsa — FAQAT o'shani chaqiradi;
+    aks holda oddiy to'plamlar (`rounds`) ishlaydi. Tashqi a'zo DEVICE_STATE'i
+    noma'lum — shu sabab faqat ICHKI primary uchun qo'llaniladi."""
+    number, _ = primary
+    busy_label, end_label = "rgprim_busy", "rgprim_end"
+    dev = f"${{DEVICE_STATE(PJSIP/{number})}}"
+    lines = [f' same => n,GotoIf($[{feat.device_busy_expr(dev)}]?{busy_label})']
+    for idx, dial_set in enumerate(rounds, start=1):
+        lines += feat.ring_group_set_lines(code, idx, dial_set, ring_seconds, options)
+    lines.append(f" same => n,Goto({end_label})")
+    lines.append(f" same => n({busy_label}),NoOp(Innova: asosiy a'zo band — faqat o'shani chaqiramiz)")
+    lines += feat.ring_group_set_lines(code, "prim", [primary], ring_seconds, options)
+    lines.append(f" same => n({end_label}),NoOp(Innova: guruh -prim tugadi)")
+    return lines
+
+
+def _rg_first_available_lines(
+    code: str, pairs: list[tuple[str, bool]], ring_seconds: int, options: feat.RingGroupDialOptions,
+) -> list[str]:
+    """`firstavailable`/`firstnotonphone` — RUNTIME'da band BO'LMAGAN birinchi
+    a'zoni topib, FAQAT o'shani chaqiradi (tashqi a'zo DEVICE_STATE'i noma'lum
+    — doim "bo'sh" deb hisoblanadi; ikki strategiya oddiylashtirib BIR XIL
+    amalga oshiriladi — hisobotda ayt)."""
+    labels = [f"rgfa{i}" for i in range(1, len(pairs) + 1)]
+    lines: list[str] = []
+    for (number, is_external), label in zip(pairs, labels):
+        if is_external:
+            lines.append(f" same => n,Goto({label})")
+            break
+        dev = f"${{DEVICE_STATE(PJSIP/{number})}}"
+        lines.append(f' same => n,GotoIf($[{feat.device_available_expr(dev)}]?{label})')
+    else:
+        lines.append(f" same => n,Goto({labels[-1]})")  # hammasi band — oxirgisini chaqiramiz
+    end_label = "rgfa_end"
+    for (number, is_external), label in zip(pairs, labels):
+        lines.append(f" same => n({label}),NoOp(Innova: birinchi bo'sh a'zo)")
+        lines += feat.ring_group_set_lines(code, label, [(number, is_external)], ring_seconds, options)
+        lines.append(f" same => n,Goto({end_label})")
+    lines.append(f" same => n({end_label}),NoOp(Innova: guruh first*-strategiya tugadi)")
+    return lines
+
+
+def _ring_group_dest_lines(code: str, rg: RingGroupSnapshot, audio_paths: dict[str, str]) -> list[str]:
     lines = [f"exten => s,1,NoOp(Innova: qo'ng'iroq guruhi {_dp_text(rg.name)})"]
     members = [m for m in sorted(rg.members, key=lambda m: m.position) if m.extension_number]
     if not members:
         lines.append(" same => n,NoOp(Innova: guruhda a'zo yo'q)")
         lines.append(f" same => n,Goto({code}-dest-{rg.no_answer_target_id},s,1)")
         return lines
+    if rg.announcement_audio_id:
+        lines.append(f" same => n,Background({audio_paths.get(rg.announcement_audio_id, '')})")
+    if rg.callerid_prefix:
+        lines.append(f" same => n,Set(CALLERID(name)={_dp_text(rg.callerid_prefix)}${{CALLERID(name)}})")
     lines.append(f" same => n,Set(__TRANSFER_CONTEXT={code}-from-internal)")
+    if rg.recording_policy != "dontcare":
+        lines.append(f" same => n,Set(__INNOVA_REC_RG_OVERRIDE={rg.recording_policy})")
     pairs = [(m.extension_number, m.is_external) for m in members]
-    for idx, dial_set in enumerate(_rg_dial_sets(rg.strategy, pairs), start=1):
-        lines += feat.ring_group_set_lines(code, idx, dial_set, rg.ring_seconds)
+    options = _rg_options(code, rg, audio_paths)
+    if rg.strategy in ("firstavailable", "firstnotonphone"):
+        lines += _rg_first_available_lines(code, pairs, rg.ring_seconds, options)
+    elif rg.strategy.endswith(_RG_PRIM_SUFFIX) and not pairs[0][1]:
+        rounds = _rg_dial_sets(_rg_base_strategy(rg.strategy), pairs)
+        lines += _rg_prim_guard_lines(code, pairs[0], rounds, rg.ring_seconds, options)
+    else:
+        rounds = _rg_dial_sets(_rg_base_strategy(rg.strategy), pairs)
+        for idx, dial_set in enumerate(rounds, start=1):
+            lines += feat.ring_group_set_lines(code, idx, dial_set, rg.ring_seconds, options)
     lines.append(f" same => n,Goto({code}-dest-{rg.no_answer_target_id},s,1)")
     return lines
 
@@ -946,17 +1054,45 @@ def _without_extension_filter(route: OutboundRouteSnapshot) -> OutboundRouteSnap
     )
 
 
-def _queue_dest_lines(code: str, q: QueueSnapshot) -> list[str]:
+def _queue_dial_options(q: QueueSnapshot) -> str:
+    """Asterisk `Queue()` 2-argument bayroqlari — FAQAT HAQIQATDA mavjud
+    `app_queue.c` bayroqlari: `C` (javob boshqa joyda berilgan deb belgilash),
+    `r` (MOH o'rniga a'zoga jiringlash ovozi — "faqat jiring" rejimi)."""
+    flags = ""
+    if q.mark_answered_elsewhere:
+        flags += "C"
+    if q.ring_mode == "ring":
+        flags += "r"
+    return flags
+
+
+def _queue_dest_lines(code: str, q: QueueSnapshot, audio_paths: dict[str, str]) -> list[str]:
     # `Answer()` SHART — Asterisk `Queue()` dokumentatsiyasi: kanal
     # OLDINDAN javob berilgan deb FARZ qiladi, aks holda qo'ng'iroq
     # qiluvchi hech qanday kutish ovozini (MOH) eshitmaydi. Idempotent.
     queue_name = f"{code}-q-{q.id}"
-    return [
-        f"exten => s,1,NoOp(Innova: navbat {_dp_text(q.name)})",
-        " same => n,Answer()",
-        *rec.recorded_queue_lines(queue_name, q.max_wait_seconds, queue_id=q.id),
-        f" same => n,Goto({code}-dest-{q.timeout_target_id},s,1)",
-    ]
+    lines = [f"exten => s,1,NoOp(Innova: navbat {_dp_text(q.name)})", " same => n,Answer()"]
+    # 0037: CID prefiks/Alert-Info — Inbound Route/Ring Group bilan AYNAN BIR
+    # XIL mexanizm (`__INNOVA_ALERT_INFO` — `dialplan_features.py`da umumiy
+    # iste'molchi ALLAQACHON mavjud, yangi kod shart emas).
+    if q.cid_name_prefix:
+        lines.append(f" same => n,Set(CALLERID(name)={_dp_text(q.cid_name_prefix)}${{CALLERID(name)}})")
+    if q.alert_info:
+        lines.append(f" same => n,Set(__INNOVA_ALERT_INFO={_dp_alert_info(q.alert_info, field_name='queue.alert_info')})")
+    # "Qo'shilish e'loni" — FreePBX'da `Queue()`dan OLDIN `Playback()` (navbat
+    # `announce`sidan MUSTAQIL, faqat BIR MARTA, kirishda eshitiladi).
+    if q.join_announcement_audio_id:
+        lines.append(f" same => n,Playback({audio_paths.get(q.join_announcement_audio_id, '')})")
+    options = _queue_dial_options(q)
+    # "Agent e'loni" — `Queue()` 4-argument (`announceoverride`): shu
+    # qo'ng'iroq uchun navbatning o'z `announce`sini BEKOR qiladi (ikkinchi,
+    # mutlaqo mustaqil mexanizm).
+    announce_override = audio_paths.get(q.agent_announcement_audio_id, "") if q.agent_announcement_audio_id else ""
+    lines += rec.recorded_queue_lines(
+        queue_name, q.max_wait_seconds, queue_id=q.id, options=options, announce_override=announce_override,
+    )
+    lines.append(f" same => n,Goto({code}-dest-{q.timeout_target_id},s,1)")
+    return lines
 
 
 def _terminal_dest_lines(kind: str) -> list[str]:
@@ -1113,8 +1249,8 @@ def _disa_dest_lines(code: str, disa: DisaSnapshot, snapshot: DialplanSnapshot) 
 _SATELLITE_BUILDERS = {
     "time_condition": lambda code, item, snap: _time_condition_dest_lines(code, item, snap.holidays_mmdd, snap.timezone),
     "ivr": lambda code, item, snap: _ivr_dest_lines(code, item, snap.audio_paths),
-    "ring_group": lambda code, item, snap: _ring_group_dest_lines(code, item),
-    "queue": lambda code, item, snap: _queue_dest_lines(code, item),
+    "ring_group": lambda code, item, snap: _ring_group_dest_lines(code, item, snap.audio_paths),
+    "queue": lambda code, item, snap: _queue_dest_lines(code, item, snap.audio_paths),
     "voicemail": lambda code, item, snap: _voicemail_dest_lines(code, item),
     "conference": lambda code, item, snap: _conference_dest_lines(code, item, snap),
     "announcement": lambda code, item, snap: _announcement_dest_lines(code, item, snap.audio_paths),

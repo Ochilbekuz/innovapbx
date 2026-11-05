@@ -7,6 +7,7 @@ import { apiErrorMessage } from '@/api/errors';
 import { qk } from '@/api/queries';
 import type { Lang, SetupPayload } from '@/api/types';
 import { BrandMark } from '@/shell/AppShell';
+import { TimezonePicker } from '@/screens/time/TimezonePicker';
 import { Button } from '@/ui/Button';
 import { Field, Input, Select, Textarea } from '@/ui/Field';
 import { isValidCidr, isValidIPv4, splitList } from '@/lib/validators';
@@ -137,11 +138,12 @@ export function SetupPage() {
             </p>
             <Field label={t('field.timezone')}>
               {(a) => (
-                <Select
+                <TimezonePicker
                   {...a}
                   value={form.timezone}
-                  onValueChange={(v) => set('timezone', v)}
-                  options={[{ value: 'Asia/Tashkent', label: t('field.timezoneOptions.tashkent') }, { value: 'Asia/Samarkand', label: t('field.timezoneOptions.samarkand') }]}
+                  onChange={(v) => set('timezone', v)}
+                  searchPlaceholder={t('field.timezoneSearchPlaceholder')}
+                  noMatch={t('field.timezoneNoMatch')}
                 />
               )}
             </Field>

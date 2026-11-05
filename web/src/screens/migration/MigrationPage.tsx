@@ -5,6 +5,7 @@ import type { MigrationJob } from '@/api/types';
 import { useAnalyzeMigrationJob, useDeleteMigrationJob, useMigrationJob, useMigrationJobs } from '@/api/queries';
 import { usePermission } from '@/auth/permissions';
 import { AppShellPage } from '@/shell/AppShellPage';
+import { formatDateTime } from '@/lib/time';
 import { useEnumText } from '@/lib/useEnumText';
 import { formatBytes } from '@/screens/backup/backupForms';
 import { Badge } from '@/ui/Status';
@@ -119,7 +120,7 @@ function HistoryTable({ jobs, loading, error, canManage }: { jobs: MigrationJob[
   const sourceText = useEnumText('migration', 'sourceLabel', ['upload', 'ssh'] as const);
 
   const columns: Column<MigrationJob>[] = [
-    { key: 'created', header: t('history.column.created'), cell: (r) => new Date(r.created_at).toLocaleString(), sortValue: (r) => r.created_at },
+    { key: 'created', header: t('history.column.created'), cell: (r) => formatDateTime(r.created_at), sortValue: (r) => r.created_at },
     { key: 'source', header: t('history.column.source'), cell: (r) => sourceText[r.source] },
     { key: 'status', header: t('history.column.status'), cell: (r) => <Badge tone={migrationJobStatusTone(r.status)}>{statusText[r.status]}</Badge> },
     {

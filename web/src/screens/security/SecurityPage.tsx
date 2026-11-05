@@ -13,7 +13,7 @@ import type {
 import { usePermission } from '@/auth/permissions';
 import { applyToast } from '@/lib/applyToast';
 import { splitList } from '@/lib/validators';
-import { formatDateTimeShort } from '@/lib/time';
+import { formatDateTimeShort, tenantTz } from '@/lib/time';
 import { useEnumText } from '@/lib/useEnumText';
 import { AppShellPage } from '@/shell/AppShellPage';
 import { BarChart, ChartCard, ChartLegend } from '@/ui/Chart';
@@ -129,7 +129,7 @@ function StatusChart({ t, hours }: { t: Tfn; hours: SecurityStatsHour[] }) {
 }
 
 function formatTickHour(iso: string): string {
-  return new Date(iso).toLocaleTimeString('uz-UZ', { hour: '2-digit', timeZone: 'Asia/Tashkent' });
+  return new Date(iso).toLocaleTimeString('uz-UZ', { hour: '2-digit', timeZone: tenantTz() });
 }
 
 function TopIpRow({ ip, canManage, pending, onBlock }: { ip: SecurityStatsTopIp; canManage: boolean; pending: boolean; onBlock: (ip: string) => void }) {

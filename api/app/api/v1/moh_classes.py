@@ -12,7 +12,7 @@ sabab shu funksiya docstringida)."""
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -39,7 +39,8 @@ def _moh_class_out(moh: MohClass) -> MohClassOut:
                   format="wav", created_at=f.audio_file.created_at)
         for f in moh.files
     ]
-    return MohClassOut(id=str(moh.id), name=moh.name, shuffle=moh.shuffle, files=files, updated_at=moh.updated_at)
+    return MohClassOut(id=str(moh.id), name=moh.name, shuffle=moh.shuffle, is_default=moh.is_default,
+                        files=files, updated_at=moh.updated_at)
 
 
 async def _resolve_files(session: AsyncSession, tenant_id: str, file_ids: list[str]) -> list[AudioFile]:
@@ -128,6 +129,17 @@ def _apply_simple_moh_fields(moh: MohClass, payload: UpdateMohClassPayload, diff
         diff["shuffle"] = payload.shuffle
 
 
+async def _make_default(session: AsyncSession, tenant_id: str, moh: MohClass, diff: dict) -> None:
+    """"Asosiy qilish" — avvalgi asosiy sinf(lar)ni bekor qiladi (tenant
+    bo'yicha ko'pi bilan BITTA `is_default=true`, `ix_moh_classes_tenant_default`
+    qisman unique indeksi shuni DB darajasida ham kafolatlaydi)."""
+    await session.execute(
+        update(MohClass).where(MohClass.tenant_id == tenant_id, MohClass.id != moh.id).values(is_default=False)
+    )
+    moh.is_default = True
+    diff["is_default"] = True
+
+
 @router.patch("/{moh_id}", response_model=MohClassMutated)
 async def update_moh_class(
     moh_id: str, payload: UpdateMohClassPayload, session: AsyncSession = Depends(get_session),
@@ -143,6 +155,8 @@ async def update_moh_class(
         files = await _resolve_files(session, tenant_id, payload.file_ids)
         _replace_files(moh, files)
         diff["file_ids"] = len(payload.file_ids)
+    if payload.is_default:
+        await _make_default(session, tenant_id, moh, diff)
 
     try:
         await session.flush()
@@ -166,9 +180,9 @@ async def delete_moh_class(
 ) -> None:
     tenant_id = str(user.tenant_id)
     moh = await _get_moh_or_404(session, tenant_id, moh_id)
-    if moh.name == "default":
-        raise ApiError(409, "in_use", "«default» sinfini o'chirib bo'lmaydi", details={
-            "usages": [{"kind": "moh_class", "id": str(moh.id), "label": moh.name, "field": "name"}],
+    if moh.is_default:
+        raise ApiError(409, "in_use", f"«{moh.name}» hozirgi asosiy sinf — avval boshqa sinfni asosiy qiling", details={
+            "usages": [{"kind": "moh_class", "id": str(moh.id), "label": moh.name, "field": "is_default"}],
         })
     usages = await _moh_class_usages(session, tenant_id, str(moh.id))
     if usages:

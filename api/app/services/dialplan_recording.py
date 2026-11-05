@@ -43,12 +43,18 @@ def recorded_dial_lines(target: str, timeout: str, options: str = "") -> list[st
     return [prep_line(), f" same => n,Dial({target},{timeout},{options}U({SUBROUTINE}))"]
 
 
-def recorded_queue_lines(queue_name: str, max_wait: int, *, queue_id: str) -> list[str]:
-    """Asterisk 22 `Queue(name,options,URL,announce,timeout,AGI,gosub,...)` — gosub 7-argument."""
+def recorded_queue_lines(
+    queue_name: str, max_wait: int, *, queue_id: str, options: str = "", announce_override: str = "",
+) -> list[str]:
+    """Asterisk 22 `Queue(name,options,URL,announce,timeout,AGI,gosub,...)` — gosub 7-argument.
+
+    `options`/`announce_override` — 0037 (Queues FreePBX parity): `options` ("C"/"r"/"R"
+    bayroqlari), `announce_override` (agent e'loni — navbatning o'z `announce`sini bu
+    qo'ng'iroq uchun bekor qiladi). Sukut ("") — HOZIRGI chiqish bilan AYNAN bir xil."""
     return [
         f" same => n,Set(__INNOVA_QUEUE={queue_id})",
         prep_line(),
-        f" same => n,Queue({queue_name},,,,{max_wait},,{SUBROUTINE})",
+        f" same => n,Queue({queue_name},{options},,{announce_override},{max_wait},,{SUBROUTINE})",
     ]
 
 
@@ -84,8 +90,14 @@ def _policy_context() -> list[str]:
         # yorlig'i yo'q) hech narsa yozilmaydi.
         'exten => s,1,ExecIf($["${INNOVA_PINSET_LABEL}"!=""]?Set(CDR(pin_label)=${INNOVA_PINSET_LABEL}))',
         ' same => n,GotoIf($["${CHANNEL(channeltype)}"!="PJSIP"]?done)',
+        # 0038: qo'ng'iroq guruhi "Call recording" bekor qilishi (`force`/`no`)
+        # — `__INNOVA_REC_RG_OVERRIDE` A-oyoqda guruh Dial()'dan OLDIN
+        # o'rnatiladi (meros); bo'sh bo'lsa (`dontcare`/oddiy qo'ng'iroq)
+        # pastdagi ODDIY siyosat davom etadi, xatti-harakat O'ZGARMAYDI.
+        ' same => n,GotoIf($["${INNOVA_REC_RG_OVERRIDE}"=""]?rgnorm)',
+        ' same => n,GotoIf($["${INNOVA_REC_RG_OVERRIDE}"="force"]?start:done)',
         # RB — B'ning KIRUVCHI siyosati (`recording`, nomi o'zgarmaydi).
-        f" same => n,Set(INNOVA_REC_RB={_field('${CHANNEL(endpoint)}', 'recording')})",
+        f" same => n(rgnorm),Set(INNOVA_REC_RB={_field('${CHANNEL(endpoint)}', 'recording')})",
         " same => n,Set(INNOVA_REC_RA=)",
         # RA — A'ning CHIQUVCHI siyosati (`recording_out`).
         f' same => n,ExecIf($["${{INNOVA_REC_A}}"!=""]?Set(INNOVA_REC_RA={_field("${INNOVA_REC_A}", "recording_out")}))',
@@ -100,6 +112,11 @@ def _policy_context() -> list[str]:
         # M5b: Follow Me tashqi oyog'i — «qabul qilish uchun 1» (mobil ovozli pochtasi qo'ng'iroqni yemasin).
         # Rad/javobsiz → faqat SHU oyoq uziladi (`GOSUB_RESULT=ABORT`), boshqalari jiringlashda davom etadi.
         ' same => n(trunk),GotoIf($["${INNOVA_FM_CONFIRM}"!="t"]?trunkrec)',
+        # 0038: Ring Group "Confirm calls" HAM shu mexanizmdan foydalanadi
+        # (tashqi a'zo, `ring_group_set_lines`) — o'ziga xos ovoz fayli
+        # bo'lsa Read()'dan OLDIN ijro etiladi, bo'lmasa (FM — oddiy) hech
+        # narsa o'zgarmaydi (bo'sh var — ExecIf ishga tushmaydi).
+        ' same => n,ExecIf($["${INNOVA_FM_ANNOUNCE}"!=""]?Background(${INNOVA_FM_ANNOUNCE}))',
         " same => n,Read(INNOVA_FM_KEY,followme/options,1,,2,5)",
         ' same => n,GotoIf($["${INNOVA_FM_KEY}"="1"]?trunkrec)',
         " same => n,Set(GOSUB_RESULT=ABORT)",

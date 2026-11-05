@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useSystemHealth, useConfigRevisions } from '@/api/queries';
 import type { HealthItem } from '@/ui/Health';
-import { formatDateTimeShort, formatUptime, TENANT_TZ, tzOffsetLabel } from '@/lib/time';
+import { formatDateTimeShort, formatUptime, tenantTz, tzOffsetLabel } from '@/lib/time';
 import { useSession } from '@/api';
 import { hasPermission } from '@/auth/permissions';
 import { AppShell, type Revision, type SystemInfo } from './AppShell';
@@ -26,7 +26,7 @@ export function AppShellPage({ title, crumbs, children }: { title: string; crumb
     number: health?.revision ?? Number(last?.id ?? 0),
     state: last?.status === 'rolled_back' ? 'rolled_back' : 'applied',
     at: last ? formatDateTimeShort(last.created_at) : '—',
-    zone: last && { label: tzOffsetLabel(last.created_at), name: TENANT_TZ },
+    zone: last && { label: tzOffsetLabel(last.created_at), name: tenantTz() },
   };
 
   const ast = health?.asterisk;

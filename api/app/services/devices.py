@@ -29,7 +29,7 @@ from app.services.dialplan_features import PARK_FIRST_SLOT, PARK_LAST_SLOT
 from app.services.live_status import endpoint_contact_hosts
 from app.services.prov_render import CommonCtx, DeviceCtx, KeySpec, masked, render
 from app.services.sip_identity import endpoint_id as _endpoint_id_for_number
-from app.services.prov_settings import ProvSettings
+from app.services.prov_settings import ProvSettings, effective_timezone
 
 CHECK_SYNC_OPTION = "innova-check-sync"  # asterisk/etc-asterisk/pjsip_notify.conf
 _SPEED_DIAL_RE = re.compile(r"^[0-9*#+]{1,32}$")
@@ -72,8 +72,10 @@ def server_port(row: SystemSettings, transport: str) -> int:
 
 
 async def load_tenant_prov(session: AsyncSession, row: SystemSettings, tenant_code: str,
-                           request_host: str | None = None) -> TenantProv:
+                           request_host: str | None = None, tenant_timezone: str | None = None) -> TenantProv:
     cfg = ProvSettings.from_raw(row.provisioning)
+    if tenant_timezone is not None:
+        cfg = replace(cfg, timezone=effective_timezone(row.provisioning, cfg, tenant_timezone))
     host, from_request = resolve_server_host(cfg.sip_server_host, (row.integrations or {}).get("public_base_url"),
                                              request_host)
     admin_password = await decrypt_secret(session, cfg.admin_password_enc) if cfg.admin_password_enc else None

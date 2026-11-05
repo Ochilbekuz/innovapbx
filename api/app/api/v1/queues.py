@@ -16,9 +16,10 @@ from app.api.deps import get_ami, get_session, require_access
 from app.core.errors import ApiError
 from app.core.lookups import get_tenant_scoped_or_404
 from app.core.optimistic import check_not_stale
-from app.db.models import Extension, MohClass, Queue, QueueMember, Tenant, User
+from app.db.models import AudioFile, Extension, MohClass, Queue, QueueMember, Tenant, User
 from app.schemas import (
     AddQueueMemberPayload,
+    AudioOut,
     CreateQueuePayload,
     ExtensionRef,
     MohClassRef,
@@ -102,9 +103,39 @@ async def _resolve_moh_class(session: AsyncSession, tenant_id: str, moh_class_id
     )
 
 
+async def _resolve_audio(session: AsyncSession, tenant_id: str, audio_id: str | None) -> AudioFile | None:
+    """`audio_id` berilsa VA topilmasa 422 (`_resolve_moh_class` bilan BIR XIL naqsh)."""
+    if audio_id is None:
+        return None
+    return await get_tenant_scoped_or_404(
+        session, AudioFile, tenant_id, audio_id,
+        not_found_message="Ovoz fayli topilmadi", field="audio_id",
+    )
+
+
+def _audio_ref(audio: AudioFile | None) -> AudioOut | None:
+    if audio is None:
+        return None
+    return AudioOut(id=str(audio.id), name=audio.name, duration_ms=audio.duration_ms, created_at=audio.created_at)
+
+
+async def _resolve_breakout_target(session: AsyncSession, tenant_id: str, target_id: str | None) -> str | None:
+    """IVR orqali chiqish (`context=`) — 0037: generik `call_targets` FK
+    (`breakout_target_id`), xuddi `timeout_target_id` kabi, biroq MAJBURIY EMAS."""
+    if target_id is None:
+        return None
+    if await resolve_target(session, tenant_id, target_id) is None:
+        raise ApiError(422, "invalid_target", "Noto'g'ri IVR chiqish manzili", field="breakout_target_id")
+    return target_id
+
+
 async def _queue_out(session: AsyncSession, tenant_id: str, tenant_code: str, queue: Queue, ami) -> QueueOut:
     number = await dial_number_for_target(session, tenant_id, str(queue.target_id))
     timeout_target = await resolve_target(session, tenant_id, str(queue.timeout_target_id))
+    breakout_target = (
+        await resolve_target(session, tenant_id, str(queue.breakout_target_id))
+        if queue.breakout_target_id else None
+    )
     members = [_member_out(m) for m in queue.members if m.extension is not None]
     live_raw = await queue_live_status(ami, f"{tenant_code}-q-{queue.id}")
     live = QueueLive(**live_raw) if live_raw is not None else None
@@ -117,6 +148,21 @@ async def _queue_out(session: AsyncSession, tenant_id: str, tenant_code: str, qu
         announce_frequency_seconds=queue.announce_frequency_seconds, sla_seconds=queue.sla_seconds,
         join_empty=queue.join_empty, record=queue.record, members=members, timeout_target=timeout_target,
         live=live, moh_class=moh_class, updated_at=queue.updated_at,
+        skip_busy_agents=queue.skip_busy_agents, weight=queue.weight, autofill=queue.autofill,
+        report_hold_time=queue.report_hold_time, member_delay_seconds=queue.member_delay_seconds,
+        penalty_members_limit=queue.penalty_members_limit, auto_pause=queue.auto_pause,
+        auto_pause_delay_seconds=queue.auto_pause_delay_seconds, auto_pause_busy=queue.auto_pause_busy,
+        auto_pause_unavail=queue.auto_pause_unavail, agent_timeout_restart=queue.agent_timeout_restart,
+        max_wait_mode=queue.max_wait_mode, leave_when_empty=queue.leave_when_empty,
+        announce_position_limit=queue.announce_position_limit, announce_hold_time=queue.announce_hold_time,
+        min_announce_frequency_seconds=queue.min_announce_frequency_seconds,
+        periodic_announce_frequency_seconds=queue.periodic_announce_frequency_seconds,
+        ring_mode=queue.ring_mode, mark_answered_elsewhere=queue.mark_answered_elsewhere,
+        cid_name_prefix=queue.cid_name_prefix, alert_info=queue.alert_info,
+        periodic_announce_audio=_audio_ref(queue.periodic_announce_audio),
+        join_announcement_audio=_audio_ref(queue.join_announcement_audio),
+        agent_announcement_audio=_audio_ref(queue.agent_announcement_audio),
+        breakout_target=breakout_target,
     )
 
 
@@ -160,6 +206,10 @@ async def create_queue(
     tenant_id = str(user.tenant_id)
     await _validate_create_queue_payload(session, tenant_id, payload)
     moh_class = await _resolve_moh_class(session, tenant_id, payload.moh_class_id)
+    periodic_audio = await _resolve_audio(session, tenant_id, payload.periodic_announce_audio_id)
+    join_audio = await _resolve_audio(session, tenant_id, payload.join_announcement_audio_id)
+    agent_audio = await _resolve_audio(session, tenant_id, payload.agent_announcement_audio_id)
+    breakout_target_id = await _resolve_breakout_target(session, tenant_id, payload.breakout_target_id)
 
     target = await create_target(session, tenant_id, "queue", payload.name)
     queue = Queue(
@@ -170,6 +220,21 @@ async def create_queue(
         announce_frequency_seconds=payload.announce_frequency_seconds, sla_seconds=payload.sla_seconds,
         join_empty=payload.join_empty, record=payload.record, timeout_target_id=payload.timeout_target_id,
         moh_class_id=moh_class.id if moh_class else None,
+        skip_busy_agents=payload.skip_busy_agents, weight=payload.weight, autofill=payload.autofill,
+        report_hold_time=payload.report_hold_time, member_delay_seconds=payload.member_delay_seconds,
+        penalty_members_limit=payload.penalty_members_limit, auto_pause=payload.auto_pause,
+        auto_pause_delay_seconds=payload.auto_pause_delay_seconds, auto_pause_busy=payload.auto_pause_busy,
+        auto_pause_unavail=payload.auto_pause_unavail, agent_timeout_restart=payload.agent_timeout_restart,
+        max_wait_mode=payload.max_wait_mode, leave_when_empty=payload.leave_when_empty,
+        announce_position_limit=payload.announce_position_limit, announce_hold_time=payload.announce_hold_time,
+        min_announce_frequency_seconds=payload.min_announce_frequency_seconds,
+        periodic_announce_frequency_seconds=payload.periodic_announce_frequency_seconds,
+        ring_mode=payload.ring_mode, mark_answered_elsewhere=payload.mark_answered_elsewhere,
+        cid_name_prefix=payload.cid_name_prefix, alert_info=payload.alert_info,
+        periodic_announce_audio_file_id=periodic_audio.id if periodic_audio else None,
+        join_announcement_audio_file_id=join_audio.id if join_audio else None,
+        agent_announcement_audio_file_id=agent_audio.id if agent_audio else None,
+        breakout_target_id=breakout_target_id,
     )
     _replace_members(queue, payload.members)
     session.add(queue)
@@ -245,6 +310,21 @@ async def update_queue(
     await _apply_queue_members(session, tenant_id, queue, payload, diff)
     await _apply_queue_number(session, tenant_id, queue, payload, diff)
     await _apply_queue_moh_class(session, tenant_id, queue, payload, diff)
+    await _apply_queue_cid_name_prefix(queue, payload, diff)
+    await _apply_queue_alert_info(queue, payload, diff)
+    await _apply_queue_audio_fk(
+        session, tenant_id, queue, payload, diff,
+        payload_field="periodic_announce_audio_id", model_field="periodic_announce_audio_file_id",
+    )
+    await _apply_queue_audio_fk(
+        session, tenant_id, queue, payload, diff,
+        payload_field="join_announcement_audio_id", model_field="join_announcement_audio_file_id",
+    )
+    await _apply_queue_audio_fk(
+        session, tenant_id, queue, payload, diff,
+        payload_field="agent_announcement_audio_id", model_field="agent_announcement_audio_file_id",
+    )
+    await _apply_queue_breakout_target(session, tenant_id, queue, payload, diff)
 
     await session.flush()
     await record_audit(session, tenant_id=tenant_id, user_id=str(user.id), action="queue.update",
@@ -262,12 +342,65 @@ def _apply_simple_queue_fields(queue: Queue, payload: UpdateQueuePayload, diff: 
         "name", "strategy", "agent_ring_seconds", "retry_seconds", "wrapup_seconds", "max_wait_seconds",
         "max_callers", "announce_position", "announce_frequency_seconds", "sla_seconds", "join_empty",
         "record", "timeout_target_id",
+        # 0037 (Queues FreePBX parity).
+        "skip_busy_agents", "weight", "autofill", "report_hold_time", "member_delay_seconds",
+        "penalty_members_limit", "auto_pause", "auto_pause_delay_seconds", "auto_pause_busy",
+        "auto_pause_unavail", "agent_timeout_restart", "max_wait_mode", "leave_when_empty",
+        "announce_position_limit", "announce_hold_time", "min_announce_frequency_seconds",
+        "periodic_announce_frequency_seconds", "ring_mode", "mark_answered_elsewhere",
     )
     for field in simple_fields:
         value = getattr(payload, field)
         if value is not None:
             setattr(queue, field, value)
             diff[field] = value
+
+
+async def _apply_queue_cid_name_prefix(queue: Queue, payload: UpdateQueuePayload, diff: dict) -> None:
+    if payload.cid_name_prefix_clear:
+        queue.cid_name_prefix = None
+        diff["cid_name_prefix"] = None
+    elif payload.cid_name_prefix is not None:
+        queue.cid_name_prefix = payload.cid_name_prefix
+        diff["cid_name_prefix"] = payload.cid_name_prefix
+
+
+async def _apply_queue_alert_info(queue: Queue, payload: UpdateQueuePayload, diff: dict) -> None:
+    if payload.alert_info_clear:
+        queue.alert_info = None
+        diff["alert_info"] = None
+    elif payload.alert_info is not None:
+        queue.alert_info = payload.alert_info
+        diff["alert_info"] = payload.alert_info
+
+
+async def _apply_queue_audio_fk(
+    session: AsyncSession, tenant_id: str, queue: Queue, payload: UpdateQueuePayload, diff: dict,
+    *, payload_field: str, model_field: str,
+) -> None:
+    """3 audio FK (davriy/qo'shilish/agent e'loni) — BITTA yo'l (dryer): farqi
+    faqat maydon nomi (`_clear` bayrog'i AYNAN SHU NAQSH — `inbound_routes.py`
+    `_apply_cid_lookup_source` bilan bir xil)."""
+    if getattr(payload, f"{payload_field}_clear"):
+        setattr(queue, model_field, None)
+        diff[model_field] = None
+        return
+    audio_id = getattr(payload, payload_field)
+    if audio_id is not None:
+        audio = await _resolve_audio(session, tenant_id, audio_id)
+        setattr(queue, model_field, audio.id if audio else None)
+        diff[model_field] = audio_id
+
+
+async def _apply_queue_breakout_target(
+    session: AsyncSession, tenant_id: str, queue: Queue, payload: UpdateQueuePayload, diff: dict,
+) -> None:
+    if payload.breakout_target_id_clear:
+        queue.breakout_target_id = None
+        diff["breakout_target_id"] = None
+    elif payload.breakout_target_id is not None:
+        queue.breakout_target_id = await _resolve_breakout_target(session, tenant_id, payload.breakout_target_id)
+        diff["breakout_target_id"] = payload.breakout_target_id
 
 
 @router.post("/{queue_id}/members", response_model=QueueMutated, status_code=201)

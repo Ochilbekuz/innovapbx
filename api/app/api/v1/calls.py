@@ -132,7 +132,7 @@ async def export_calls_csv(
     calls = (await _searched_calls(session, user, from_=from_, to=to, q=q, direction=direction,
                                    search=search))[:EXPORT_LIMIT]
     await attach_recordings(session, str(user.tenant_id), calls)
-    return Response(calls_csv(calls), media_type="text/csv; charset=utf-8",
+    return Response(calls_csv(calls, user.tenant.timezone), media_type="text/csv; charset=utf-8",
                     headers={"Content-Disposition": 'attachment; filename="calls.csv"'})
 
 

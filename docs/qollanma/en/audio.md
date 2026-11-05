@@ -22,8 +22,10 @@ can only view.
 
 - **File** — any uploaded audio is automatically converted to WAV 8kHz mono (an Asterisk
   requirement); the original can be WAV/MP3/OGG/WEBM.
-- **Music-on-hold (MOH) class** — a collection of files, selected on [Queues](/docs/queues);
-  the class named `default` is the system's main music and can't be deleted.
+- **Music-on-hold (MOH) class** — a collection of files, selected on [Queues](/docs/queues).
+  The list always has exactly one **"Default"** class — it's used anywhere no class is explicitly
+  chosen (queue, parking, plain channel hold). The default class can't be deleted, but any class can
+  be made the default with the **Set as default** button (its name doesn't have to be "default").
 - **Shuffle** — if on, the class's files play in random order; if off, in sequence.
 - **TTS (text-to-speech)** — enter text and the system converts it to voice and saves it
   to the library; requires a speech synthesis provider (Yandex) configured on the
@@ -84,6 +86,11 @@ can only view.
 2. Click **Add** — select the new class in the **Music on hold** field on
    [Queues](/docs/queues).
 
+### Set a class as default
+1. On the **Music on hold** tab, click the star-icon **Set as default** button on the class you want.
+2. The "Default" badge moves to that class; the previous default becomes a regular class (and can now be deleted).
+3. Everywhere no class was explicitly chosen (queue, parking, channel hold) immediately starts using the new default class — no further setup needed.
+
 ### Delete a file
 1. Click the trash icon at the end of the row.
 2. If the file is used in an IVR, announcement, or MOH class, deletion is blocked —
@@ -94,7 +101,7 @@ can only view.
 > "Attention, this call is recorded" in seconds, with no studio needed.
 
 > [!WARNING]
-> You can't delete the `default` music-on-hold class — it's the system's default music.
+> You can't delete the current default music-on-hold class — set another class as default first.
 
 ## Troubleshooting
 
@@ -104,7 +111,7 @@ can only view.
 | TTS button shows "not configured" | Speech synthesis isn't connected | Configure it on [Integrations](/docs/integrations) (admin only) |
 | Microphone doesn't work | The browser denied permission, or no mic found | Allow microphone access in your browser settings and retry |
 | Can't delete a file | It's used in an IVR, announcement, or MOH class | Remove those links first |
-| Can't delete the `default` class | It's the system default class | Deletion is forbidden — create another class and select it where needed |
+| Can't delete the default class | It's the current default class | Set another class as default, then delete the old one |
 
 ## Related sections
 

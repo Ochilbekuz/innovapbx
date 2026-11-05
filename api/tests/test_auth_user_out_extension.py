@@ -9,7 +9,7 @@ def _user(extension):
     return SimpleNamespace(
         id="u1", username="op", full_name="Operator", must_change_password=False, language=None,
         role=SimpleNamespace(name="operator", permissions=["calls:read:own"]),
-        tenant=SimpleNamespace(language="uz"), extension=extension, totp_enabled_at=None,
+        tenant=SimpleNamespace(language="uz", timezone="Asia/Tashkent"), extension=extension, totp_enabled_at=None,
     )
 
 

@@ -20,7 +20,7 @@ MATCH_MODES: tuple[str, ...] = get_args(MatchMode)
 RECORDING_FILTERS: tuple[str, ...] = get_args(RecordingFilter)
 DISPOSITIONS: tuple[str, ...] = get_args(CallDisposition)
 EXPORT_LIMIT = 10_000
-_TZ = ZoneInfo("Asia/Tashkent")
+_DEFAULT_TZ = "Asia/Tashkent"  # faqat `Tenant.timezone` berilmagan (eski chaqiruv) holat uchun zahira
 
 
 @dataclass(frozen=True)
@@ -146,17 +146,19 @@ CSV_HEADER = ("started_at", "direction", "src", "src_name", "dst", "did", "dispo
               "duration", "billsec", "trunk", "accountcode", "recordings", "uniqueid")
 
 
-def _csv_row(call: CallOut) -> tuple:
-    started = call.started_at.astimezone(_TZ).strftime("%Y-%m-%d %H:%M:%S")
+def _csv_row(call: CallOut, tz: ZoneInfo) -> tuple:
+    started = call.started_at.astimezone(tz).strftime("%Y-%m-%d %H:%M:%S")
     return (started, call.direction, call.src, call.src_name or "", call.dst, call.did or "",
             call.disposition, call.duration, call.billsec, call.trunk or "", call.pin_label or "",
             len(call.recordings), call.uniqueid)
 
 
-def calls_csv(calls: list[CallOut]) -> str:
-    """CSV (Asia/Tashkent vaqti, UTF-8 BOM — Excel kirill/lotinni to'g'ri ochsin)."""
+def calls_csv(calls: list[CallOut], tenant_timezone: str = _DEFAULT_TZ) -> str:
+    """CSV (tenant vaqt zonasida — "Sana va vaqt" sahifasida tanlangan, UTF-8 BOM —
+    Excel kirill/lotinni to'g'ri ochsin)."""
+    tz = ZoneInfo(tenant_timezone)
     buf = io.StringIO()
     writer = csv.writer(buf)
     writer.writerow(CSV_HEADER)
-    writer.writerows(tuple(csv_cell(v) for v in _csv_row(c)) for c in calls[:EXPORT_LIMIT])
+    writer.writerows(tuple(csv_cell(v) for v in _csv_row(c, tz)) for c in calls[:EXPORT_LIMIT])
     return "﻿" + buf.getvalue()

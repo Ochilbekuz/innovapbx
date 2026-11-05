@@ -53,6 +53,23 @@ describe('AudioPage — TTS (matndan audio)', () => {
     expect((await client.listAudio()).items.some((a) => a.name === 'Sinov salomlashuvi')).toBe(true);
   });
 
+  it('MOH: "Asosiy qilish" — boshqa sinfni asosiy qiladi, eski asosiy belgisi koʻchadi, uni oʻchirib boʻlmaydi', async () => {
+    const user = userEvent.setup();
+    renderPage(<ToastProvider><AudioPage /></ToastProvider>);
+
+    await user.click(await screen.findByRole('tab', { name: 'Kutish musiqasi' }));
+
+    await user.click(await screen.findByRole('button', { name: 'testni asosiy qilish' }));
+    await waitFor(async () => expect((await client.listMohClasses()).items.find((m) => m.id === 'moh-test')?.is_default).toBe(true));
+
+    expect(await screen.findByText('«test» asosiy kutish musiqasi qilindi')).toBeTruthy();
+    await waitFor(() => expect(screen.getByRole('button', { name: 'testni oʻchirish' })).toBeDisabled());
+    expect(screen.queryByRole('button', { name: 'testni asosiy qilish' })).toBeNull();
+    // Asosiylik "default"dan "test"ga koʻchdi — endi "default"ni qayta asosiy qilish mumkin, uni oʻchirish ham mumkin.
+    expect(screen.getByRole('button', { name: 'defaultni asosiy qilish' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'defaultni oʻchirish' })).toBeEnabled();
+  });
+
   it('boʻsh matn bilan saqlash/tinglab koʻrish tugmalari oʻchiq boʻladi', async () => {
     const before = await client.getTtsSettings();
     await client.updateTtsSettings({ provider: 'yandex', api_key: 'sinov-kalit-2', updated_at: before.updated_at });

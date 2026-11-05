@@ -69,6 +69,7 @@ def _user_out(user: User, *, must_enroll_2fa: bool = False) -> UserOut:
     return UserOut(
         id=str(user.id), login=user.username, full_name=user.full_name,
         role=user.role.name, permissions=list(user.role.permissions), language=user.language or user.tenant.language,
+        timezone=user.tenant.timezone,
         must_change_password=user.must_change_password,
         extension=ExtensionRef(id=str(ext.id), number=ext.number, name=ext.name) if (ext := user.extension) else None,
         totp_enabled=user.totp_enabled_at is not None, must_enroll_2fa=must_enroll_2fa,

@@ -24,14 +24,47 @@ Menu: **Routing → Ring groups**. Who sees it: users with the `routing` permiss
 
 ## Fields
 
+The edit drawer mirrors the FreePBX **Ring Groups** module and is split into five sections:
+**General**, **Members**, **Ringing & announcements**, **Caller ID**, **Advanced**.
+
+### General
+
 | Field | What it does | Example / default |
 |---|---|---|
 | Name | Group name | — |
 | Number | Optional — for direct dialing | 2–10 characters of `0-9*#` |
 | Strategy | The ring order for members | Default — **Ring all** |
 | Ring time (seconds) | How long to wait for an answer | 5–300, default 20 |
+
+### Members
+
+| Field | What it does | Example / default |
+|---|---|---|
 | Members | List of extensions and/or external numbers, in order | — |
+
+### Ringing & announcements
+
+| Field | What it does | Example / default |
+|---|---|---|
+| Announcement (before ringing) | Played to the caller before connecting to members | Optional, default — none |
+| While ringing | Normal ringback, or music on hold (MOH) | Default — normal ringback |
+| Music on hold class | Which MOH class plays when "While ringing" = MOH | Only shown when MOH is selected |
+| Alert-Info | Tells a supporting IP phone to use a distinctive ringtone (SIP header) | Optional, e.g. `Internal` |
+| Skip busy member | Does not ring a member who is already on a call | Default — off |
+| Confirm calls | Requires the member to confirm pickup by pressing 1 | Default — off |
+| Confirmation announcement | Played to the member before they confirm, when "Confirm calls" is on | Only shown when confirm calls is enabled |
+
+### Caller ID
+
+| Field | What it does | Example / default |
+|---|---|---|
 | Caller ID prefix | Added before the inbound number on the agent's screen | Optional, e.g. `SALES: ` |
+
+### Advanced
+
+| Field | What it does | Example / default |
+|---|---|---|
+| Call recording | Recording policy for calls through this group | Default — **don't change** (follows the extension's own setting) |
 | If no answer | Destination used once time runs out | Required |
 
 ### Strategies
@@ -39,8 +72,18 @@ Menu: **Routing → Ring groups**. Who sees it: users with the `routing` permiss
 | Strategy | How it works |
 |---|---|
 | Ring all (`ringall`) | Rings all members at the same time (default) |
+| Ring all, primary first (`ringall-prim`) | Same as `ringall`, but member 1 is treated as primary |
 | Hunt (`hunt`) | Rings members one by one in list order, each for the ring time |
+| Hunt, primary first (`hunt-prim`) | Same as `hunt`, but member 1 is treated as primary |
 | Memory hunt (`memoryhunt`) | Rings the first member, then member 1+2, then 1+2+3... — earlier members keep ringing |
+| Memory hunt, primary first (`memoryhunt-prim`) | Same as `memoryhunt`, but member 1 is treated as primary |
+| First available (`firstavailable`) | Rings only the first member who isn't busy |
+| First not on phone (`firstnotonphone`) | Similar to `firstavailable`, chosen by phone state |
+
+> [!NOTE]
+> The **"random"** strategy sometimes mentioned alongside Ring Groups in FreePBX actually only applies
+> to the Queues module — it isn't a real Asterisk option for Ring Groups, so it was deliberately not
+> added here.
 
 ## How to
 
@@ -78,6 +121,15 @@ Menu: **Routing → Ring groups**. Who sees it: users with the `routing` permiss
 | Can't add an external number | Invalid format, or it's already added | Enter digits only, 3–15 characters, `+` optional |
 | In `Memory hunt`, everyone rings at once | The ring time is too short, so the next member joins in too quickly | Increase the ring time |
 | Can't delete the group | It's used in an inbound route or another destination | Remove those links first |
+
+## Fields deliberately not ported from FreePBX
+
+- **Ignore CF (forward)/CW (call waiting)/Call pickup** — their semantics overlap with the member's own
+  device settings; Innova has no matching feature.
+- **Too-late announce** — a separate announcement once the confirm-call window expires — limited extra
+  value, since the confirm flow is already covered by "Confirmation announcement".
+- **Change external CID / Fixed external CID** — these columns don't even exist in the real FreePBX
+  database (legacy/unused), so they were not invented.
 
 ## Related sections
 

@@ -24,7 +24,9 @@ qolganlar faqat koʻradi.
 - **Fayl** — yuklangan har qanday audio avtomatik `WAV, 8kHz, mono` formatiga oʻgiriladi (Asterisk shunday
   talab qiladi) — asl format WAV/MP3/OGG/WEBM boʻlishi mumkin.
 - **Kutish musiqasi sinfi (MOH)** — bir nechta fayldan yigʻilgan toʻplam, [Navbatlar](/docs/queues)da
-  tanlanadi. `default` nomli sinf tizimning asosiy musiqasi — uni oʻchirib boʻlmaydi.
+  tanlanadi. Har doim roʻyxatda bitta sinf **«Asosiy»** boʻladi — navbat, park va boshqa joylarda aniq
+  sinf tanlanmagan boʻlsa, shu sinf ishlatiladi. Asosiy sinfni oʻchirib boʻlmaydi, lekin istalgan sinfni
+  **Asosiy qilish** tugmasi orqali asosiy qilib tayinlash mumkin (nomi "default" boʻlishi shart emas).
 - **Aralashtirib chalish** — yoqilsa, sinf fayllari tasodifiy tartibda, oʻchirilgan boʻlsa — roʻyxat
   tartibida ketma-ket chalinadi.
 - **Matndan audio (TTS)** — matn kiritilsa, tizim uni ovozga aylantirib kutubxonaga saqlaydi. Ishlashi uchun
@@ -81,6 +83,11 @@ qolganlar faqat koʻradi.
 3. **Aralashtirib chalish**ni kerak bo'lsa yoqing, **Qoʻshish**.
 4. Yangi sinfni [Navbatlar](/docs/queues)dagi "Kutish musiqasi" maydonida tanlang.
 
+### Sinfni asosiy qilish
+1. **Kutish musiqasi** tabida kerakli sinf qatorida yulduzcha belgili **Asosiy qilish** tugmasini bosing.
+2. «Asosiy» belgisi shu sinfga koʻchadi, avvalgi asosiy sinf oddiy sinfga aylanadi (uni endi oʻchirish ham mumkin).
+3. Aniq sinf tanlanmagan barcha joylar (navbat, park, kanal hold) darhol yangi asosiy sinfni eshita boshlaydi — qoʻshimcha sozlash kerak emas.
+
 ### Faylni oʻchirish
 1. Qator oxiridagi savat belgisini bosing.
 2. Fayl IVR/eʼlon/MOH sinfida ishlatilayotgan boʻlsa, oʻchirish bloklanadi — avval shu bogʻlanishlarni olib tashlang.
@@ -89,7 +96,7 @@ qolganlar faqat koʻradi.
 > Qisqa va aniq salomlashuv matnlari uchun TTS juda tez — studiyaga bormasdan "Diqqat, suhbat yozib olinadi" kabi xabarlarni bir necha soniyada tayyorlash mumkin.
 
 > [!WARNING]
-> `default` nomli kutish musiqasi sinfini oʻchirib boʻlmaydi — bu tizimning standart musiqasi.
+> Joriy asosiy kutish musiqasi sinfini oʻchirib boʻlmaydi — avval boshqa sinfni **Asosiy qilish** orqali tayinlang.
 
 ## Muammolar va yechimlar
 
@@ -99,7 +106,7 @@ qolganlar faqat koʻradi.
 | TTS tugmasi "sozlanmagan" deb koʻrsatadi | [Integratsiyalar](/docs/integrations)da nutq sintezi ulanmagan | Admin integratsiyani sozlashi kerak |
 | Mikrofon ishlamayapti | Brauzer ruxsat bermagan yoki mikrofon topilmagan | Brauzer sozlamalarida mikrofonga ruxsat berib, qayta urining |
 | Faylni oʻchirib boʻlmayapti | IVR/eʼlon/MOH sinfida ishlatilmoqda | Avval oʻsha bogʻlanishlarni olib tashlang |
-| `default` sinfini oʻchirib boʻlmayapti | Tizim standart sinfi, oʻchirish taqiqlangan | Boshqa sinf yarating, kerakli joyda uni tanlang |
+| Asosiy sinfni oʻchirib boʻlmayapti | Joriy asosiy sinf, oʻchirish taqiqlangan | Boshqa sinfni **Asosiy qilish**, keyin eskisini oʻchiring |
 
 ## Bog'liq bo'limlar
 

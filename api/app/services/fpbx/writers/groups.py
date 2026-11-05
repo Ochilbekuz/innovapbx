@@ -12,7 +12,12 @@ from app.services.fpbx.writers.media import moh_id_by_name
 from app.services.fpbx.writers.refs import extension_id, fallback_audio, required_target, resolve_entity
 from app.services.numbers import set_dial_number
 
-_RG_STRATEGIES = frozenset({"ringall", "hunt", "memoryhunt"})
+_RG_STRATEGIES = frozenset({
+    "ringall", "ringall-prim", "hunt", "hunt-prim",
+    "memoryhunt", "memoryhunt-prim", "firstavailable", "firstnotonphone",
+})
+_RG_STRATEGY_SOUNDS = frozenset({"ring", "moh"})
+_RG_RECORDING_POLICIES = frozenset({"dontcare", "force", "no"})
 _Q_STRATEGIES = frozenset({"ringall", "leastrecent", "fewestcalls", "random", "rrmemory", "linear", "wrandom"})
 _EXTERNAL = r"\+?[0-9]{3,15}"
 _DIGIT = r"[0-9*#]"
@@ -45,12 +50,23 @@ async def _rg_member(ctx: WriteCtx, entry: Entry, member: dict) -> dict | None:
 
 async def write_ring_group(ctx: WriteCtx, entry: Entry) -> str:
     p = entry.payload
+    # 0038 (FreePBX Ring Groups parity): ovoz FK'lar — `resolve_entity` ($ref,
+    # `write_announcement`/`write_ivr` bilan BIR XIL naqsh); MOH — nom bo'yicha
+    # (`write_queue`'dagi `moh_id_by_name` bilan BIR XIL, chunki `ringing`
+    # mapper'da allaqachon `music.id` -> nom'ga aylantirilgan).
     group = RingGroup(
         tenant_id=ctx.tenant_id, target_id=ctx.target_for(entry), name=p.get("name") or entry.name,
         strategy=pick(p.get("strategy"), _RG_STRATEGIES, "ringall"),
         ring_seconds=clamp(p.get("ring_seconds"), 5, 300, 20),
         no_answer_target_id=await required_target(ctx, p.get("no_answer_target_id"), source_ref=entry.source_ref),
         callerid_prefix=p.get("callerid_prefix"),
+        announcement_audio_id=await resolve_entity(ctx, p.get("announcement_audio_id")),
+        ring_strategy_sound=pick(p.get("ring_strategy_sound"), _RG_STRATEGY_SOUNDS, "ring"),
+        moh_class_id=await moh_id_by_name(ctx, p.get("moh_class_name")),
+        alert_info=p.get("alert_info"),
+        confirm_calls=bool(p.get("confirm_calls")),
+        remote_announce_audio_id=await resolve_entity(ctx, p.get("remote_announce_audio_id")),
+        recording_policy=pick(p.get("recording_policy"), _RG_RECORDING_POLICIES, "dontcare"),
     )
     members = [m for m in [await _rg_member(ctx, entry, raw) for raw in p.get("members") or []] if m]
     group.members = [RingGroupMember(position=i, **m) for i, m in enumerate(members, start=1)]
@@ -69,6 +85,13 @@ async def _queue_members(ctx: WriteCtx, entry: Entry, raw_members: list[dict]) -
     return list(members.values())
 
 
+_Q_ANNOUNCE_POSITION = frozenset({"yes", "no", "limit", "more"})
+_Q_JOIN_EMPTY = frozenset({"yes", "no", "strict", "loose"})
+_Q_AUTO_PAUSE = frozenset({"no", "yes", "all"})
+_Q_ANNOUNCE_HOLDTIME = frozenset({"yes", "no", "once"})
+_Q_MAX_WAIT_MODE = frozenset({"strict", "loose"})
+
+
 async def write_queue(ctx: WriteCtx, entry: Entry) -> str:
     p = entry.payload
     queue = Queue(
@@ -81,11 +104,31 @@ async def write_queue(ctx: WriteCtx, entry: Entry) -> str:
         wrapup_seconds=clamp(p.get("wrapup_seconds"), 0, None, 0),
         max_wait_seconds=_positive_or_none(p.get("max_wait_seconds")) or 300,
         max_callers=_positive_or_none(p.get("max_callers")),
-        announce_position=bool(p.get("announce_position")),
+        # 0037 (Queues FreePBX parity): `announce_position`/`join_empty` —
+        # endi TO'LIQ matn enum (ilgari `bool(...)` edi — Asterisk uchun
+        # noto'g'ri "True"/"False" yozardi, bu YERDA TUZATILDI).
+        announce_position=pick(p.get("announce_position"), _Q_ANNOUNCE_POSITION, "yes"),
         announce_frequency_seconds=clamp(p.get("announce_frequency_seconds"), 0, None, 0),
-        sla_seconds=clamp(p.get("sla_seconds"), 0, None, 20), join_empty=bool(p.get("join_empty")),
+        sla_seconds=clamp(p.get("sla_seconds"), 0, None, 20),
+        join_empty=pick(p.get("join_empty"), _Q_JOIN_EMPTY, "no"),
         record=bool(p.get("record")),
         timeout_target_id=await required_target(ctx, p.get("timeout_target_id"), source_ref=entry.source_ref),
+        skip_busy_agents=bool(p.get("skip_busy_agents", True)),
+        weight=clamp(p.get("weight"), 0, 100, 0),
+        autofill=bool(p.get("autofill")),
+        report_hold_time=bool(p.get("report_hold_time")),
+        member_delay_seconds=clamp(p.get("member_delay_seconds"), 0, None, 0),
+        penalty_members_limit=clamp(p.get("penalty_members_limit"), 0, None, 0),
+        auto_pause=pick(p.get("auto_pause"), _Q_AUTO_PAUSE, "no"),
+        auto_pause_delay_seconds=clamp(p.get("auto_pause_delay_seconds"), 0, None, 0),
+        auto_pause_busy=bool(p.get("auto_pause_busy")),
+        auto_pause_unavail=bool(p.get("auto_pause_unavail")),
+        agent_timeout_restart=bool(p.get("agent_timeout_restart")),
+        max_wait_mode=pick(p.get("max_wait_mode"), _Q_MAX_WAIT_MODE, "strict"),
+        leave_when_empty=pick(p.get("leave_when_empty"), _Q_JOIN_EMPTY, "no"),
+        announce_position_limit=clamp(p.get("announce_position_limit"), 1, None, 10),
+        announce_hold_time=pick(p.get("announce_hold_time"), _Q_ANNOUNCE_HOLDTIME, "yes"),
+        min_announce_frequency_seconds=clamp(p.get("min_announce_frequency_seconds"), 0, None, 15),
     )
     queue.members = await _queue_members(ctx, entry, p.get("members") or [])
     return await _finish_target(ctx, entry, queue)

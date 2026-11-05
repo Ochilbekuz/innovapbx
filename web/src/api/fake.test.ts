@@ -214,8 +214,8 @@ describe('fake client — M1a', () => {
   it('number_taken — IVR va navbat bitta raqamlar hovuzini ulashadi', async () => {
     await expect(client.createQueue({
       name: 'Nusxa', number: '700', strategy: 'ringall', agent_ring_seconds: 20, retry_seconds: 5, wrapup_seconds: 5,
-      max_wait_seconds: 120, max_callers: null, announce_position: false, announce_frequency_seconds: 30, sla_seconds: 20,
-      join_empty: true, record: false, members: [], timeout_target_id: 'sys-hangup',
+      max_wait_seconds: 120, max_callers: null, announce_position: 'no', announce_frequency_seconds: 30, sla_seconds: 20,
+      join_empty: 'yes', record: false, members: [], timeout_target_id: 'sys-hangup',
     })).rejects.toMatchObject({ status: 409, code: 'number_taken', field: 'number' });
   });
 

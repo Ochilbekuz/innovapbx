@@ -18,14 +18,14 @@ from sqlalchemy import func, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.lookups import get_tenant_code
+from app.core.lookups import get_tenant_code_and_timezone
 from app.db.models import Device, DiscoveredDevice, Extension, ProvisionRequest, SystemSettings
 from app.services import devices as svc
 from app.services import prov_catalog as catalog
 from app.services.alerts import alert_text, raise_alert, tenant_language
 from app.services.prov_guard import FailureGuard, guard as default_guard
 from app.services.prov_render import CommonCtx, content_type, render, render_yealink_common
-from app.services.prov_settings import ProvSettings, ip_allowed
+from app.services.prov_settings import ProvSettings, effective_timezone, ip_allowed
 
 COUNTED_REASONS = {"bad_token", "network_denied", "unknown_mac"}
 MAX_DISCOVERED = 500
@@ -123,7 +123,8 @@ async def _device(session: AsyncSession, tenant_id: str, mac: str) -> Device | N
 async def _serve_device(session: AsyncSession, req: ProvRequest, row: SystemSettings, device: Device,
                         ua: catalog.UaInfo) -> ProvResult:
     ext = await session.get(Extension, device.extension_id)
-    tp = await svc.load_tenant_prov(session, row, await get_tenant_code(session, req.tenant_id), req.host)
+    tenant_code, tenant_timezone = await get_tenant_code_and_timezone(session, req.tenant_id)
+    tp = await svc.load_tenant_prov(session, row, tenant_code, req.host, tenant_timezone)
     keys = (await svc.keys_by_device(session, [str(device.id)]))[str(device.id)]
     password = (await svc.sip_passwords(session, [str(ext.id)])).get(str(ext.id), "")
     ctx = svc.device_ctx(device, ext, keys, tp, password)
@@ -143,7 +144,9 @@ async def _serve_file(session: AsyncSession, req: ProvRequest, row: SystemSettin
     req.mac = parsed.mac or ua.mac
     req.vendor = catalog.guess_vendor(parsed.kind, ua)
     if parsed.kind == "common":
-        return ProvResult(200, "ok", render_yealink_common(CommonCtx(cfg.language, cfg.timezone, cfg.ntp_server)))
+        _, tenant_timezone = await get_tenant_code_and_timezone(session, req.tenant_id)
+        timezone = effective_timezone(row.provisioning, cfg, tenant_timezone)
+        return ProvResult(200, "ok", render_yealink_common(CommonCtx(cfg.language, timezone, cfg.ntp_server)))
     if parsed.kind in ("unknown", "legacy_binary"):
         return _fail("not_found" if parsed.kind == "unknown" else "legacy_binary")
     device = await _device(session, req.tenant_id, req.mac)

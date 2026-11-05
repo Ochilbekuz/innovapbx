@@ -1,10 +1,17 @@
+import { useSession } from '@/api/session';
 import i18n from './i18n';
 
 /**
  * Vaqtni ko'rsatish — HAR DOIM tenant vaqt zonasida (brauzer zonasida emas).
- * API vaqtlari UTC (`...Z`); M0 da tenant bitta — Asia/Tashkent.
+ * API vaqtlari UTC (`...Z`). Zona "Sana va vaqt" sahifasida o'zgartirilishi
+ * mumkin (`app/api/v1/system_time.py::_move_pbx_timezone`) — yagona manba
+ * sessiyadagi foydalanuvchi (`UserOut.timezone`, `api/app/schemas.py`), zona
+ * saqlangandan keyin `useSession` shu bilan yangilanadi (`screens/time/TimeSettingsPage.tsx`).
+ * Hali sessiya yuklanmagan bo'lsa (login sahifasi) — xavfsiz sukut qiymat.
  */
-export const TENANT_TZ = 'Asia/Tashkent';
+export function tenantTz(): string {
+  return useSession.getState().user?.timezone || 'Asia/Tashkent';
+}
 
 const DEFAULT_LOCALE = 'uz-UZ';
 const INTL_LOCALE: Record<string, string> = { uz: DEFAULT_LOCALE, ru: 'ru-RU', en: 'en-US' };
@@ -15,14 +22,14 @@ function currentLocale(): string {
 }
 
 const fmt = (opts: Intl.DateTimeFormatOptions) => (iso: string) =>
-  new Date(iso).toLocaleString(currentLocale(), { timeZone: TENANT_TZ, ...opts });
+  new Date(iso).toLocaleString(currentLocale(), { timeZone: tenantTz(), ...opts });
 
 export const formatDateTime = fmt({ day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' });
 export const formatDateTimeShort = fmt({ day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' });
 export const formatTime = fmt({ hour: '2-digit', minute: '2-digit' });
 
 /** Vaqt zonasi siljishi shu lahzada: «UTC+5», «UTC+5:30», «UTC» (yozgi vaqt bo'lsa sanaga qarab to'g'ri chiqadi). */
-export function tzOffsetLabel(iso: string, tz: string = TENANT_TZ): string {
+export function tzOffsetLabel(iso: string, tz: string = tenantTz()): string {
   const name = new Intl.DateTimeFormat('en-US', { timeZone: tz, timeZoneName: 'shortOffset' })
     .formatToParts(new Date(iso))
     .find((p) => p.type === 'timeZoneName')?.value;
@@ -63,16 +70,28 @@ export function isoDate(d: Date): string {
   return d.toISOString().slice(0, 10);
 }
 
-/** Tenant (Asia/Tashkent) kalendaridagi kun, "YYYY-MM-DD" — UTC'dagi `isoDate`dan farqli, 00:00–05:00 da ham to'g'ri. */
+/** Tenant vaqt zonasidagi kalendar kuni, "YYYY-MM-DD" — UTC'dagi `isoDate`dan farqli, kecha yarmiga yaqin ham to'g'ri. */
 export function tenantDate(d: Date, daysBack = 0): string {
-  return new Date(d.getTime() - daysBack * 86_400_000).toLocaleDateString('en-CA', { timeZone: TENANT_TZ });
+  return new Date(d.getTime() - daysBack * 86_400_000).toLocaleDateString('en-CA', { timeZone: tenantTz() });
+}
+
+/** Berilgan lahzada `tz` zonasining UTC'dan siljishi, daqiqada ("Asia/Tashkent" → 300). */
+function offsetMinutesAt(tz: string, at: Date): number {
+  const part = new Intl.DateTimeFormat('en-US', { timeZone: tz, timeZoneName: 'longOffset' })
+    .formatToParts(at).find((p) => p.type === 'timeZoneName')?.value ?? 'GMT';
+  const m = /^GMT([+-])(\d{2}):(\d{2})$/.exec(part);
+  if (!m) return 0;
+  return (m[1] === '-' ? -1 : 1) * (Number(m[2]) * 60 + Number(m[3]));
 }
 
 /** Tenant vaqtidagi kun + "HH:MM" → UTC ISO. `endOfMinute` — oraliq oxiri (shu daqiqaning 59.999 s gacha).
- * Asia/Tashkent'da yozgi vaqt yo'q — doimiy +05:00. */
-export function tenantDateTimeIso(day: string, hhmm: string, endOfMinute = false): string {
-  const base = Date.parse(`${day}T${hhmm || '00:00'}:00+05:00`);
-  return new Date(base + (endOfMinute ? 59_999 : 0)).toISOString();
+ * Yozgi vaqtli zonalarda ham to'g'ri: avval taxminiy siljish bilan, keyin natija atrofidagi
+ * haqiqiy siljish bilan ikkinchi marta hisoblanadi (DST chegarasidan tashqarida bitta urinish yetarli). */
+export function tenantDateTimeIso(day: string, hhmm: string, endOfMinute = false, tz: string = tenantTz()): string {
+  const wallUtcMs = Date.parse(`${day}T${hhmm || '00:00'}:00Z`);
+  const guessMs = wallUtcMs - offsetMinutesAt(tz, new Date(wallUtcMs)) * 60_000;
+  const utcMs = wallUtcMs - offsetMinutesAt(tz, new Date(guessMs)) * 60_000;
+  return new Date(utcMs + (endOfMinute ? 59_999 : 0)).toISOString();
 }
 
 /** Bugundan N kun oldingi sana, "YYYY-MM-DD". Filtr formalarining standart "dan" qiymati. */

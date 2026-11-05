@@ -40,6 +40,7 @@ class MohClassSnapshot:
     id: str
     shuffle: bool
     files: tuple[MohFileSnapshot, ...]
+    is_default: bool = False
 
 
 def asterisk_class_name(tenant_code: str, moh_id: str) -> str:
@@ -90,22 +91,37 @@ def remove_moh_class_dir(tenant_code: str, moh_id: str) -> None:
     shutil.rmtree(moh_class_dir(tenant_code, moh_id), ignore_errors=True)
 
 
+def _class_body_lines(tenant_code: str, moh: MohClassSnapshot) -> list[str]:
+    lines = ["mode=files", f"directory={moh_class_dir(tenant_code, moh.id)}"]
+    if moh.shuffle:
+        lines.append("sort=random")
+    return lines
+
+
 def build_musiconhold_conf(tenant_code: str, classes: list[MohClassSnapshot]) -> str:
     """Sof funksiya: DB/disk'ga tegmaydi — faqat matn quradi (dialplan
-    compiler.py bilan BIR XIL qolip: query alohida, qurish sof)."""
+    compiler.py bilan BIR XIL qolip: query alohida, qurish sof).
+
+    "Asosiy qilish" (`moh_classes.is_default`) — `is_default=true` sinf uchun
+    ODDIY `[{tenant}-moh-{id}]` bo'limidan TASHQARI `[default](+)` ham
+    yoziladi: `(+)` — `musiconhold.conf`dagi statik `[default]` (ishga tushish
+    zahirasi, `make_moh_fallback.py`) bo'limini KENGAYTIRADI, `res_musiconhold`
+    o'zgaruvchilarni tartib bilan o'qigani uchun keyingi `directory=` g'olib.
+    Oddiy takroriy `[default]` YARAMAYDI — Asterisk 22 ikkala sinfni ham
+    ro'yxatga oladi va qidiruvda BIRINCHISINI (fallback) topadi (jonli
+    tekshirilgan, 2026-11-05). Natija: navbat (`moh_class_id IS NULL`), park
+    va oddiy kanal hold BIR JOYDAN tanlangan sinfni eshitadi."""
     lines = [
         "; Innova PBX — API avtomatik generatsiya qiladi (qo'lda tahrirlanmasin).",
         f"; tenant={tenant_code}",
     ]
+    # Bo'sh asosiy sinf (masalan migratsiyadagi «default», 0 fayl) zahira ohangni
+    # o'chirib qo'ymasin — Asterisk 0 faylli sinfni umuman yuklamaydi.
+    default_moh = next((m for m in classes if m.is_default and m.files), None)
     for moh in classes:
-        lines += [
-            "",
-            f"[{asterisk_class_name(tenant_code, moh.id)}]",
-            "mode=files",
-            f"directory={moh_class_dir(tenant_code, moh.id)}",
-        ]
-        if moh.shuffle:
-            lines.append("sort=random")
+        lines += ["", f"[{asterisk_class_name(tenant_code, moh.id)}]", *_class_body_lines(tenant_code, moh)]
+    if default_moh is not None:
+        lines += ["", "[default](+)", *_class_body_lines(tenant_code, default_moh)]
     return "\n".join(lines) + "\n"
 
 
@@ -126,7 +142,7 @@ async def load_tenant_moh_classes(session: AsyncSession, tenant_id: str) -> list
     )).scalars().all()
     return [
         MohClassSnapshot(
-            id=str(m.id), shuffle=m.shuffle,
+            id=str(m.id), shuffle=m.shuffle, is_default=m.is_default,
             files=tuple(
                 MohFileSnapshot(audio_file_id=str(f.audio_file_id), position=f.position) for f in m.files
             ),

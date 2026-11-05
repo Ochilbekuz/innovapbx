@@ -8,6 +8,7 @@ import {
 import type { AmoConfigResult, BitrixConfigResult, CrmProvider, CrmStatusState, CrmUser, CrmUserMapEntry, UpdateBitrixPayload } from '@/api/types';
 import { cloudCannotReachPrivateHost } from '@/domain/crm';
 import { copyText } from '@/lib/browser';
+import { formatDateTime } from '@/lib/time';
 import { Button } from '@/ui/Button';
 import { Field, Input, Select } from '@/ui/Field';
 import { Badge, type Tone } from '@/ui/Status';
@@ -164,7 +165,7 @@ function BitrixStatusCard({ data, canManage }: { data: BitrixConfigResult; canMa
           <Badge tone={STATUS_TONE[data.status.state]}>{t(`status.${data.status.state}`)}</Badge>
         </div>
         <p className="text-sm text-muted">
-          {lastAt ? t('crm.bitrix24.lastSyncAt', { time: new Date(lastAt).toLocaleString() }) : t('crm.bitrix24.neverSynced')}
+          {lastAt ? t('crm.bitrix24.lastSyncAt', { time: formatDateTime(lastAt) }) : t('crm.bitrix24.neverSynced')}
         </p>
         {data.status.last_error && <p className="text-sm text-danger">{data.status.last_error}</p>}
       </div>

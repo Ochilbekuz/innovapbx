@@ -68,6 +68,32 @@ def test_build_musiconhold_conf_empty_classes_still_valid_header():
     assert text.strip().startswith(";")
 
 
+def test_build_musiconhold_conf_no_default_class_omits_default_section():
+    """Hech bir sinf "Asosiy" qilinmagan bo'lsa — generatsiya qilingan faylda
+    `[default]` YO'Q (eski xatti-harakat: statik fallback tone kuchda qoladi,
+    `asterisk/etc-asterisk/musiconhold.conf`)."""
+    moh = MohClassSnapshot(id="m1", shuffle=False, files=())
+    text = build_musiconhold_conf("t1", [moh])
+    assert "[default" not in text
+
+
+def test_build_musiconhold_conf_default_class_adds_literal_default_section():
+    """"Asosiy qilish" — tanlangan sinf o'zining `[t1-moh-m1]` bo'limidan
+    TASHQARI, Asterisk'ning `[default]` sinfini `(+)` bilan kengaytirib HAM
+    yoziladi — shu YERDAN hech qanday aniq MOH sinfi ko'rsatilmagan JOY
+    (navbat, park, oddiy kanal hold) avtomatik shu sinfni eshitadi."""
+    moh = MohClassSnapshot(id="m1", shuffle=True, files=(MohFileSnapshot(audio_file_id="a1", position=0),), is_default=True)
+    text = build_musiconhold_conf("t1", [moh])
+    assert f"[{asterisk_class_name('t1', 'm1')}]" in text
+    # `(+)` — statik `[default]`ni kengaytiradi; oddiy takroriy `[default]`
+    # Asterisk 22 da ikkinchi sinf bo'lib qoladi va ishlatilmaydi.
+    assert "\n[default](+)\n" in text
+    assert "\n[default]\n" not in text
+    default_section = text.split("[default](+)", 1)[1]
+    assert f"directory={moh_class_dir('t1', 'm1')}" in default_section
+    assert "sort=random" in default_section
+
+
 def test_sync_moh_class_files_creates_ordered_symlinks(tmp_path, monkeypatch):
     monkeypatch.setattr(moh_module.settings, "sounds_dir", str(tmp_path))
     (tmp_path / "t1").mkdir()
@@ -198,3 +224,10 @@ async def test_reload_and_verify_moh_raises_when_reload_rejected():
     ami = _FakeAmi(reload_response={"Response": "Error", "Message": "boom"}, show_output="irrelevant")
     with pytest.raises(RuntimeError, match="moh reload rad etildi"):
         await moh_module._reload_and_verify_moh(ami, "t1", [])
+
+
+def test_build_musiconhold_conf_empty_default_class_keeps_fallback():
+    """Bo'sh asosiy sinf (0 fayl) `[default](+)` yozmaydi — aks holda Asterisk
+    `default` sinfini bo'sh papka bilan umuman yuklamay, zahira ohang yo'qoladi."""
+    moh = MohClassSnapshot(id="m1", shuffle=False, files=(), is_default=True)
+    assert "[default" not in build_musiconhold_conf("t1", [moh])

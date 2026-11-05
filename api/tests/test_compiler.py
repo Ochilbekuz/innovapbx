@@ -503,6 +503,65 @@ def test_queue_timeout_self_loop_raises_loop_error():
     assert exc.value.code == "loop"
 
 
+# ------------------------------------------------- 0037: Queues FreePBX parity
+
+def _queue_snap(**kw) -> QueueSnapshot:
+    defaults = dict(id="q1", target_id="queue-1", name="Qabul", max_wait_seconds=120,
+                     timeout_target_id="hangup-1")
+    defaults.update(kw)
+    return QueueSnapshot(**defaults)
+
+
+def _queue_ctx(text: str) -> str:
+    return text.split("[t1-dest-queue-1]")[1].split("[t1-dest-")[0]
+
+
+def _queue_dp_snapshot(queue: QueueSnapshot, audio_paths: dict | None = None) -> str:
+    targets = {
+        "queue-1": TargetSnapshot(id="queue-1", kind="queue", label="Qabul"),
+        "hangup-1": TargetSnapshot(id="hangup-1", kind="hangup", label="Band"),
+    }
+    snap = _snapshot(
+        extensions=[], targets=targets, inbound_routes=[_route(target_id="queue-1")],
+        queues=[queue], audio_paths=audio_paths or {},
+    )
+    return compile_dialplan(snap)
+
+
+def test_queue_cid_name_prefix_and_alert_info_emit_set_lines():
+    text = _queue_dp_snapshot(_queue_snap(cid_name_prefix="Navbat: ", alert_info="Ringtone1"))
+    ctx = _queue_ctx(text)
+    assert " same => n,Set(CALLERID(name)=Navbat: ${CALLERID(name)})" in ctx
+    assert " same => n,Set(__INNOVA_ALERT_INFO=Ringtone1)" in ctx
+
+
+def test_queue_ring_mode_ring_and_mark_answered_elsewhere_add_queue_options():
+    text = _queue_dp_snapshot(_queue_snap(ring_mode="ring", mark_answered_elsewhere=True))
+    assert "Queue(t1-q-q1,Cr,,,120,,innova-rec)" in _queue_ctx(text)
+
+
+def test_queue_default_options_unchanged():
+    """Sukut qiymatlar — hozirgi chiqish bilan BAYTGA-BAYT bir xil (0037 talabi)."""
+    text = _queue_dp_snapshot(_queue_snap())
+    assert "Queue(t1-q-q1,,,,120,,innova-rec)" in _queue_ctx(text)
+
+
+def test_queue_join_announcement_plays_before_queue_app():
+    text = _queue_dp_snapshot(
+        _queue_snap(join_announcement_audio_id="a1"), audio_paths={"a1": "/var/lib/innova/a1.wav"},
+    )
+    ctx = _queue_ctx(text)
+    assert " same => n,Playback(/var/lib/innova/a1.wav)" in ctx
+    assert ctx.index("Playback(/var/lib/innova/a1.wav)") < ctx.index("Queue(t1-q-q1")
+
+
+def test_queue_agent_announcement_overrides_queue_announce_arg():
+    text = _queue_dp_snapshot(
+        _queue_snap(agent_announcement_audio_id="a2"), audio_paths={"a2": "/var/lib/innova/a2.wav"},
+    )
+    assert "Queue(t1-q-q1,,,/var/lib/innova/a2.wav,120,,innova-rec)" in _queue_ctx(text)
+
+
 # =========================================================== hangup / busy
 
 def test_hangup_and_busy_terminal_targets_emit_correct_apps():

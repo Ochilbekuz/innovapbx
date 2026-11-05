@@ -107,6 +107,14 @@ def validate_timezone(value: str) -> str:
     return value
 
 
+def effective_timezone(raw: dict | None, cfg: ProvSettings, tenant_timezone: str) -> str:
+    """Admin provizioning vaqt zonasini ANIQ tanlamagan bo'lsa (`raw`da yo'q/bo'sh — `from_raw`
+    shunda sukut `"Asia/Tashkent"`ni qo'yadi) — qattiq Toshkent o'rniga HAQIQIY tizim/tenant
+    vaqt zonasiga bog'laymiz (`Tenant.timezone`, "Sana va vaqt" sahifasida tanlangan). Admin buni
+    ANIQ oʻzgartirgan bo'lsa — oʻz tanlovi saqlanadi (bog'lanish faqat sukut holatda ishlaydi)."""
+    return cfg.timezone if (raw or {}).get("timezone") else tenant_timezone
+
+
 def is_host(value: str) -> bool:
     """Hostname yoki IP manzil (port/sxema/yo'l YO'Q)."""
     try:

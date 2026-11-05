@@ -14,11 +14,14 @@ from sqlalchemy.orm import selectinload
 from app.api.deps import get_ami, get_session, require_access
 from app.core.errors import ApiError
 from app.core.ids import parse_uuid
+from app.core.lookups import get_tenant_scoped_or_404
 from app.core.optimistic import check_not_stale
-from app.db.models import Extension, RingGroup, RingGroupMember, User
+from app.db.models import AudioFile, Extension, MohClass, RingGroup, RingGroupMember, User
 from app.schemas import (
+    AudioOut,
     CreateRingGroupPayload,
     ExtensionRef,
+    MohClassRef,
     RingGroupMemberIn,
     RingGroupMemberOut,
     RingGroupMutated,
@@ -36,6 +39,33 @@ from app.services.usages import usages_for_target
 router = APIRouter(prefix="/ring-groups", tags=["ring-groups"])
 
 _RG_OPTIONS = (selectinload(RingGroup.members).selectinload(RingGroupMember.extension),)
+
+
+async def _resolve_moh_class(session: AsyncSession, tenant_id: str, moh_class_id: str | None) -> MohClass | None:
+    """`queues.py::_resolve_moh_class` bilan BIR XIL naqsh (0038, mustaqil nusxa —
+    parallel agentlar bilan faylni bo'lishmaslik uchun)."""
+    if moh_class_id is None:
+        return None
+    return await get_tenant_scoped_or_404(
+        session, MohClass, tenant_id, moh_class_id,
+        not_found_message="Kutish musiqasi sinfi topilmadi", field="moh_class_id",
+    )
+
+
+async def _resolve_audio(session: AsyncSession, tenant_id: str, audio_id: str | None) -> AudioFile | None:
+    """`queues.py::_resolve_audio` bilan BIR XIL naqsh (0038, mustaqil nusxa)."""
+    if audio_id is None:
+        return None
+    return await get_tenant_scoped_or_404(
+        session, AudioFile, tenant_id, audio_id,
+        not_found_message="Ovoz fayli topilmadi", field="audio_id",
+    )
+
+
+def _audio_ref(audio: AudioFile | None) -> AudioOut | None:
+    if audio is None:
+        return None
+    return AudioOut(id=str(audio.id), name=audio.name, duration_ms=audio.duration_ms, created_at=audio.created_at)
 
 
 async def _validate_members(session: AsyncSession, tenant_id: str, members: list[RingGroupMemberIn]) -> None:
@@ -84,10 +114,19 @@ async def _rg_out(session: AsyncSession, tenant_id: str, group: RingGroup) -> Ri
         )
         for m in group.members
     ]
+    # 0038: `announcement`/`remote_announce` — relationshipsiz FK (`moh_class`
+    # xuddi shu RingGroup'da `lazy="joined"` bilan allaqachon yuklangan).
+    announcement = await _resolve_audio(session, tenant_id, group.announcement_audio_id)
+    remote_announce = await _resolve_audio(session, tenant_id, group.remote_announce_audio_id)
+    moh_class = MohClassRef(id=str(group.moh_class.id), name=group.moh_class.name) if group.moh_class else None
     return RingGroupOut(
         id=str(group.id), name=group.name, number=number, strategy=group.strategy,
         ring_seconds=group.ring_seconds, members=members, no_answer_target=no_answer_target,
         callerid_prefix=group.callerid_prefix, updated_at=group.updated_at,
+        announcement=_audio_ref(announcement), ring_strategy_sound=group.ring_strategy_sound,
+        moh_class=moh_class, alert_info=group.alert_info, skip_busy_agent=group.skip_busy_agent,
+        confirm_calls=group.confirm_calls, remote_announce=_audio_ref(remote_announce),
+        recording_policy=group.recording_policy,
     )
 
 
@@ -129,12 +168,23 @@ async def create_ring_group(
 ) -> RingGroupMutated:
     tenant_id = str(user.tenant_id)
     await _validate_create_rg_payload(session, tenant_id, payload)
+    # 0038: ovoz/MOH FK'lar — mavjud bo'lmasa 422 (`queues.py` naqshi).
+    announcement = await _resolve_audio(session, tenant_id, payload.announcement_audio_id)
+    moh_class = await _resolve_moh_class(session, tenant_id, payload.moh_class_id)
+    remote_announce = await _resolve_audio(session, tenant_id, payload.remote_announce_audio_id)
 
     target = await create_target(session, tenant_id, "ring_group", payload.name)
     group = RingGroup(
         tenant_id=tenant_id, target_id=target.id, name=payload.name, strategy=payload.strategy,
         ring_seconds=payload.ring_seconds, no_answer_target_id=payload.no_answer_target_id,
         callerid_prefix=payload.callerid_prefix,
+        announcement_audio_id=announcement.id if announcement else None,
+        ring_strategy_sound=payload.ring_strategy_sound,
+        moh_class_id=moh_class.id if moh_class else None,
+        alert_info=payload.alert_info, skip_busy_agent=payload.skip_busy_agent,
+        confirm_calls=payload.confirm_calls,
+        remote_announce_audio_id=remote_announce.id if remote_announce else None,
+        recording_policy=payload.recording_policy,
     )
     _replace_members(group, payload.members)
     session.add(group)
@@ -161,11 +211,52 @@ async def _apply_rg_name(session: AsyncSession, group: RingGroup, payload: Updat
 def _apply_simple_rg_fields(group: RingGroup, payload: UpdateRingGroupPayload, diff: dict) -> None:
     """Oddiy skalyar maydonlar — alohida validatsiya kerak emas (CRAP pasaytirish,
     queues.py'dagi `_apply_simple_queue_fields` namunasi bo'yicha)."""
-    for field in ("strategy", "ring_seconds", "callerid_prefix"):
+    for field in (
+        "strategy", "ring_seconds", "callerid_prefix", "ring_strategy_sound",
+        "skip_busy_agent", "confirm_calls", "recording_policy",
+    ):
         value = getattr(payload, field)
         if value is not None:
             setattr(group, field, value)
             diff[field] = value
+
+
+async def _apply_rg_alert_info(group: RingGroup, payload: UpdateRingGroupPayload, diff: dict) -> None:
+    if payload.alert_info_clear:
+        group.alert_info = None
+        diff["alert_info"] = None
+    elif payload.alert_info is not None:
+        group.alert_info = payload.alert_info
+        diff["alert_info"] = payload.alert_info
+
+
+async def _apply_rg_moh_class(
+    session: AsyncSession, tenant_id: str, group: RingGroup, payload: UpdateRingGroupPayload, diff: dict,
+) -> None:
+    if payload.moh_class_id_clear:
+        group.moh_class_id = None
+        diff["moh_class_id"] = None
+    elif payload.moh_class_id is not None:
+        moh_class = await _resolve_moh_class(session, tenant_id, payload.moh_class_id)
+        group.moh_class_id = moh_class.id if moh_class else None
+        diff["moh_class_id"] = payload.moh_class_id
+
+
+async def _apply_rg_audio_fk(
+    session: AsyncSession, tenant_id: str, group: RingGroup, payload: UpdateRingGroupPayload, diff: dict,
+    *, payload_field: str,
+) -> None:
+    """2 audio FK (e'lon/uzoqdan e'lon) — BITTA yo'l (dryer, `queues.py`
+    `_apply_queue_audio_fk` naqshi; bu yerda `payload_field == model_field`)."""
+    if getattr(payload, f"{payload_field}_clear"):
+        setattr(group, payload_field, None)
+        diff[payload_field] = None
+        return
+    audio_id = getattr(payload, payload_field)
+    if audio_id is not None:
+        audio = await _resolve_audio(session, tenant_id, audio_id)
+        setattr(group, payload_field, audio.id if audio else None)
+        diff[payload_field] = audio_id
 
 
 async def _apply_rg_no_answer_target(
@@ -184,7 +275,10 @@ async def _apply_rg_members(
 ) -> None:
     if payload.members is None:
         return
-    await _validate_extension_ids(session, tenant_id, payload.members)
+    # ESLATMA: bu yerda ilgari mavjud bo'lmagan `_validate_extension_ids` chaqirilardi
+    # (hech qanday testda `members`ni PATCH qilish tekshirilmagan edi — shu sabab
+    # NameError sezilmay qolgan; to'g'ri nom — pastdagi `_validate_members`, 0038).
+    await _validate_members(session, tenant_id, payload.members)
     _replace_members(group, payload.members)
     diff["members"] = len(payload.members)
 
@@ -215,6 +309,10 @@ async def update_ring_group(
     await _apply_rg_no_answer_target(session, tenant_id, group, payload, diff)
     await _apply_rg_members(session, tenant_id, group, payload, diff)
     await _apply_rg_number(session, tenant_id, group, payload, diff)
+    await _apply_rg_alert_info(group, payload, diff)
+    await _apply_rg_moh_class(session, tenant_id, group, payload, diff)
+    await _apply_rg_audio_fk(session, tenant_id, group, payload, diff, payload_field="announcement_audio_id")
+    await _apply_rg_audio_fk(session, tenant_id, group, payload, diff, payload_field="remote_announce_audio_id")
 
     await session.flush()
     await record_audit(session, tenant_id=tenant_id, user_id=str(user.id), action="ring_group.update",

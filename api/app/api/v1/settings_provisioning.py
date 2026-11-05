@@ -31,12 +31,15 @@ def provisioning_base(row: SystemSettings, request: Request) -> str:
     return f"{request.url.scheme}://{host.split(',')[0].strip()}"
 
 
-def provisioning_out(row: SystemSettings, request: Request) -> ProvisioningOut:
+def provisioning_out(row: SystemSettings, request: Request, tenant_timezone: str) -> ProvisioningOut:
     cfg = ps.ProvSettings.from_raw(row.provisioning)
     url = f"{provisioning_base(row, request)}/prov/{cfg.prov_token}/"
+    # Admin provizioning vaqt zonasini ANIQ tanlamagan bo'lsa — qattiq "Asia/Tashkent" o'rniga
+    # tizim (Tenant.timezone) zonasini koʻrsatamiz (`ps.effective_timezone`).
+    timezone = ps.effective_timezone(row.provisioning, cfg, tenant_timezone)
     return ProvisioningOut(
         url=url, dhcp_option_66=url, has_admin_password=bool(cfg.admin_password_enc),
-        allowed_networks=list(cfg.allowed_networks), language=cfg.language, timezone=cfg.timezone,
+        allowed_networks=list(cfg.allowed_networks), language=cfg.language, timezone=timezone,
         ntp_server=cfg.ntp_server, sip_transport=cfg.sip_transport, sip_server_host=cfg.sip_server_host,
         extra=ProvExtraOut(**cfg.extra), updated_at=row.updated_at,
     )
@@ -93,7 +96,7 @@ async def _save(session: AsyncSession, user: User, row: SystemSettings, raw: dic
 @router.get("", response_model=ProvisioningOut)
 async def get_provisioning(request: Request, session: AsyncSession = Depends(get_session),
                            user: User = Depends(require_access)) -> ProvisioningOut:
-    return provisioning_out(await get_settings_row(session, str(user.tenant_id)), request)
+    return provisioning_out(await get_settings_row(session, str(user.tenant_id)), request, user.tenant.timezone)
 
 
 @router.patch("", response_model=ProvisioningOut)
@@ -115,7 +118,7 @@ async def update_provisioning(payload: UpdateProvisioningPayload, request: Reque
         diff["admin_password"] = "set" if password else "cleared"
     if diff:
         await _save(session, user, row, raw, diff)
-    return provisioning_out(row, request)
+    return provisioning_out(row, request, user.tenant.timezone)
 
 
 @router.post("/rotate-token", response_model=ProvisioningOut)
@@ -128,4 +131,4 @@ async def rotate_token(request: Request, payload: RotateTokenPayload | None = No
     raw = ps.ProvSettings.from_raw(row.provisioning).to_raw()
     raw["prov_token"] = ps.new_token()
     await _save(session, user, row, raw, {"prov_token": "rotated"})
-    return provisioning_out(row, request)
+    return provisioning_out(row, request, user.tenant.timezone)

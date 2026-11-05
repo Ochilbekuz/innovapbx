@@ -27,6 +27,11 @@ Menu: **Routing → Queues**. Who sees it: users with the `routing` permission c
 
 ## Fields
 
+The edit form is organized into FreePBX-style sections: **General**, **Time & agents**, **Capacity**,
+**Announcements**, **Advanced**.
+
+### General
+
 | Field | What it does | Example / default |
 |---|---|---|
 | Name | Queue name | Up to 60 characters |
@@ -35,16 +40,61 @@ Menu: **Routing → Queues**. Who sees it: users with the `routing` permission c
 | Members | List of extensions linked to the queue, each with a penalty | At least 1 member required |
 | On wait time expiry | Destination used when nobody answers | Required |
 | Hold music | MOH class | Empty — default |
+| Ring mode | Whether the caller hears MOH while waiting, or a plain ringing tone | Default — **MOH** |
+
+### Time & agents
+
+| Field | What it does | Example / default |
+|---|---|---|
 | Ring time per agent (s) | How long each member rings | 5–120, default 15 |
 | Wait before retry (s) | Wait time after a failed ring | default 5, minimum 1 |
 | Wrap-up time (s) | How long an agent stays "busy" after a call | default 0 |
 | Max wait time (s) | The longest a caller can wait in queue before moving to the "On wait time expiry" destination | default 300 |
-| SLA threshold (s) | The "good answer" threshold for reporting | default 20 |
-| Announce frequency (s) | How often the position in queue is announced | default 60 (10–300) |
+| Weight | When multiple queues share an agent, the queue with the higher weight gets priority | default 0 |
+| Member delay (s) | Extra wait before the call is actually offered to the agent's phone (guards against an accidental pickup) | default 0 |
+| Autofill | When enabled, several waiting callers can be distributed to free agents in parallel at once | Disabled by default |
+| Skip busy agents | Don't attempt to ring agents who are busy/unavailable | Enabled by default |
+| Mark answered elsewhere | A call answered via call-pickup/another channel is recorded in the CDR as answered | Disabled by default |
+| Agent timeout restart | Resets an agent's "fatigue" timer if they failed to answer in time | Disabled by default |
+| Max wait mode | `strict` — counted from the start of the call; `loose` — only from the moment it joins the queue | Default — **strict** |
+
+### Capacity
+
+| Field | What it does | Example / default |
+|---|---|---|
 | Max callers in queue | How many people can wait in the queue at once | Empty — unlimited |
-| Announce position in queue | "You are caller number 3" message | Enabled by default |
-| Join queue even with no agents | If disabled — calls are rejected when no member is available | Disabled by default |
+| Join queue even with no agents | `yes/no/strict/loose` — the conditions under which a call may join the queue | Default — **no** |
+| Leave queue when empty | `yes/no/strict/loose` — when waiting calls are ejected from the queue | Default — **no** |
+| Penalty members limit | Only ring members at or below this penalty score (0 — no limit) | default 0 |
+
+### Announcements
+
+| Field | What it does | Example / default |
+|---|---|---|
+| Announce frequency (s) | How often the position in queue is announced (0 — disabled) | default 30 (0–300) |
+| Min announce frequency (s) | The smallest gap allowed between announcements (prevents them repeating too often) | default 15 |
+| Announce position in queue | `yes/no/limit/more` — when the "You are caller number 3" message plays | Default — **yes** |
+| Announce position limit | Positions beyond this number get a generic message instead of the exact number | default 10 |
+| Announce hold time | `yes/no/once` — when the estimated hold time is announced | Default — **yes** |
+| Report hold time | Saves the caller's hold time into the agent's CDR | Disabled by default |
+| Periodic announcement audio | A custom announcement that repeats periodically (e.g. an ad or notice) | Empty — default position/hold-time announcement |
+| Periodic announcement frequency (s) | How often the periodic announcement plays | default 0 — disabled |
+| Join announcement | Audio played once as soon as the call joins the queue | Empty — disabled |
+| Agent announcement | A short audio only the agent hears before answering (e.g. the queue name) | Empty — disabled |
+
+### Advanced
+
+| Field | What it does | Example / default |
+|---|---|---|
+| SLA threshold (s) | The "good answer" threshold for reporting | default 20 |
 | Record calls | Record calls that go through the queue | Enabled by default |
+| CID name prefix | Prepended to the caller's visible name (e.g. `Sales: John Doe`) | Empty — not added |
+| Alert-Info header | SIP `Alert-Info` header, for a distinctive/dedicated ringtone (requires phone support) | Empty — not sent |
+| Auto pause | `no/yes/all` — automatically pause an agent after a missed call (this queue only / all queues) | Default — **no** |
+| Auto pause delay (s) | How long to wait before auto-pausing | default 0 |
+| ...on busy | Also auto-pause when the agent signals "busy" | Disabled by default |
+| ...on no-answer | Also auto-pause when the agent signals "no answer" | Disabled by default |
+| IVR break-out destination | A destination the caller can reach by pressing a key while waiting | Empty — no break-out available |
 
 ### Strategies
 
@@ -72,8 +122,10 @@ Menu: **Routing → Queues**. Who sees it: users with the `routing` permission c
 ### Remove a member
 1. Click **Remove** on the member's row, then **Save**.
 
-### Open advanced settings
-1. Click **Advanced settings** at the bottom of the form — agent ring time, time between retries, SLA, announce frequency, and the queue limit are here.
+### Find advanced settings
+1. In the edit form, scroll down to the **Time & agents**, **Capacity**, **Announcements**, and
+   **Advanced** sections — agent ring time, time between retries, SLA, announce frequency, the queue
+   limit, auto pause, and the IVR break-out destination are all here.
 
 ### Change the hold music
 1. In the **Hold music** field, choose a ready-made MOH class (must first be created in the [Audio library](/docs/audio)), or leave it as the default.
@@ -99,6 +151,19 @@ Menu: **Routing → Queues**. Who sees it: users with the `routing` permission c
 | The queue always rejects as "busy" | "Max callers in queue" has been reached | Raise the limit or leave it empty |
 | Calls are rejected immediately | No members are available and "Join queue even with no agents" is disabled | Add a member or enable this setting |
 | Can't delete the queue | It's used in an inbound route or another destination | Remove those links first |
+
+## Deliberately omitted settings
+
+The following `queues.conf`/FreePBX options were **deliberately** left out — reasons:
+
+| Setting | Reason |
+|---|---|
+| Call-back password / qregex / static-dynamic text fields | Already fully and more safely managed through the existing "Members" list UI — a separate text/password field isn't needed |
+| `monitor-type`/`monitor-format`/"heard-spoken" files | Recording already works at the system level via the "Record calls" toggle; a second, parallel recording mechanism would create confusion |
+| `eventwhencalled`/`eventmemberstatus` (AMI events) | A low-level setting useful only for AMI integrations, with no benefit in the agent panel |
+| `callconfirm`/`confirmholdtime` | Call-confirm isn't supported anywhere else in the system (including Ring Groups) yet — adding it here alone would create inconsistency |
+| `rvolume` (announcement volume) | A very fine-grained setting with little practical benefit; works safely at its default |
+| "Restrict Dynamic Agents" | Joining/leaving as a dynamic member already only works via the agent themselves (My portal) — an extra restriction is unnecessary for now |
 
 ## Related sections
 

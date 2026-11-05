@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type DragEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
-import { AudioLines, Mic, Music2, Pencil, Plus, Shuffle, Square, Trash2, Upload } from 'lucide-react';
+import { AudioLines, Mic, Music2, Pencil, Plus, Shuffle, Square, Star, Trash2, Upload } from 'lucide-react';
 import { apiClient } from '@/api';
 import {
   useAudio, useCreateMohClass, useCreateTtsAudio, useDeleteAudio, useDeleteMohClass, useMohClasses, useTtsSettings,
@@ -401,17 +401,26 @@ function MohTab() {
             <div className="min-w-0 flex-1">
               <p className="flex items-center gap-2 truncate font-medium text-fg">
                 {m.name}
-                {m.name === 'default' && <Badge tone="accent">{t('moh.defaultBadge')}</Badge>}
+                {m.is_default && <Badge tone="accent">{t('moh.defaultBadge')}</Badge>}
                 {m.shuffle && <Badge tone="neutral"><Shuffle aria-hidden className="size-3" /> {t('moh.shuffleBadge')}</Badge>}
               </p>
               <p className="text-sm text-muted">{t('moh.fileCount', { count: m.files.length })}</p>
             </div>
             {canManage && (
               <div className="flex shrink-0 items-center gap-1.5">
+                {!m.is_default && (
+                  <Button
+                    size="sm" variant="ghost" icon={<Star />} aria-label={t('moh.setDefaultAriaLabel', { name: m.name })}
+                    loading={updateM.isPending}
+                    onClick={() => updateM.mutate({ id: m.id, payload: { updated_at: m.updated_at, is_default: true } }, {
+                      onSuccess: () => toast({ kind: 'success', title: t('moh.toast.defaultSet', { name: m.name }) }),
+                    })}
+                  >{t('moh.setDefault')}</Button>
+                )}
                 <Button size="sm" variant="ghost" iconOnly icon={<Pencil />} aria-label={t('moh.editAriaLabel', { name: m.name })} onClick={() => setEditing(m)} />
                 <Button
                   size="sm" variant="danger-ghost" iconOnly icon={<Trash2 />} aria-label={t('moh.deleteAriaLabel', { name: m.name })}
-                  disabled={m.name === 'default'} title={m.name === 'default' ? t('moh.cannotDeleteDefault') : undefined}
+                  disabled={m.is_default} title={m.is_default ? t('moh.cannotDeleteDefault') : undefined}
                   onClick={() => setDeleting(m)}
                 />
               </div>
@@ -504,7 +513,7 @@ function MohClassDrawer({ mohClass, audioFiles, onClose, onSubmit, pending, erro
       <div className="flex flex-col gap-4">
         {errorMessage && <p className="text-sm text-danger">{errorMessage}</p>}
         <Field label={t('moh.drawer.nameLabel')} required>
-          {(a) => <Input {...a} autoFocus disabled={mohClass?.name === 'default'} value={name} onChange={(e) => setName(e.target.value)} />}
+          {(a) => <Input {...a} autoFocus value={name} onChange={(e) => setName(e.target.value)} />}
         </Field>
         <Toggle checked={shuffle} onCheckedChange={setShuffle} label={t('moh.drawer.shuffleLabel')} description={t('moh.drawer.shuffleDesc')} />
 

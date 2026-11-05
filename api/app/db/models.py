@@ -234,6 +234,13 @@ class MohClass(Base):
                                                   ForeignKey("tenants.id", ondelete="CASCADE"))
     name: Mapped[str] = mapped_column(Text)
     shuffle: Mapped[bool] = mapped_column(default=False)
+    # Tenant bo'yicha ko'pi bilan BITTA `is_default=true` qator (qisman unique
+    # indeks, 0039_moh_tz) — "Asosiy qilish" shu sinfni Asterisk'ning haqiqiy
+    # `[default]` MOH sinfiga aylantiradi (`app/services/moh.py`
+    # `build_musiconhold_conf`), ya'ni navbat/park/hold kabi hech qanday aniq
+    # sinf ko'rsatilmagan JOYLARNING barchasida ishlatiladi — bitta qoida,
+    # bitta joy (Laziness Protocol).
+    is_default: Mapped[bool] = mapped_column(default=False)
     created_at: Mapped[datetime] = mapped_column(server_default=text("now()"))
     updated_at: Mapped[datetime] = mapped_column(server_default=text("now()"))
 
@@ -481,9 +488,24 @@ class RingGroup(Base):
     no_answer_target_id: Mapped[str] = mapped_column(
         UUID(as_uuid=False), ForeignKey("call_targets.id", ondelete="RESTRICT"))
     callerid_prefix: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # 0038 (FreePBX Ring Groups parity — hisobot: `docs/qollanma/ringgroups.md`).
+    # Sukut qiymatlar HOZIRGI xatti-harakatni saqlaydi (kompilyator yangi
+    # maydonlarni faqat ANIQ sozlanganda qo'llaydi).
+    announcement_audio_id: Mapped[str | None] = mapped_column(
+        UUID(as_uuid=False), ForeignKey("audio_files.id", ondelete="SET NULL"), nullable=True)
+    ring_strategy_sound: Mapped[str] = mapped_column(Text, default="ring")
+    moh_class_id: Mapped[str | None] = mapped_column(
+        UUID(as_uuid=False), ForeignKey("moh_classes.id", ondelete="SET NULL"), nullable=True)
+    alert_info: Mapped[str | None] = mapped_column(Text, nullable=True)
+    skip_busy_agent: Mapped[bool] = mapped_column(default=False)
+    confirm_calls: Mapped[bool] = mapped_column(default=False)
+    remote_announce_audio_id: Mapped[str | None] = mapped_column(
+        UUID(as_uuid=False), ForeignKey("audio_files.id", ondelete="SET NULL"), nullable=True)
+    recording_policy: Mapped[str] = mapped_column(Text, default="dontcare")
     created_at: Mapped[datetime] = mapped_column(server_default=text("now()"))
     updated_at: Mapped[datetime] = mapped_column(server_default=text("now()"))
 
+    moh_class: Mapped["MohClass | None"] = relationship(lazy="joined", foreign_keys=[moh_class_id])
     members: Mapped[list["RingGroupMember"]] = relationship(
         back_populates="ring_group", cascade="all, delete-orphan", order_by="RingGroupMember.position")
 
@@ -520,19 +542,64 @@ class Queue(Base):
     wrapup_seconds: Mapped[int] = mapped_column(Integer, default=0)
     max_wait_seconds: Mapped[int] = mapped_column(Integer, default=300)
     max_callers: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    announce_position: Mapped[bool] = mapped_column(default=True)
+    # 0037 (FreePBX parity): `announce_position`/`join_empty` — ilgari `bool`
+    # edi (faqat yes/no), endi Asterisk `announce-position`/`joinempty`
+    # realtime kalitlarining TO'LIQ qiymat to'plami (matn) — migratsiya
+    # eski True/False'ni lossless 'yes'/'no'ga o'tkazadi, sukut ESKI xatti-
+    # harakat bilan bir xil (pastdagi izohlarga qarang).
+    announce_position: Mapped[str] = mapped_column(Text, default="yes")
     announce_frequency_seconds: Mapped[int] = mapped_column(Integer, default=60)
     sla_seconds: Mapped[int] = mapped_column(Integer, default=20)
-    join_empty: Mapped[bool] = mapped_column(default=False)
+    join_empty: Mapped[str] = mapped_column(Text, default="no")
     record: Mapped[bool] = mapped_column(default=True)
     timeout_target_id: Mapped[str] = mapped_column(
         UUID(as_uuid=False), ForeignKey("call_targets.id", ondelete="RESTRICT"))
+    # 0037 — FreePBX Queues parity (hisobot: `docs/qollanma/queues.md`).
+    # Sukut qiymatlar HOZIRGI ishlab chiqarish xatti-harakatini saqlaydi:
+    # `skip_busy_agents=True` -> `ringinuse='no'` (ilgari view'da QATTIQ
+    # yozilgan edi); qolganlari — Asterisk `init_queue()`ning o'z ICHKI
+    # sukuti bilan bir xil (ustun ilgari view'da yo'q edi).
+    skip_busy_agents: Mapped[bool] = mapped_column(default=True)
+    weight: Mapped[int] = mapped_column(Integer, default=0)
+    autofill: Mapped[bool] = mapped_column(default=False)
+    report_hold_time: Mapped[bool] = mapped_column(default=False)
+    member_delay_seconds: Mapped[int] = mapped_column(Integer, default=0)
+    penalty_members_limit: Mapped[int] = mapped_column(Integer, default=0)
+    auto_pause: Mapped[str] = mapped_column(Text, default="no")
+    auto_pause_delay_seconds: Mapped[int] = mapped_column(Integer, default=0)
+    auto_pause_busy: Mapped[bool] = mapped_column(default=False)
+    auto_pause_unavail: Mapped[bool] = mapped_column(default=False)
+    agent_timeout_restart: Mapped[bool] = mapped_column(default=False)
+    max_wait_mode: Mapped[str] = mapped_column(Text, default="strict")
+    leave_when_empty: Mapped[str] = mapped_column(Text, default="no")
+    announce_position_limit: Mapped[int] = mapped_column(Integer, default=10)
+    announce_hold_time: Mapped[str] = mapped_column(Text, default="yes")
+    min_announce_frequency_seconds: Mapped[int] = mapped_column(Integer, default=15)
+    periodic_announce_audio_file_id: Mapped[str | None] = mapped_column(
+        UUID(as_uuid=False), ForeignKey("audio_files.id", ondelete="SET NULL"), nullable=True)
+    periodic_announce_frequency_seconds: Mapped[int] = mapped_column(Integer, default=60)
+    ring_mode: Mapped[str] = mapped_column(Text, default="moh")
+    mark_answered_elsewhere: Mapped[bool] = mapped_column(default=False)
+    cid_name_prefix: Mapped[str | None] = mapped_column(Text, nullable=True)
+    alert_info: Mapped[str | None] = mapped_column(Text, nullable=True)
+    join_announcement_audio_file_id: Mapped[str | None] = mapped_column(
+        UUID(as_uuid=False), ForeignKey("audio_files.id", ondelete="SET NULL"), nullable=True)
+    agent_announcement_audio_file_id: Mapped[str | None] = mapped_column(
+        UUID(as_uuid=False), ForeignKey("audio_files.id", ondelete="SET NULL"), nullable=True)
+    breakout_target_id: Mapped[str | None] = mapped_column(
+        UUID(as_uuid=False), ForeignKey("call_targets.id", ondelete="SET NULL"), nullable=True)
     created_at: Mapped[datetime] = mapped_column(server_default=text("now()"))
     updated_at: Mapped[datetime] = mapped_column(server_default=text("now()"))
 
     members: Mapped[list["QueueMember"]] = relationship(
         back_populates="queue", cascade="all, delete-orphan")
     moh_class: Mapped[MohClass | None] = relationship(lazy="joined")
+    periodic_announce_audio: Mapped[AudioFile | None] = relationship(
+        foreign_keys=[periodic_announce_audio_file_id], lazy="joined")
+    join_announcement_audio: Mapped[AudioFile | None] = relationship(
+        foreign_keys=[join_announcement_audio_file_id], lazy="joined")
+    agent_announcement_audio: Mapped[AudioFile | None] = relationship(
+        foreign_keys=[agent_announcement_audio_file_id], lazy="joined")
 
 
 class QueueMember(Base):

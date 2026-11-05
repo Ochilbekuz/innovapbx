@@ -24,6 +24,14 @@ async def get_tenant_code(session: AsyncSession, tenant_id: str) -> str:
     return tenant.code
 
 
+async def get_tenant_code_and_timezone(session: AsyncSession, tenant_id: str) -> tuple[str, str]:
+    """`get_tenant_code` kabi, lekin provizioning renderlash `Tenant.timezone`ga ham muhtoj
+    (qurilma/apparat konfiguratsiyasi tizim vaqt zonasiga bog'lanishi uchun, `prov_settings.
+    effective_timezone`) — ikkisi BIR so'rovda (qo'shimcha so'rov yo'q)."""
+    tenant = await session.get(Tenant, tenant_id)
+    return tenant.code, tenant.timezone
+
+
 async def get_tenant_scoped_or_404(
     session: AsyncSession, model: type[ModelT], tenant_id: str, entity_id: str, *,
     not_found_message: str, options: tuple = (), field: str | None = None,

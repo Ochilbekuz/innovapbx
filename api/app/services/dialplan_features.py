@@ -285,20 +285,68 @@ def outbound_blocked_lines() -> list[str]:
 
 
 # ------------------------------------------------------------ qo'ng'iroq guruhi
-def ring_group_set_lines(code: str, idx: int, members: list[tuple[str, bool]], ring_seconds: int) -> list[str]:
-    """Bitta `Dial()` to'plami runtime'da yig'iladi: DND yoqilgan ichki a'zo
-    tashlab ketiladi, tashqi a'zo (`Local/...@<code>-outbound-rg`) doim kiradi."""
+# DEVICE_STATE band/jiringlab-band holatlari — "-prim"/first*/skip-busy-agent
+# UCHTASI ham AYNAN shu uchlikni tekshiradi (DRY: bitta joy, ikki ifoda —
+# OR (biror biri band) va uning INKORI/AND (bo'sh)).
+_BUSY_DEVICE_STATES = ("INUSE", "BUSY", "RINGINUSE")
+
+
+def device_busy_expr(device_expr: str) -> str:
+    """`device_expr` (masalan ``${DEVICE_STATE(PJSIP/<ep>)}``) band/jiringlab-band
+    bo'lsa TRUE — bitta `GotoIf($[...])` ichida ishlatish uchun OR ifodasi."""
+    return "|".join(f'"{device_expr}"="{state}"' for state in _BUSY_DEVICE_STATES)
+
+
+def device_available_expr(device_expr: str) -> str:
+    """`device_busy_expr`ning INKORI — hammasi YO'Q bo'lsa (bo'sh) TRUE."""
+    return "&".join(f'"{device_expr}"!="{state}"' for state in _BUSY_DEVICE_STATES)
+
+
+@dataclass(frozen=True)
+class RingGroupDialOptions:
+    """FreePBX Ring Groups parity (0038) — `ring_group_set_lines` uchun
+    qo'shimcha sozlamalar. Sukut qiymatlar HOZIRGI chiqishni o'zgartirmaydi."""
+    skip_busy_agent: bool = False
+    alert_info: str | None = None
+    moh_class_name: str | None = None
+    confirm_calls: bool = False
+    remote_announce_path: str | None = None
+
+
+def _rg_member_when(code: str, number: str, options: RingGroupDialOptions) -> str:
+    when = f'"{realtime_read(code, number, "dnd")}"!="t"'
+    if options.skip_busy_agent:
+        when += "&" + device_available_expr(f"${{DEVICE_STATE(PJSIP/{number})}}")
+    return when
+
+
+def ring_group_set_lines(
+    code: str, idx: int | str, members: list[tuple[str, bool]], ring_seconds: int,
+    options: RingGroupDialOptions | None = None,
+) -> list[str]:
+    """Bitta `Dial()` to'plami runtime'da yig'iladi: DND yoqilgan (yoki
+    `skip_busy_agent`da band) ichki a'zo tashlab ketiladi, tashqi a'zo
+    (`Local/...@<code>-outbound-rg`) doim kiradi (tasdiqlash so'ralsa —
+    `__INNOVA_FM_CONFIRM`/`__INNOVA_FM_ANNOUNCE` orqali, Follow Me bilan
+    BIR XIL mexanizm)."""
+    options = options or RingGroupDialOptions()
     lines = [contacts.reset_line()]
     for raw_number, is_external in members:
         number = _dp_num(raw_number, field="ring_group_member.extension_number")
         if is_external:
+            if options.confirm_calls:
+                lines.append(" same => n,Set(__INNOVA_FM_CONFIRM=t)")
+                lines.append(f" same => n,Set(__INNOVA_FM_ANNOUNCE={options.remote_announce_path or ''})")
             lines.append(contacts.add_raw_line(f"Local/{number}@{code}-outbound-rg"))
             continue
         # SIP endpoint id — prefikssiz (`sip_identity.endpoint_id`), `number` shu bilan BIR XIL.
-        lines.append(contacts.add_endpoint_line(number, when=f'"{realtime_read(code, number, "dnd")}"!="t"'))
+        lines.append(contacts.add_endpoint_line(number, when=_rg_member_when(code, number, options)))
+    if options.alert_info:
+        lines.append(f" same => n,Set(__INNOVA_ALERT_INFO={options.alert_info})")
+    dial_options = XFER_OPTIONS_HDR + (f"m({options.moh_class_name})" if options.moh_class_name else "")
     lines += [
         f' same => n,GotoIf($["${{{contacts.VAR}}}"=""]?rg{idx}_skip)',
-        *recorded_dial_lines(contacts.TARGETS, str(ring_seconds), XFER_OPTIONS_HDR),
+        *recorded_dial_lines(contacts.TARGETS, str(ring_seconds), dial_options),
         f" same => n(rg{idx}_skip),NoOp(Innova: guruh to'plami {idx} tugadi)",
     ]
     return lines

@@ -34,10 +34,24 @@ TargetKind = Literal[
     # sifatida ko'rsata oladi (satellit qolipi).
     "day_night", "disa",
 ]
-RingGroupStrategy = Literal["ringall", "hunt", "memoryhunt"]
+RingGroupStrategy = Literal[
+    "ringall", "ringall-prim", "hunt", "hunt-prim",
+    "memoryhunt", "memoryhunt-prim", "firstavailable", "firstnotonphone",
+]
+RingGroupStrategySound = Literal["ring", "moh"]
+RingGroupRecordingPolicy = Literal["dontcare", "force", "no"]
 QueueStrategy = Literal[
     "ringall", "leastrecent", "fewestcalls", "random", "rrmemory", "linear", "wrandom",
 ]
+# 0037 (Queues FreePBX parity — hisobot: `docs/qollanma/queues.md`). Qiymatlar
+# faqat `app_queue.c`da HAQIQATDA ishlaydigan enum'lar (parse_empty_options/
+# autopause2int/announce-holdtime/announce-position/timeoutpriority).
+QueueJoinEmpty = Literal["yes", "no", "strict", "loose"]
+QueueAnnouncePosition = Literal["yes", "no", "limit", "more"]
+QueueAnnounceHoldTime = Literal["yes", "no", "once"]
+QueueAutoPause = Literal["no", "yes", "all"]
+QueueMaxWaitMode = Literal["strict", "loose"]
+QueueRingMode = Literal["moh", "ring"]
 TimeConditionOverride = Literal["auto", "force_open", "force_closed"]
 TimeConditionState = Literal["open", "closed"]
 UsageKind = Literal["inbound_route", "ivr", "ivr_option", "time_condition", "ring_group", "queue", "outbound_route",
@@ -119,6 +133,11 @@ class UserOut(BaseModel):
     role: Role
     permissions: list[str]
     language: Lang
+    # Tenant vaqt zonasi (`Tenant.timezone`) — panel HAMMA joyda shu zonada sana/vaqt
+    # ko'rsatishi uchun yagona manba (`web/src/lib/time.ts::tenantTz`). "Sana va vaqt"
+    # sahifasida o'zgartirilganda (`app/api/v1/system_time.py::_move_pbx_timezone`)
+    # frontend `useSession`dagi foydalanuvchini shu qiymat bilan yangilaydi.
+    timezone: str
     # M2b §3: `true` bo'lsa, web parolni almashtirishga majburlaydi (login
     # bloklanmaydi — faqat signal). `app.api.v1.auth._user_out()`da to'ldiriladi.
     must_change_password: bool = False
@@ -849,6 +868,15 @@ class RingGroupOut(BaseModel):
     no_answer_target: RouteTarget
     callerid_prefix: str | None
     updated_at: datetime
+    # 0038 (FreePBX Ring Groups parity — hisobot: `docs/qollanma/ringgroups.md`).
+    announcement: AudioOut | None = None
+    ring_strategy_sound: RingGroupStrategySound = "ring"
+    moh_class: "MohClassRef | None" = None
+    alert_info: str | None = None
+    skip_busy_agent: bool = False
+    confirm_calls: bool = False
+    remote_announce: AudioOut | None = None
+    recording_policy: RingGroupRecordingPolicy = "dontcare"
 
 
 class CreateRingGroupPayload(BaseModel):
@@ -859,6 +887,14 @@ class CreateRingGroupPayload(BaseModel):
     members: list[RingGroupMemberIn] = Field(default_factory=list)
     no_answer_target_id: str
     callerid_prefix: str | None = None
+    announcement_audio_id: str | None = None
+    ring_strategy_sound: RingGroupStrategySound = "ring"
+    moh_class_id: str | None = None
+    alert_info: str | None = Field(default=None, pattern=_ALERT_INFO_PATTERN)
+    skip_busy_agent: bool = False
+    confirm_calls: bool = False
+    remote_announce_audio_id: str | None = None
+    recording_policy: RingGroupRecordingPolicy = "dontcare"
 
 
 class UpdateRingGroupPayload(BaseModel):
@@ -869,6 +905,18 @@ class UpdateRingGroupPayload(BaseModel):
     members: list[RingGroupMemberIn] | None = None
     no_answer_target_id: str | None = None
     callerid_prefix: str | None = None
+    announcement_audio_id: str | None = None
+    ring_strategy_sound: RingGroupStrategySound | None = None
+    moh_class_id: str | None = None
+    alert_info: str | None = Field(default=None, pattern=_ALERT_INFO_PATTERN)
+    skip_busy_agent: bool | None = None
+    confirm_calls: bool | None = None
+    remote_announce_audio_id: str | None = None
+    recording_policy: RingGroupRecordingPolicy | None = None
+    announcement_audio_id_clear: bool = False
+    moh_class_id_clear: bool = False
+    alert_info_clear: bool = False
+    remote_announce_audio_id_clear: bool = False
     updated_at: datetime
 
 
@@ -905,16 +953,42 @@ class QueueOut(BaseModel):
     wrapup_seconds: int
     max_wait_seconds: int
     max_callers: int | None
-    announce_position: bool
+    announce_position: QueueAnnouncePosition
     announce_frequency_seconds: int
     sla_seconds: int
-    join_empty: bool
+    join_empty: QueueJoinEmpty
     record: bool
     members: list[QueueMemberOut]
     timeout_target: RouteTarget
     live: QueueLive | None
     moh_class: "MohClassRef | None" = None
     updated_at: datetime
+    # 0037 (Queues FreePBX parity).
+    skip_busy_agents: bool = True
+    weight: int = 0
+    autofill: bool = False
+    report_hold_time: bool = False
+    member_delay_seconds: int = 0
+    penalty_members_limit: int = 0
+    auto_pause: QueueAutoPause = "no"
+    auto_pause_delay_seconds: int = 0
+    auto_pause_busy: bool = False
+    auto_pause_unavail: bool = False
+    agent_timeout_restart: bool = False
+    max_wait_mode: QueueMaxWaitMode = "strict"
+    leave_when_empty: QueueJoinEmpty = "no"
+    announce_position_limit: int = 10
+    announce_hold_time: QueueAnnounceHoldTime = "yes"
+    min_announce_frequency_seconds: int = 15
+    periodic_announce_frequency_seconds: int = 60
+    ring_mode: QueueRingMode = "moh"
+    mark_answered_elsewhere: bool = False
+    cid_name_prefix: str | None = None
+    alert_info: str | None = None
+    periodic_announce_audio: AudioOut | None = None
+    join_announcement_audio: AudioOut | None = None
+    agent_announcement_audio: AudioOut | None = None
+    breakout_target: RouteTarget | None = None
 
 
 class QueueMemberIn(BaseModel):
@@ -932,14 +1006,42 @@ class CreateQueuePayload(BaseModel):
     wrapup_seconds: int = Field(default=0, ge=0)
     max_wait_seconds: int = Field(default=300, gt=0)
     max_callers: int | None = Field(default=None, gt=0)
-    announce_position: bool = True
+    announce_position: QueueAnnouncePosition = "yes"
     announce_frequency_seconds: int = Field(default=60, ge=0)
     sla_seconds: int = Field(default=20, ge=0)
-    join_empty: bool = False
+    join_empty: QueueJoinEmpty = "no"
     record: bool = True
     members: list[QueueMemberIn] = Field(default_factory=list)
     timeout_target_id: str
     moh_class_id: str | None = None
+    # 0037 (Queues FreePBX parity).
+    skip_busy_agents: bool = True
+    weight: int = Field(default=0, ge=0, le=100)
+    autofill: bool = False
+    report_hold_time: bool = False
+    member_delay_seconds: int = Field(default=0, ge=0)
+    penalty_members_limit: int = Field(default=0, ge=0)
+    auto_pause: QueueAutoPause = "no"
+    auto_pause_delay_seconds: int = Field(default=0, ge=0)
+    auto_pause_busy: bool = False
+    auto_pause_unavail: bool = False
+    agent_timeout_restart: bool = False
+    max_wait_mode: QueueMaxWaitMode = "strict"
+    leave_when_empty: QueueJoinEmpty = "no"
+    announce_position_limit: int = Field(default=10, ge=1)
+    announce_hold_time: QueueAnnounceHoldTime = "yes"
+    min_announce_frequency_seconds: int = Field(default=15, ge=0)
+    periodic_announce_audio_id: str | None = None
+    periodic_announce_frequency_seconds: int = Field(default=60, ge=0)
+    ring_mode: QueueRingMode = "moh"
+    mark_answered_elsewhere: bool = False
+    cid_name_prefix: str | None = Field(default=None, max_length=64)
+    alert_info: str | None = Field(default=None, pattern=_ALERT_INFO_PATTERN)
+    join_announcement_audio_id: str | None = None
+    agent_announcement_audio_id: str | None = None
+    breakout_target_id: str | None = None
+
+    _check_cid_name_prefix = field_validator("cid_name_prefix")(_check_no_control_chars)
 
 
 class UpdateQueuePayload(BaseModel):
@@ -951,15 +1053,49 @@ class UpdateQueuePayload(BaseModel):
     wrapup_seconds: int | None = Field(default=None, ge=0)
     max_wait_seconds: int | None = Field(default=None, gt=0)
     max_callers: int | None = Field(default=None, gt=0)
-    announce_position: bool | None = None
+    announce_position: QueueAnnouncePosition | None = None
     announce_frequency_seconds: int | None = Field(default=None, ge=0)
     sla_seconds: int | None = Field(default=None, ge=0)
-    join_empty: bool | None = None
+    join_empty: QueueJoinEmpty | None = None
     record: bool | None = None
     members: list[QueueMemberIn] | None = None
     timeout_target_id: str | None = None
     moh_class_id: str | None = None
     updated_at: datetime
+    # 0037 (Queues FreePBX parity).
+    skip_busy_agents: bool | None = None
+    weight: int | None = Field(default=None, ge=0, le=100)
+    autofill: bool | None = None
+    report_hold_time: bool | None = None
+    member_delay_seconds: int | None = Field(default=None, ge=0)
+    penalty_members_limit: int | None = Field(default=None, ge=0)
+    auto_pause: QueueAutoPause | None = None
+    auto_pause_delay_seconds: int | None = Field(default=None, ge=0)
+    auto_pause_busy: bool | None = None
+    auto_pause_unavail: bool | None = None
+    agent_timeout_restart: bool | None = None
+    max_wait_mode: QueueMaxWaitMode | None = None
+    leave_when_empty: QueueJoinEmpty | None = None
+    announce_position_limit: int | None = Field(default=None, ge=1)
+    announce_hold_time: QueueAnnounceHoldTime | None = None
+    min_announce_frequency_seconds: int | None = Field(default=None, ge=0)
+    periodic_announce_audio_id: str | None = None
+    periodic_announce_frequency_seconds: int | None = Field(default=None, ge=0)
+    ring_mode: QueueRingMode | None = None
+    mark_answered_elsewhere: bool | None = None
+    cid_name_prefix: str | None = Field(default=None, max_length=64)
+    alert_info: str | None = Field(default=None, pattern=_ALERT_INFO_PATTERN)
+    join_announcement_audio_id: str | None = None
+    agent_announcement_audio_id: str | None = None
+    breakout_target_id: str | None = None
+    cid_name_prefix_clear: bool = False
+    alert_info_clear: bool = False
+    periodic_announce_audio_id_clear: bool = False
+    join_announcement_audio_id_clear: bool = False
+    agent_announcement_audio_id_clear: bool = False
+    breakout_target_id_clear: bool = False
+
+    _check_cid_name_prefix = field_validator("cid_name_prefix")(_check_no_control_chars)
 
 
 class QueueMutated(BaseModel):
@@ -1430,13 +1566,14 @@ class MohClassRef(BaseModel):
 
 
 class MohClassOut(BaseModel):
-    """`web/src/api/types.ts` `MohClass` bilan AYNAN BIR XIL shakl — qo'shimcha
-    maydon YO'Q (`default` sinfni o'chirib bo'lmasligi `name == "default"`
-    orqali aniqlanadi, xuddi `web/src/api/fake.ts` qilgani kabi — ikkita joyda
-    bitta qoida)."""
+    """`web/src/api/types.ts` `MohClass` bilan AYNAN BIR XIL shakl.
+    `is_default` — "Asosiy qilish" (ko'pi bilan BITTA sinf, tenant bo'yicha);
+    o'chirib bo'lmasligi ENDI nomdan (`name == "default"`) emas, shu bayroqdan
+    aniqlanadi (`web/src/api/fake.ts` bilan bir xil qoida)."""
     id: str
     name: str
     shuffle: bool
+    is_default: bool
     files: list[AudioOut]
     updated_at: datetime
 
@@ -1451,6 +1588,11 @@ class UpdateMohClassPayload(BaseModel):
     name: str | None = Field(default=None, pattern=r"^[a-z0-9_-]{1,32}$")
     shuffle: bool | None = None
     file_ids: list[str] | None = None
+    # Faqat `true` qabul qilinadi ("Asosiy qilish") — shu sinf asosiy bo'lib,
+    # avvalgi asosiy avtomatik bekor bo'ladi; `false` jo'natilsa e'tiborsiz
+    # qoldiriladi (asosiylikni YECHISH yo'q — faqat BOSHQA sinfni asosiy
+    # qilish orqali "ko'chadi", `moh_classes.py::update_moh_class`).
+    is_default: bool | None = None
     updated_at: datetime
 
 

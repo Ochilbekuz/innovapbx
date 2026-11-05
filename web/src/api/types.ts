@@ -12,6 +12,8 @@ export type User = {
   role: Role;
   permissions: string[];
   language: Lang;
+  /** Tenant vaqt zonasi (IANA) — `@/lib/time` shu yerdan o'qiydi, panel HAMMA joyda shu zonada ko'rsatadi. */
+  timezone: string;
   /** M2b §3 — true bo'lsa, foydalanuvchi parolni almashtirmaguncha boshqa ekranga o'tolmaydi. */
   must_change_password?: boolean;
   /** M2b — foydalanuvchining o'z ichki raqami (yuqori paneldagi telefon belgisida); yo'q bo'lsa null. */
@@ -368,7 +370,15 @@ export type CreateIvrPayload = {
 };
 export type UpdateIvrPayload = Partial<CreateIvrPayload> & { updated_at: string };
 
-export type RingGroupStrategy = 'ringall' | 'hunt' | 'memoryhunt';
+// 0038 (FreePBX Ring Groups parity — hisobot: docs/qollanma/ringgroups.md):
+// "random" FreePBX'da FAQAT Queue strategiyasi — Ring Group'da YO'Q (ataylab
+// qo'shilmagan). "-prim" variantlari — birinchi (ichki) a'zo band bo'lsa FAQAT
+// unga jiringlaydi, aks holda asosiy strategiya bo'yicha davom etadi.
+export type RingGroupStrategy =
+  | 'ringall' | 'ringall-prim' | 'hunt' | 'hunt-prim'
+  | 'memoryhunt' | 'memoryhunt-prim' | 'firstavailable' | 'firstnotonphone';
+export type RingGroupStrategySound = 'ring' | 'moh';
+export type RingGroupRecordingPolicy = 'dontcare' | 'force' | 'no';
 export type RingGroupMember = {
   position: number;
   extension: { id: string; number: string; name: string } | null;
@@ -384,14 +394,38 @@ export type RingGroup = {
   no_answer_target: Target;
   callerid_prefix: string | null;
   updated_at: string;
+  // 0038 (FreePBX Ring Groups parity).
+  announcement: Audio | null;
+  ring_strategy_sound: RingGroupStrategySound;
+  moh_class: { id: string; name: string } | null;
+  alert_info: string | null;
+  skip_busy_agent: boolean;
+  confirm_calls: boolean;
+  remote_announce: Audio | null;
+  recording_policy: RingGroupRecordingPolicy;
 };
 /** Bitta a'zo kiritish shakli — ichki raqam id'si YOKI tashqi raqam, ikkisi birga emas. */
 export type RingGroupMemberInput = { extension_id: string; external_number?: never } | { external_number: string; extension_id?: never };
 export type CreateRingGroupPayload = {
   name: string; number?: string | null; strategy: RingGroupStrategy; ring_seconds: number;
   members: RingGroupMemberInput[]; no_answer_target_id: string; callerid_prefix?: string | null;
+  // 0038 (FreePBX Ring Groups parity).
+  announcement_audio_id?: string | null;
+  ring_strategy_sound?: RingGroupStrategySound;
+  moh_class_id?: string | null;
+  alert_info?: string | null;
+  skip_busy_agent?: boolean;
+  confirm_calls?: boolean;
+  remote_announce_audio_id?: string | null;
+  recording_policy?: RingGroupRecordingPolicy;
 };
-export type UpdateRingGroupPayload = Partial<CreateRingGroupPayload> & { updated_at: string };
+export type UpdateRingGroupPayload = Partial<CreateRingGroupPayload> & {
+  updated_at: string;
+  announcement_audio_id_clear?: boolean;
+  moh_class_id_clear?: boolean;
+  alert_info_clear?: boolean;
+  remote_announce_audio_id_clear?: boolean;
+};
 
 export type QueueStrategy = 'ringall' | 'leastrecent' | 'fewestcalls' | 'random' | 'rrmemory' | 'linear' | 'wrandom';
 /** `dynamic`/`logged_in`/`paused`/`pause_reason`/`state_at` — M2b §1 (navbat a'zosi real holati). */
@@ -405,6 +439,14 @@ export type QueueMember = {
   state_at: string;
 };
 export type QueueLive = { waiting: number; members_online: number };
+// 0037 (Queues FreePBX parity — hisobot: `docs/qollanma/queues.md`). Qiymatlar
+// faqat Asterisk `app_queue.c`da HAQIQATDA ishlaydigan enum'lar.
+export type QueueJoinEmpty = 'yes' | 'no' | 'strict' | 'loose';
+export type QueueAnnouncePosition = 'yes' | 'no' | 'limit' | 'more';
+export type QueueAnnounceHoldTime = 'yes' | 'no' | 'once';
+export type QueueAutoPause = 'no' | 'yes' | 'all';
+export type QueueMaxWaitMode = 'strict' | 'loose';
+export type QueueRingMode = 'moh' | 'ring';
 export type Queue = {
   id: string;
   name: string;
@@ -415,24 +457,85 @@ export type Queue = {
   wrapup_seconds: number;
   max_wait_seconds: number;
   max_callers: number | null;
-  announce_position: boolean;
+  announce_position: QueueAnnouncePosition;
   announce_frequency_seconds: number;
   sla_seconds: number;
-  join_empty: boolean;
+  join_empty: QueueJoinEmpty;
   record: boolean;
   members: QueueMember[];
   timeout_target: Target;
   live: QueueLive | null;
   moh_class: { id: string; name: string } | null;
   updated_at: string;
+  // 0037 (Queues FreePBX parity).
+  skip_busy_agents: boolean;
+  weight: number;
+  autofill: boolean;
+  report_hold_time: boolean;
+  member_delay_seconds: number;
+  penalty_members_limit: number;
+  auto_pause: QueueAutoPause;
+  auto_pause_delay_seconds: number;
+  auto_pause_busy: boolean;
+  auto_pause_unavail: boolean;
+  agent_timeout_restart: boolean;
+  max_wait_mode: QueueMaxWaitMode;
+  leave_when_empty: QueueJoinEmpty;
+  announce_position_limit: number;
+  announce_hold_time: QueueAnnounceHoldTime;
+  min_announce_frequency_seconds: number;
+  periodic_announce_frequency_seconds: number;
+  ring_mode: QueueRingMode;
+  mark_answered_elsewhere: boolean;
+  cid_name_prefix: string | null;
+  alert_info: string | null;
+  periodic_announce_audio: Audio | null;
+  join_announcement_audio: Audio | null;
+  agent_announcement_audio: Audio | null;
+  breakout_target: Target | null;
 };
 export type CreateQueuePayload = {
   name: string; number?: string | null; strategy: QueueStrategy; agent_ring_seconds: number; retry_seconds: number;
-  wrapup_seconds: number; max_wait_seconds: number; max_callers: number | null; announce_position: boolean;
-  announce_frequency_seconds: number; sla_seconds: number; join_empty: boolean; record: boolean;
+  wrapup_seconds: number; max_wait_seconds: number; max_callers: number | null;
+  announce_position: QueueAnnouncePosition;
+  announce_frequency_seconds: number; sla_seconds: number; join_empty: QueueJoinEmpty; record: boolean;
   members: { extension_id: string; penalty: number }[]; timeout_target_id: string; moh_class_id?: string | null;
+  // 0037 (Queues FreePBX parity).
+  skip_busy_agents?: boolean;
+  weight?: number;
+  autofill?: boolean;
+  report_hold_time?: boolean;
+  member_delay_seconds?: number;
+  penalty_members_limit?: number;
+  auto_pause?: QueueAutoPause;
+  auto_pause_delay_seconds?: number;
+  auto_pause_busy?: boolean;
+  auto_pause_unavail?: boolean;
+  agent_timeout_restart?: boolean;
+  max_wait_mode?: QueueMaxWaitMode;
+  leave_when_empty?: QueueJoinEmpty;
+  announce_position_limit?: number;
+  announce_hold_time?: QueueAnnounceHoldTime;
+  min_announce_frequency_seconds?: number;
+  periodic_announce_audio_id?: string | null;
+  periodic_announce_frequency_seconds?: number;
+  ring_mode?: QueueRingMode;
+  mark_answered_elsewhere?: boolean;
+  cid_name_prefix?: string | null;
+  alert_info?: string | null;
+  join_announcement_audio_id?: string | null;
+  agent_announcement_audio_id?: string | null;
+  breakout_target_id?: string | null;
 };
-export type UpdateQueuePayload = Partial<CreateQueuePayload> & { updated_at: string };
+export type UpdateQueuePayload = Partial<CreateQueuePayload> & {
+  updated_at: string;
+  cid_name_prefix_clear?: boolean;
+  alert_info_clear?: boolean;
+  periodic_announce_audio_id_clear?: boolean;
+  join_announcement_audio_id_clear?: boolean;
+  agent_announcement_audio_id_clear?: boolean;
+  breakout_target_id_clear?: boolean;
+};
 
 export type FlowEdgeLabel = 'target' | 'open' | 'closed' | 'timeout' | 'invalid' | 'no_answer' | string;
 export type FlowNodeApi = { target: Target; edge: FlowEdgeLabel | null; children: FlowNodeApi[]; loop: boolean; broken: boolean };
@@ -730,9 +833,10 @@ export type AuditEntry = {
 };
 export type ListAuditParams = { entity?: string; user_id?: string; action?: AuditAction; from?: string; to?: string; q?: string; page?: number; size?: number };
 
-export type MohClass = { id: string; name: string; shuffle: boolean; files: Audio[]; updated_at: string };
+export type MohClass = { id: string; name: string; shuffle: boolean; is_default: boolean; files: Audio[]; updated_at: string };
 export type CreateMohClassPayload = { name: string; shuffle: boolean; file_ids: string[] };
-export type UpdateMohClassPayload = Partial<CreateMohClassPayload> & { updated_at: string };
+// `is_default` faqat `true` sifatida jo'natiladi ("Asosiy qilish") — `api/app/schemas.py` `UpdateMohClassPayload` bilan bir xil qoida.
+export type UpdateMohClassPayload = Partial<CreateMohClassPayload> & { updated_at: string; is_default?: boolean };
 
 // ─────────────────────────── M1c — qarang ../../replica/m1c-contract.md ───────────────────────────
 

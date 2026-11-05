@@ -92,8 +92,8 @@ export function parseContactsCsv(text: string, existing: Iterable<string> = []):
 const minutes = (hhmm: string) => Number(hhmm.slice(0, 2)) * 60 + Number(hhmm.slice(3, 5));
 const isoWeekday = (d: Date) => ((d.getUTCDay() + 6) % 7) + 1;
 
-/** `local` — tenant mahalliy vaqti UTC maydonlarida (`TENANT_TZ` siljishi qo'shilgan). Tun oshgan oyna
- * (22:00–02:00): kun — oyna BOSHLANGAN kun. */
+/** `local` — tenant mahalliy vaqti UTC maydonlarida (chaqiruvchi tenant vaqt zonasi siljishini qo'shib beradi,
+ * `@/lib/time::tenantTz`). Tun oshgan oyna (22:00–02:00): kun — oyna BOSHLANGAN kun. */
 export function inWindow(local: Date, start: string, end: string, days: readonly number[]): boolean {
   const now = local.getUTCHours() * 60 + local.getUTCMinutes();
   const [s, e] = [minutes(start), minutes(end)];

@@ -7,7 +7,7 @@ from sqlalchemy import Text, cast, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.v1.settings import get_settings_row
-from app.core.lookups import get_tenant_code
+from app.core.lookups import get_tenant_code_and_timezone
 from app.db.models import Device, DeviceKey, DiscoveredDevice, Extension, ProvisionRequest
 from app.schemas_devices import (
     DeviceConfigOut,
@@ -32,7 +32,8 @@ def ip_text(value) -> str | None:
 
 async def tenant_prov(session: AsyncSession, tenant_id: str, request_host: str | None = None) -> svc.TenantProv:
     row = await get_settings_row(session, tenant_id)
-    return await svc.load_tenant_prov(session, row, await get_tenant_code(session, tenant_id), request_host)
+    code, timezone = await get_tenant_code_and_timezone(session, tenant_id)
+    return await svc.load_tenant_prov(session, row, code, request_host, timezone)
 
 
 def _device_out(device: Device, ext: Extension, keys: list[DeviceKey], status: str, registered: bool) -> DeviceOut:

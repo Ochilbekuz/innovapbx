@@ -1,6 +1,7 @@
 import { useTranslation } from 'react-i18next';
 import { useProvisioningSettings, useUpdateProvisioningSettings } from '@/api/queries';
 import type { ProvisioningExtra, ProvisioningSettings, SipTransport } from '@/api/types';
+import { TimezonePicker } from '@/screens/time/TimezonePicker';
 import { Button } from '@/ui/Button';
 import { Field, Input, Select, Textarea } from '@/ui/Field';
 import { useToast } from '@/ui/Toast';
@@ -54,8 +55,17 @@ function ProvisioningSettingsForm({ data, canManage }: { data: ProvisioningSetti
             />
           )}
         </Field>
-        <Field label={t('settings.timezone')}>
-          {(a) => <Input {...a} disabled={!canManage} mono value={state.timezone} onChange={(e) => setTimezone(e.target.value)} />}
+        <Field label={t('settings.timezone')} hint={t('settings.timezoneHint')}>
+          {(a) => (
+            <TimezonePicker
+              {...a}
+              disabled={!canManage}
+              value={state.timezone}
+              onChange={setTimezone}
+              searchPlaceholder={t('settings.timezoneSearchPlaceholder')}
+              noMatch={t('settings.timezoneNoMatch')}
+            />
+          )}
         </Field>
         <Field label={t('settings.ntpServer')}>
           {(a) => <Input {...a} disabled={!canManage} mono value={state.ntpServer} onChange={(e) => setNtpServer(e.target.value)} />}

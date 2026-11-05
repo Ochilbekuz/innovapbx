@@ -34,7 +34,7 @@ describe('usePermission', () => {
 
   it('foydalanuvchida "*" ruxsati bo\'lsa — true qaytaradi', () => {
     useSession.setState({
-      user: { id: 'u-1', login: 'admin', full_name: 'Admin', role: 'admin', permissions: ['*'], language: 'uz' },
+      user: { id: 'u-1', login: 'admin', full_name: 'Admin', role: 'admin', permissions: ['*'], language: 'uz', timezone: 'Asia/Tashkent' },
     });
     const { result } = renderHook(() => usePermission('pbx.manage'));
     expect(result.current).toBe(true);

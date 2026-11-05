@@ -27,13 +27,13 @@ export const SIM_ROLLBACK_MARK = 'SIMULYATSIYA_XATO';
 // operatorning haqiqiy ruxsati `calls:read:own` — faqat shaxsiy kabinet va o'z qo'ng'iroqlari.
 export const SEED_ADMIN: User = {
   id: 'u-admin', login: 'admin', full_name: 'Administrator', role: 'admin',
-  permissions: ['*'], language: 'uz',
+  permissions: ['*'], language: 'uz', timezone: 'Asia/Tashkent',
 };
 export const SEED_ADMIN_PASSWORD = 'Admin12345!';
 
 export const SEED_OPERATOR: User = {
   id: 'u-operator', login: 'operator', full_name: 'Operator Olimova', role: 'operator',
-  permissions: ['calls:read:own'], language: 'uz',
+  permissions: ['calls:read:own'], language: 'uz', timezone: 'Asia/Tashkent',
 };
 export const SEED_OPERATOR_PASSWORD = 'Operator12345!';
 
@@ -42,7 +42,7 @@ export const SEED_CUSTOM_ROLE_ID = 'role-nazoratchi';
 export const SEED_CUSTOM_ROLE_NAME = 'Nazoratchi';
 export const SEED_CUSTOM_USER: User = {
   id: 'u-nazoratchi', login: 'nazoratchi', full_name: 'Nilufar Qosimova', role: SEED_CUSTOM_ROLE_NAME,
-  permissions: ['routing:edit', 'reports:view'], language: 'uz',
+  permissions: ['routing:edit', 'reports:view'], language: 'uz', timezone: 'Asia/Tashkent',
 };
 export const SEED_CUSTOM_USER_PASSWORD = 'Nazoratchi12345!';
 
@@ -217,7 +217,15 @@ export function seedQueues(): Queue[] {
     {
       id: 'q-sotuv', name: 'Sotuv boʻlimi', number: '600', strategy: 'leastrecent',
       agent_ring_seconds: 20, retry_seconds: 5, wrapup_seconds: 10, max_wait_seconds: 180, max_callers: 20,
-      announce_position: true, announce_frequency_seconds: 30, sla_seconds: 20, join_empty: true, record: false,
+      announce_position: 'yes', announce_frequency_seconds: 30, sla_seconds: 20, join_empty: 'yes', record: false,
+      // 0037 (Queues FreePBX parity) — Asterisk sukut qiymatlari (mavjud xatti-harakat o'zgarmaydi).
+      skip_busy_agents: true, weight: 0, autofill: false, report_hold_time: false, member_delay_seconds: 0,
+      penalty_members_limit: 0, auto_pause: 'no', auto_pause_delay_seconds: 0, auto_pause_busy: false,
+      auto_pause_unavail: false, agent_timeout_restart: false, max_wait_mode: 'strict', leave_when_empty: 'no',
+      announce_position_limit: 10, announce_hold_time: 'yes', min_announce_frequency_seconds: 15,
+      periodic_announce_frequency_seconds: 0, ring_mode: 'moh', mark_answered_elsewhere: false,
+      cid_name_prefix: null, alert_info: null, periodic_announce_audio: null, join_announcement_audio: null,
+      agent_announcement_audio: null, breakout_target: null,
       members: [
         // Statik a'zo — tizim konfiguratsiyasidan, login/logout qila olmaydi (M2b §1).
         { extension: { id: 'e-101', number: '101', name: 'Dilnoza Karimova' }, penalty: 0, dynamic: false, logged_in: true, paused: false, pause_reason: null, state_at: now },
@@ -270,6 +278,15 @@ export function seedRingGroups(): RingGroup[] {
       no_answer_target: SYS_BUSY_TARGET,
       callerid_prefix: null,
       updated_at: now,
+      // 0038 (FreePBX Ring Groups parity) — standart qiymatlar, hozirgi xatti-harakat o'zgarmaydi.
+      announcement: null,
+      ring_strategy_sound: 'ring',
+      moh_class: null,
+      alert_info: null,
+      skip_busy_agent: false,
+      confirm_calls: false,
+      remote_announce: null,
+      recording_policy: 'dontcare',
     },
   ];
 }
@@ -346,7 +363,8 @@ export function seedAuditLog(): AuditEntry[] {
 export function seedMohClasses(files: Audio[]): MohClass[] {
   const now = '2026-10-27T05:00:00Z';
   return [
-    { id: 'moh-default', name: 'default', shuffle: false, files: files.slice(0, 1), updated_at: now },
+    { id: 'moh-default', name: 'default', shuffle: false, is_default: true, files: files.slice(0, 1), updated_at: now },
+    { id: 'moh-test', name: 'test', shuffle: true, is_default: false, files: files.slice(0, 1), updated_at: now },
   ];
 }
 

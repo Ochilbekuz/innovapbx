@@ -63,6 +63,12 @@ def _row(**prov):
                            sip_udp_port=5060, sip_tls_port=5061, updated_at=NOW)
 
 
+def _tenant_objects(tenant_id=TID, timezone="Asia/Tashkent"):
+    """`get_tenant_code_and_timezone` `session.get(Tenant, ...)` chaqiradi — "umumiy" fayl
+    yo'li (`/prov/.../y000000000000.cfg`) ham endi tizim zonasiga bog'lash uchun shunga muhtoj."""
+    return {("Tenant", str(tenant_id)): SimpleNamespace(code="t1", timezone=timezone)}
+
+
 def _request(host="pbx.uz:8711", forwarded=None, scheme="https"):
     headers = [(b"host", host.encode())]
     if forwarded:
@@ -306,9 +312,18 @@ def test_provisioning_base_and_out() -> None:
     assert sp.provisioning_base(row, _request()) == "https://pbx.uz:8711"
     assert sp.provisioning_base(row, _request(forwarded="a.uz:443, b")) == "https://a.uz:443"
     row.integrations = {"public_base_url": "https://pbx.example.uz/"}
-    out = sp.provisioning_out(row, _request())
+    out = sp.provisioning_out(row, _request(), "Asia/Tashkent")
     assert out.url == out.dhcp_option_66 == f"https://pbx.example.uz/prov/{TOKEN}/"
     assert out.has_admin_password is False and out.extra.yealink == ""
+
+
+def test_provisioning_out_timezone_follows_tenant_until_customized() -> None:
+    """Admin provizioning zonasini hali tanlamagan — displey tizim (`Tenant.timezone`)ga ergashadi;
+    admin ANIQ tanlasa (`provisioning.timezone` raw'da bor) — oʻz tanlovi tizim zonasidan mustaqil saqlanadi."""
+    row = _row()
+    assert sp.provisioning_out(row, _request(), "Europe/Moscow").timezone == "Europe/Moscow"
+    row = _row(timezone="Asia/Samarkand")
+    assert sp.provisioning_out(row, _request(), "Europe/Moscow").timezone == "Asia/Samarkand"
 
 
 def test_plain_changes() -> None:
@@ -380,7 +395,7 @@ async def test_serve_unknown_token_and_rate_limit(monkeypatch) -> None:
     assert [(a[0], a[1], a[2]) for a in alerts] == [(TID, "prov_bruteforce", "prov:10.0.0.5"),
                                                       ("t2", "prov_bruteforce", "prov:10.0.0.5")]
     assert "10.0.0.5" in alerts[0][3]
-    assert (await ps.serve(FakeSession(_row()), _req(ip="10.0.0.6"), guard)).status == 200
+    assert (await ps.serve(FakeSession(_row(), objects=_tenant_objects()), _req(ip="10.0.0.6"), guard)).status == 200
 
 
 @pytest.mark.asyncio
@@ -389,7 +404,7 @@ async def test_serve_network_denied_and_common_file() -> None:
     result = await ps.serve(session, _req(), _guard())
     assert (result.status, result.reason) == (403, "network_denied")
     assert _logged(session)[0].tenant_id == TID
-    result = await ps.serve(FakeSession(_row(language="ru")), _req(), _guard())
+    result = await ps.serve(FakeSession(_row(language="ru"), objects=_tenant_objects()), _req(), _guard())
     assert result.status == 200 and b"lang.gui = Russian" in result.body and b"password" not in result.body
 
 
@@ -442,15 +457,15 @@ async def test_serve_device_not_served(device, filename) -> None:
 
 @pytest.mark.asyncio
 async def test_serve_device_renders_and_updates(monkeypatch) -> None:
-    async def code(*_a):
-        return "t1"
+    async def code_and_tz(*_a):
+        return "t1", "Asia/Tashkent"
 
     async def keys(_s, ids):
         return {ids[0]: [SimpleNamespace(idx=1, type="blf", value="102", label="B")]}
 
     async def passwords(_s, ids):
         return {ids[0]: "Sip!Secret1"}
-    monkeypatch.setattr(ps, "get_tenant_code", code)
+    monkeypatch.setattr(ps, "get_tenant_code_and_timezone", code_and_tz)
     monkeypatch.setattr(svc, "keys_by_device", keys)
     monkeypatch.setattr(svc, "sip_passwords", passwords)
     device = _device(config_hash=None, provisioned_at=None, firmware=None)
