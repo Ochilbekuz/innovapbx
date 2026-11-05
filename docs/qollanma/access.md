@@ -3,7 +3,7 @@ id: access
 title: Kirish (SSH va veb-panel)
 group: system
 order: 150
-path: /settings/access
+path: /settings/firewall
 summary: SSH va veb-panel portlarini xavfsiz oʻzgartirish — qoʻllash-tasdiqlash oqimi, login buyrugʻi va ommaviy tasdiqlash havolasi bilan.
 ---
 

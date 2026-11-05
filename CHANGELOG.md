@@ -1,5 +1,11 @@
 # O'zgarishlar tarixi
 
+## 1.0.25 — 2026-11-05
+- **«Kirish (SSH va veb-panel)» endi alohida menyu emas** — Firewall sahifasidagi tab: «Qoidalar» | «SSH va veb-panel».
+  Firewall'dagi «SSH va veb-panelga kirish sozlamalari» havolasi shu tabni ochadi.
+- Eski `/settings/access` manzili (xatcho'plar, hujjatdagi havolalar) avtomatik `/settings/firewall?tab=access` ga
+  yo'naltiriladi; qo'llanmadagi «Kirish» sahifasi ham Firewall'ga bog'landi.
+
 ## 1.0.24 — 2026-11-05
 - **«Yangi navbat» formasi tushunarli bo'ldi**: ekranda xom kalitlar (`agentTimeoutRestartLabel`, `SECTION.CAPACITY`,
   `autoPauseNo` …) o'rniga o'zbekcha/ruscha/inglizcha nomlar. Tanlovlar ham tarjima qilindi: «A'zosiz ham navbatga

@@ -3,7 +3,7 @@ id: access
 title: Access (SSH and web panel)
 group: system
 order: 150
-path: /settings/access
+path: /settings/firewall
 summary: Safely change SSH and web-panel ports — with an apply/confirm flow, a login command, and a public confirmation link.
 ---
 

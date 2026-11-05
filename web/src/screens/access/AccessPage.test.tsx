@@ -21,7 +21,10 @@ vi.mock('@/lib/browser', async (importOriginal) => {
   return { ...actual, navigateTo };
 });
 
-const { AccessPage } = await import('./AccessPage');
+const { AccessPanel } = await import('./AccessPage');
+const { AppShellPage } = await import('@/shell/AppShellPage');
+// 1.0.25: AccessPanel — Firewall sahifasidagi tab; sinovda AppShellPage ichida (main bilan) render qilinadi.
+const AccessPage = () => <AppShellPage title="Firewall"><AccessPanel /></AppShellPage>;
 
 describe('AccessPage', () => {
   afterEach(() => { useSession.getState().clear(); navigateTo.mockClear(); });

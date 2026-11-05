@@ -1,15 +1,17 @@
 // Firewall sozlamalari: xizmatlar (ssh/web/sip/rtp) ruxsat ro'yxati + bloklangan manzillar, qo'llash-tasdiqlash
 // oqimi. Shartnoma: ../../replica/m12-contract.md §B3. Faqat `*` ruxsatiga ko'rinadi (`screens.ts`, group `system`).
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { Link } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { apiErrorMessage, isApiError } from '@/api/errors';
 import { useAccessState, useApplyFirewall, useConfirmFirewall, useFirewallState, useRollbackFirewall, useValidateFirewall } from '@/api/queries';
 import type { FirewallFieldError, FirewallStateOut } from '@/api/types';
 import { buildFirewallDiff, parseFirewallFieldPath } from '@/domain/firewall';
+import { AccessPanel } from '@/screens/access/AccessPage';
 import { AppShellPage } from '@/shell/AppShellPage';
 import { Button } from '@/ui/Button';
 import { Field, Segmented, Textarea } from '@/ui/Field';
+import { Tabs } from '@/ui/Tabs';
 import { useToast } from '@/ui/Toast';
 import { ConfirmApplyModal } from './ConfirmApplyModal';
 import { PendingBanner } from './PendingBanner';
@@ -118,12 +120,13 @@ function ServiceRow({
 }
 
 function ServicesSection({
-  draft, errors, locked, onChangeService, t, portLabels,
+  draft, errors, locked, onChangeService, onOpenAccess, t, portLabels,
 }: {
   draft: FirewallDraft;
   errors: Record<string, string>;
   locked: boolean;
   onChangeService: (name: string, patch: Partial<FirewallDraft['services'][number]>) => void;
+  onOpenAccess: () => void;
   t: TFunc;
   portLabels: Record<string, ReactNode>;
 }) {
@@ -131,7 +134,7 @@ function ServicesSection({
     <div className="flex flex-col gap-3">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <p className="text-sm font-medium text-fg">{t('services.title')}</p>
-        <Link to="/settings/access" className="text-sm text-accent underline-offset-2 hover:underline">{t('accessLink')}</Link>
+        <button type="button" onClick={onOpenAccess} className="text-sm text-accent underline-offset-2 hover:underline">{t('accessLink')}</button>
       </div>
       {draft.services.map((s) => (
         <ServiceRow key={s.name} draft={s} errors={errors} locked={locked} onChange={onChangeService} t={t} portLabel={portLabels[s.name]} />
@@ -246,6 +249,7 @@ function FirewallReadyBody({
     diffCount: number; onDiscard: () => void; onApply: () => void; applyLoading: boolean;
     onChangeService: (name: string, patch: Partial<FirewallDraft['services'][number]>) => void;
     onChangeBlocked: (text: string) => void;
+    onOpenAccess: () => void;
   };
 }) {
   const locked = isFirewallLocked(state);
@@ -266,7 +270,7 @@ function FirewallReadyBody({
           </>
         ) : (
           <div className="flex flex-col gap-6">
-            <ServicesSection draft={draft} errors={grouped.serviceErrors} locked={locked} onChangeService={draftActions.onChangeService} t={t} portLabels={portLabels} />
+            <ServicesSection draft={draft} errors={grouped.serviceErrors} locked={locked} onChangeService={draftActions.onChangeService} onOpenAccess={draftActions.onOpenAccess} t={t} portLabels={portLabels} />
             <BlockedSection draft={draft} error={grouped.blockedError} locked={locked} onChange={draftActions.onChangeBlocked} t={t} />
           </div>
         )}
@@ -299,6 +303,10 @@ export function FirewallPage() {
   const [confirmDiff, setConfirmDiff] = useState<string[]>([]);
   const [lastResultDismissed, setLastResultDismissed] = useState(false);
   const prevPendingId = useRef<string | null>(null);
+  // Kirish (SSH va veb-panel) shu sahifaning tabi — `?tab=access` (eski /settings/access shu yerga yo'naltiradi).
+  const [searchParams, setSearchParams] = useSearchParams();
+  const tab = searchParams.get('tab') === 'access' ? 'access' : 'rules';
+  const setTab = (v: string) => setSearchParams(v === 'access' ? { tab: 'access' } : {}, { replace: true });
 
   useEffect(() => {
     syncDraftFromState(state, draft, prevPendingId, setDraftRaw, () => {
@@ -345,28 +353,45 @@ export function FirewallPage() {
 
   return (
     <AppShellPage title={t('title')}>
-      {isLoading || !state || !draft ? (
-        <FirewallLoadingBody isError={isError} onRetry={() => void refetch()} t={t} />
-      ) : (
-        <FirewallReadyBody
-          t={t}
-          state={state}
-          draft={draft}
-          grouped={grouped}
-          hasOtherErrors={validateErrors.length > 0}
-          portLabels={portLabels}
-          timeoutS={timeoutS}
-          onTimeoutChange={setTimeoutS}
-          confirm={{ open: confirmOpen, diff: confirmDiff, loading: applyM.isPending, onConfirm: handleConfirmApply, onClose: () => setConfirmOpen(false) }}
-          pendingActions={{ onConfirm: handleConfirmPending, onRollback: handleRollbackPending, onExpire: () => void refetch(), confirmLoading: confirmM.isPending, rollbackLoading: rollbackM.isPending }}
-          draftActions={{
-            lastResultDismissed, onDismissLastResult: () => setLastResultDismissed(true),
-            diffCount: diff.length, onDiscard: handleDiscard, onApply: handleApplyClick, applyLoading: validateM.isPending,
-            onChangeService: handleChangeService,
-            onChangeBlocked: handleChangeBlocked,
-          }}
-        />
-      )}
+      <Tabs
+        label={t('title')}
+        value={tab}
+        onValueChange={setTab}
+        items={[
+          {
+            value: 'rules',
+            label: t('tabs.rules'),
+            content: (
+              <>
+                {isLoading || !state || !draft ? (
+                  <FirewallLoadingBody isError={isError} onRetry={() => void refetch()} t={t} />
+                ) : (
+                  <FirewallReadyBody
+                    t={t}
+                    state={state}
+                    draft={draft}
+                    grouped={grouped}
+                    hasOtherErrors={validateErrors.length > 0}
+                    portLabels={portLabels}
+                    timeoutS={timeoutS}
+                    onTimeoutChange={setTimeoutS}
+                    confirm={{ open: confirmOpen, diff: confirmDiff, loading: applyM.isPending, onConfirm: handleConfirmApply, onClose: () => setConfirmOpen(false) }}
+                    pendingActions={{ onConfirm: handleConfirmPending, onRollback: handleRollbackPending, onExpire: () => void refetch(), confirmLoading: confirmM.isPending, rollbackLoading: rollbackM.isPending }}
+                    draftActions={{
+                      lastResultDismissed, onDismissLastResult: () => setLastResultDismissed(true),
+                      diffCount: diff.length, onDiscard: handleDiscard, onApply: handleApplyClick, applyLoading: validateM.isPending,
+                      onChangeService: handleChangeService,
+                      onChangeBlocked: handleChangeBlocked,
+                      onOpenAccess: () => setTab('access'),
+                    }}
+                  />
+                )}
+              </>
+            ),
+          },
+          { value: 'access', label: t('tabs.access'), content: <AccessPanel /> },
+        ]}
+      />
     </AppShellPage>
   );
 }

@@ -1,7 +1,6 @@
 // Kirish (SSH va veb-panel) sozlamalari: SSH holati + port oʻzgartirish, veb-panel portlari. Shartnoma:
 // ../../replica/m12-contract.md §B4. Faqat `*` ruxsatiga koʻrinadi (`screens.ts`, group `system`).
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Copy } from 'lucide-react';
 import { apiErrorMessage, isApiError } from '@/api/errors';
@@ -12,7 +11,6 @@ import {
   sshNeedsAttention,
 } from '@/domain/access';
 import { copyText, currentLocation, navigateTo } from '@/lib/browser';
-import { AppShellPage } from '@/shell/AppShellPage';
 import { Button } from '@/ui/Button';
 import { Field, Input } from '@/ui/Field';
 import { useToast } from '@/ui/Toast';
@@ -192,11 +190,6 @@ function resolvePending(pendingId: string | undefined, mutation: PendingMutation
   mutation.mutate(pendingId, { onSuccess, onError });
 }
 
-// DIQQAT: AppShellPage komponenti doim BIR marta, AccessPage darajasida render qilinadi (pastda) —
-// yuklanish/tayyor holatlar faqat uning ICHIDAGI bolani almashtiradi. Agar bu ikki holat ikki xil
-// joyda alohida AppShellPage qaytarsa, React ularni turli element turi sifatida koʻrib butun main
-// tugunini (va undagi sidebar holatini) qayta yaratadi — sinovda within(main) eski, uzilgan DOM
-// tugunini kutib qolishiga olib keladi.
 function AccessLoadingBody({ isError, onRetry, t }: { isError: boolean; onRetry: () => void; t: TFunc }) {
   return isError ? (
     <div className="flex flex-col items-center gap-2 rounded-md border border-dashed border-line px-3 py-6 text-center text-sm text-muted">
@@ -208,8 +201,11 @@ function AccessLoadingBody({ isError, onRetry, t }: { isError: boolean; onRetry:
   );
 }
 
-/** Group `system` (faqat `*`) — shartnoma: GET/POST `/access/*` (../../replica/m12-contract.md §B4). */
-export function AccessPage() {
+/**
+ * Kirish (SSH va veb-panel) — 1.0.25 dan alohida menyu emas, Firewall sahifasining «SSH va veb-panel» tabi
+ * (AppShellPage'ni FirewallPage beradi). Shartnoma: GET/POST `/access/*` (../../replica/m12-contract.md §B4).
+ */
+export function AccessPanel() {
   const { t } = useTranslation('access');
   const toast = useToast();
   const { data: state, isLoading, isError, refetch } = useAccessState();
@@ -250,11 +246,7 @@ export function AccessPage() {
   }, [state]);
 
   if (isLoading || !state) {
-    return (
-      <AppShellPage title={t('title')}>
-        <AccessLoadingBody isError={isError} onRetry={() => void refetch()} t={t} />
-      </AppShellPage>
-    );
+    return <AccessLoadingBody isError={isError} onRetry={() => void refetch()} t={t} />;
   }
 
   const locked = isAccessLocked(state);
@@ -286,7 +278,7 @@ export function AccessPage() {
   const webPending = state.pending?.kind === 'web' ? state.pending : null;
 
   return (
-    <AppShellPage title={t('title')}>
+    <>
       <div className="flex flex-col gap-4">
         {locked && <Banner tone="warning">{t('readonlyBanner', { reason: state.readonly_reason })}</Banner>}
         {!lastResultDismissed && !state.pending && <LastResultBanner state={state} onDismiss={() => setLastResultDismissed(true)} t={t} />}
@@ -342,10 +334,6 @@ export function AccessPage() {
             />
           )}
         </Card>
-
-        <p className="text-sm text-muted">
-          <Link to="/settings/firewall" className="text-accent underline-offset-2 hover:underline">{t('firewallLink')}</Link>
-        </p>
       </div>
 
       <ConfirmWebApplyModal
@@ -357,6 +345,6 @@ export function AccessPage() {
         onClose={() => setWebConfirmOpen(false)}
         loading={applyWebM.isPending}
       />
-    </AppShellPage>
+    </>
   );
 }

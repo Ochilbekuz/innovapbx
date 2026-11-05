@@ -77,4 +77,12 @@ describe('guruh aksent ranglari — har guruhga oʻz rangi, qorongʻi sidebarda 
     const hexes = GROUP_ORDER.map((g) => light[GROUP_META[g].accent]);
     expect(new Set(hexes).size).toBe(GROUP_ORDER.length);
   });
+
+});
+
+describe('screens — Kirish', () => {
+  it('«Kirish (SSH va veb-panel)» alohida menyu emas — Firewall ichidagi tab', () => {
+    expect(SCREENS.find((sc) => sc.path === '/settings/access')).toBeUndefined();
+    expect(SCREENS.find((sc) => sc.id === 'firewall')).toBeTruthy();
+  });
 });

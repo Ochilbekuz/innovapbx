@@ -6,7 +6,6 @@ export const uz = {
   loadFailed: 'Yuklab boʻlmadi.',
   retry: 'Qayta urinish',
   readonlyBanner: 'Kirish sozlamalari faqat koʻrish uchun: {{reason}}',
-  firewallLink: 'SSH va veb-panelga kirish sozlamalari',
 
   ssh: {
     title: 'SSH',
@@ -74,7 +73,6 @@ export const ru = {
   loadFailed: 'Не удалось загрузить.',
   retry: 'Повторить',
   readonlyBanner: 'Настройки доступа только для просмотра: {{reason}}',
-  firewallLink: 'Настройки доступа по SSH и веб-панели',
 
   ssh: {
     title: 'SSH',
@@ -142,7 +140,6 @@ export const en = {
   loadFailed: 'Could not load.',
   retry: 'Retry',
   readonlyBanner: 'Access settings are read-only: {{reason}}',
-  firewallLink: 'SSH and web panel access settings',
 
   ssh: {
     title: 'SSH',

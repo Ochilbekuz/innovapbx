@@ -3,7 +3,7 @@ id: access
 title: Доступ (SSH и веб-панель)
 group: system
 order: 150
-path: /settings/access
+path: /settings/firewall
 summary: Безопасная смена портов SSH и веб-панели — с потоком применения/подтверждения, командой входа и публичной ссылкой подтверждения.
 ---
 

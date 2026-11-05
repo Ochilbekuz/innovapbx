@@ -55,7 +55,6 @@ import { DayNightPage } from '@/screens/daynight/DayNightPage';
 import { DisaPage } from '@/screens/disa/DisaPage';
 import { TimeSettingsPage } from '@/screens/time/TimeSettingsPage';
 import { FirewallPage } from '@/screens/firewall/FirewallPage';
-import { AccessPage } from '@/screens/access/AccessPage';
 import { AccessConfirmPage } from '@/screens/access/AccessConfirmPage';
 
 // Qo'llanma matnlari (~300 KB) asosiy bundle'ga kirmasin — alohida chunk, birinchi ochilganda yuklanadi.
@@ -107,7 +106,6 @@ const FULL_PAGES: Record<string, ComponentType> = {
   disa: DisaPage,
   time: TimeSettingsPage,
   firewall: FirewallPage,
-  access: AccessPage,
 };
 
 /** `/` va noma'lum yo'llar uchun ruxsatga mos boshlang'ich sahifa (M7 §4 — qarang `homeFor`). */
@@ -125,6 +123,8 @@ export function AppRouter() {
       <Route path="/login" element={<RedirectIfAuthed><LoginPage /></RedirectIfAuthed>} />
       {/* Autentifikatsiyasiz — veb-panel porti o'zgargandan keyin brauzer shu yerga keladi (M12 B4 §3). */}
       <Route path="/access-confirm" element={<AccessConfirmPage />} />
+      {/* 1.0.25: Kirish (SSH va veb-panel) — Firewall sahifasining tabi; eski manzil u yerga yo'naltiriladi. */}
+      <Route path="/settings/access" element={<RequireAuth><Navigate to="/settings/firewall?tab=access" replace /></RequireAuth>} />
 
       {SCREENS.map((s) => {
         const Page = FULL_PAGES[s.id];

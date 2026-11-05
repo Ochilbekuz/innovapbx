@@ -19,7 +19,8 @@ const { FirewallPage } = await import('./FirewallPage');
 describe('FirewallPage', () => {
   afterEach(() => useSession.getState().clear());
 
-  it('xizmat qatorlarida joriy SSH/veb-panel portlarini koʻrsatadi va Kirish sahifasiga havola beradi', async () => {
+  it('xizmat qatorlarida joriy SSH/veb-panel portlarini koʻrsatadi; havola «SSH va veb-panel» tabini ochadi', async () => {
+    const user = userEvent.setup();
     await loginAs(client, 'admin');
     renderPage(<FirewallPage />);
     const main = within(await screen.findByRole('main'));
@@ -27,8 +28,18 @@ describe('FirewallPage', () => {
     expect(await main.findByText('Port: 22')).toBeTruthy();
     expect(main.getByText('HTTP: 80, HTTPS: 443')).toBeTruthy();
 
-    const link = main.getByRole('link', { name: 'SSH va veb-panelga kirish sozlamalari' });
-    expect(link.getAttribute('href')).toBe('/settings/access');
+    await user.click(main.getByRole('button', { name: 'SSH va veb-panelga kirish sozlamalari' }));
+    expect(main.getByRole('tab', { name: 'SSH va veb-panel' })).toHaveAttribute('aria-selected', 'true');
+    expect(await main.findByLabelText('Yangi SSH port')).toBeTruthy();
+  });
+
+  it('?tab=access — Kirish (SSH va veb-panel) toʻgʻridan-toʻgʻri Firewall ichida ochiladi', async () => {
+    await loginAs(client, 'admin');
+    renderPage(<FirewallPage />, '/settings/firewall?tab=access');
+    const main = within(await screen.findByRole('main'));
+
+    expect(main.getByRole('tab', { name: 'Qoidalar' })).toHaveAttribute('aria-selected', 'false');
+    expect(await main.findByText(/ssh -p 22 innova@/)).toBeTruthy();
   });
 
   it('kutilayotgan oʻzgarish boʻlsa — pending banner koʻrinadi, tasdiqlagandan keyin yoʻqoladi', async () => {

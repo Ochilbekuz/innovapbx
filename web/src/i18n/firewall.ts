@@ -4,6 +4,7 @@
 
 export const uz = {
   title: 'Firewall',
+  tabs: { rules: 'Qoidalar', access: 'SSH va veb-panel' },
   loadFailed: 'Yuklab boʻlmadi.',
   retry: 'Qayta urinish',
   readonlyBanner: 'Firewall sozlamalari faqat koʻrish uchun: {{reason}}',
@@ -62,6 +63,7 @@ export const uz = {
 
 export const ru = {
   title: 'Firewall',
+  tabs: { rules: 'Правила', access: 'SSH и веб-панель' },
   loadFailed: 'Не удалось загрузить.',
   retry: 'Повторить',
   readonlyBanner: 'Настройки firewall только для просмотра: {{reason}}',
@@ -120,6 +122,7 @@ export const ru = {
 
 export const en = {
   title: 'Firewall',
+  tabs: { rules: 'Rules', access: 'SSH & web panel' },
   loadFailed: 'Could not load.',
   retry: 'Retry',
   readonlyBanner: 'Firewall settings are read-only: {{reason}}',

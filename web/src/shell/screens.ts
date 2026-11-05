@@ -2,7 +2,7 @@ import { createElement, type ReactNode } from 'react';
 import { hasPermission } from '@/auth/permissions';
 import {
   Activity, ArrowRightLeft, AudioLines, Blocks, Cable, ChartNoAxesCombined, Gauge, Route, Settings2, UsersRound, BadgeCheck, BellRing, BookUser, CalendarClock, ChartNoAxesColumn, CircleUserRound,
-  ClipboardCheck, Clock, DatabaseBackup, DoorOpen, EthernetPort, Flame, Grid3x3, Hash, History, IdCard, KeyRound, LayoutDashboard, ListOrdered,
+  ClipboardCheck, Clock, DatabaseBackup, EthernetPort, Flame, Grid3x3, Hash, History, IdCard, KeyRound, LayoutDashboard, ListOrdered,
   Lock, Megaphone, Mic2, Network, ParkingSquare, PhoneIncoming, PhoneMissed, PhoneOutgoing, Plug, RadioTower, RefreshCw, ScrollText,
   ServerCog, Shuffle, ShieldCheck, ShieldOff, Smartphone, SunMoon, UserCog, Users, Voicemail, Waypoints,
 } from 'lucide-react';
@@ -106,8 +106,7 @@ export const SCREENS: ScreenDef[] = [
   { id: 'time', reconId: 'S48', path: '/settings/time', icon: icon(Clock), group: 'system' },
   // M12 B3 — qarang ../../replica/m12-contract.md §B3. S-raqam yo'q (M8 `network`dagi kabi yangi qo'shilgan).
   { id: 'firewall', reconId: 'S49', path: '/settings/firewall', icon: icon(Flame), group: 'system', full: true },
-  // M12 B4 — Kirish (SSH va veb-panel). S-raqam yo'q (M8 `network`dagi kabi yangi qo'shilgan).
-  { id: 'access', reconId: 'S50', path: '/settings/access', icon: icon(DoorOpen), group: 'system', full: true },
+  // M12 B4 — Kirish (SSH va veb-panel) alohida menyu emas: Firewall sahifasidagi «SSH va veb-panel» tabi (1.0.25).
 ];
 
 /** Sidebarda ko'rsatilmaydigan, lekin marshruti bo'lishi kerak bo'lgan ekranlar (recon'dagi qolgan ID'lar). */
