@@ -1,5 +1,18 @@
 # O'zgarishlar tarixi
 
+## 1.0.24 — 2026-11-05
+- **«Yangi navbat» formasi tushunarli bo'ldi**: ekranda xom kalitlar (`agentTimeoutRestartLabel`, `SECTION.CAPACITY`,
+  `autoPauseNo` …) o'rniga o'zbekcha/ruscha/inglizcha nomlar. Tanlovlar ham tarjima qilindi: «A'zosiz ham navbatga
+  qo'shilsin», «A'zosiz qolganda navbatdan chiqarish», «Navbatdagi o'rinni / kutish vaqtini e'lon qilish» va boshqalar.
+- **Qo'ng'iroq guruhi**: nom maydoni ostidagi `nameHint` → «Ko'pi bilan N belgi».
+- **«Kirish» (SSH) — Proxmox LXC / Debian shabloni**: serverda oddiy foydalanuvchi bo'lmasa va root faqat kalit bilan
+  kira olsa (Debian sukuti `prohibit-password` — parol to'g'ri bo'lsa ham «Access denied»), sahifa endi `root@…` buyrug'ini
+  va Proxmox konsolida bajariladigan tuzatishni ko'rsatadi (ilgari `ssh -p 22 @host` va «sudo -i» chiqardi).
+- Yuqori paneldagi reviziya tooltipi i18n kalitiga o'tkazildi (`i18nScanner` testi yana yashil).
+- **Takrorlanmasligi uchun avtomatik nazorat**: kodda chaqirilgan har i18n kalit uz/ru/en da borligini tekshiruvchi test
+  (`src/i18n/usage.test.ts`) va barcha sahifa, tab hamda «Yangi …» dialoglarini aylanib xom kalit qidiruvchi e2e
+  (`e2e/i18n-crawl.spec.ts`).
+
 ## 1.0.23 — 2026-11-05
 - **«Sana va vaqt»: NTP endi jim «saqlanmaydi»**. Ilgari NTP yoqilganda `timedatectl set-ntp true` muvaffaqiyat
   qaytarardi, panel «Saqlandi» derdi, lekin sinxron xizmat ishga tushmasdi va tugma qayta o'chib qolardi.

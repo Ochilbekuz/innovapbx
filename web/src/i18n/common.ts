@@ -2,6 +2,7 @@
 // O'zbekcha qiymatlar manba ekranlardan o'zgarmagan holda ko'chirilgan.
 
 export const uz = {
+  cancel: 'Bekor qilish',
   crash: {
     title: 'Sahifada xato yuz berdi',
     body: 'Maʼlumotlaringiz saqlangan. Sahifani qayta yuklang; xato takrorlansa — quyidagi matnni administratorga yuboring.',
@@ -268,6 +269,7 @@ export const uz = {
 };
 
 export const ru = {
+  cancel: 'Отмена',
   crash: {
     title: 'На странице произошла ошибка',
     body: 'Ваши данные сохранены. Перезагрузите страницу; если ошибка повторится — отправьте текст ниже администратору.',
@@ -534,6 +536,7 @@ export const ru = {
 };
 
 export const en = {
+  cancel: 'Cancel',
   crash: {
     title: 'Something went wrong on this page',
     body: 'Your data is safe. Reload the page; if the error repeats, send the text below to your administrator.',

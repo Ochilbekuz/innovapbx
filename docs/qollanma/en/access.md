@@ -25,6 +25,9 @@ Menu: **System → Access**. Who sees it: only a user with `*` (full administrat
 - **Login instructions** — the `ssh -p <port> innova@<host>` command for the current port — copy it with
   one click using **Copy**.
 - **Root login** — disabled for security; use `sudo -i` after logging in.
+- **Proxmox LXC / Debian template** — there is no `innova` user and root may log in with an SSH key only by default,
+  so even a correct password gives "Access denied". In the Proxmox console (`pct enter <ID>`) run:
+  `echo 'PermitRootLogin yes' > /etc/ssh/sshd_config.d/10-innova-root.conf && systemctl restart ssh` — then log in as `root` with its password. The page detects this case and shows the command.
 - **Host firewall** — if the server is protected by an external (hosting/ufw) firewall, a note reminds
   you to open the new port there too.
 - **Apply → Confirm flow** — same as the **Firewall** page: after **Apply**, the change takes effect

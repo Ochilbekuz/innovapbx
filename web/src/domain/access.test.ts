@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  buildSshLoginCommand, buildWebAddress, buildWebConfirmUrl, isReservedPort, sshNeedsAttention, showRootLoginNote, validateSshApply, validateWebApply,
+  buildSshLoginCommand, buildWebAddress, buildWebConfirmUrl, isReservedPort, ROOT_LOGIN_FIX_COMMAND, sshLoginAdvice, sshLoginUser, sshNeedsAttention, showRootLoginNote, validateSshApply, validateWebApply,
 } from './access';
 import type { AccessSshApplyIn, AccessSshOut, AccessWebApplyIn } from '@/api/types';
 
@@ -72,6 +72,29 @@ describe('access — buildSshLoginCommand', () => {
 describe('access — showRootLoginNote', () => {
   it.each(['no', 'prohibit-password'] as const)('%s uchun eslatma koʻrsatiladi', (v) => expect(showRootLoginNote(v)).toBe(true));
   it.each(['yes', 'without-password', 'forced-commands-only', null] as const)('%s uchun eslatma koʻrsatilmaydi', (v) => expect(showRootLoginNote(v)).toBe(false));
+});
+
+describe('access — sshLoginUser / sshLoginAdvice', () => {
+  it('oddiy foydalanuvchi bor (ISO: innova) — u bilan kiriladi, «sudo -i» eslatmasi', () => {
+    expect(sshLoginUser(sshOut())).toBe('innova');
+    expect(sshLoginAdvice(sshOut())).toBe('sudo');
+  });
+  it('Proxmox LXC shabloni: foydalanuvchi yoʻq, root faqat kalit bilan — hech kim parol bilan kira olmaydi', () => {
+    const lxc = sshOut({ login_users: [] });
+    expect(sshLoginUser(lxc)).toBe('root');
+    expect(sshLoginAdvice(lxc)).toBe('no-login');
+  });
+  it.each(['no', 'without-password', null] as const)('foydalanuvchisiz, root_login=%s — ham kirib boʻlmaydi', (v) => {
+    expect(sshLoginAdvice(sshOut({ login_users: [], root_login: v }))).toBe('no-login');
+  });
+  it('foydalanuvchisiz, lekin root parol bilan kira oladi — eslatma kerak emas', () => {
+    expect(sshLoginAdvice(sshOut({ login_users: [], root_login: 'yes' }))).toBeNull();
+  });
+  it('tuzatish buyrugʻi drop-in orqali root kirishini yoqadi va sshd ni qayta ishga tushiradi', () => {
+    expect(ROOT_LOGIN_FIX_COMMAND).toContain('PermitRootLogin yes');
+    expect(ROOT_LOGIN_FIX_COMMAND).toContain('/etc/ssh/sshd_config.d/');
+    expect(ROOT_LOGIN_FIX_COMMAND).toContain('systemctl restart ssh');
+  });
 });
 
 describe('access — sshNeedsAttention', () => {

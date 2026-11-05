@@ -260,7 +260,7 @@ function RingGroupDrawer({
         {errorMessage && errorField !== 'number' && errorField !== 'members' && <p className="text-sm text-danger">{errorMessage}</p>}
 
         <h3 className="font-display text-base font-semibold">{t('form.section.general')}</h3>
-        <Field label={t('form.nameLabel')} required hint={t('nameHint', { max: NAME_MAX })}>
+        <Field label={t('form.nameLabel')} required hint={t('form.nameHint', { max: NAME_MAX })}>
           {(a) => <Input {...a} autoFocus maxLength={NAME_MAX} value={name} onChange={(e) => setName(e.target.value)} />}
         </Field>
         <NumberField value={number} onChange={setNumber} error={errorField === 'number' ? errorMessage : undefined} hint={t('form.numberHint')} />

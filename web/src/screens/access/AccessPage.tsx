@@ -8,7 +8,8 @@ import { apiErrorMessage, isApiError } from '@/api/errors';
 import { useAccessState, useApplySsh, useApplyWeb, useConfirmAccess, useRollbackAccess } from '@/api/queries';
 import type { AccessFieldError, AccessStateOut } from '@/api/types';
 import {
-  ACCESS_DEFAULT_TIMEOUT_S, buildSshLoginCommand, buildWebAddress, buildWebConfirmUrl, showRootLoginNote, sshNeedsAttention,
+  ACCESS_DEFAULT_TIMEOUT_S, buildSshLoginCommand, buildWebAddress, buildWebConfirmUrl, ROOT_LOGIN_FIX_COMMAND, sshLoginAdvice, sshLoginUser,
+  sshNeedsAttention,
 } from '@/domain/access';
 import { copyText, currentLocation, navigateTo } from '@/lib/browser';
 import { AppShellPage } from '@/shell/AppShellPage';
@@ -70,7 +71,8 @@ function LoginCommandRow({ command, t }: { command: string; t: TFunc }) {
 }
 
 function SshStatusSection({ ssh, hostname, t }: { ssh: AccessStateOut['ssh']; hostname: string; t: TFunc }) {
-  const command = buildSshLoginCommand(ssh.port, ssh.login_users[0] ?? '', hostname);
+  const command = buildSshLoginCommand(ssh.port, sshLoginUser(ssh), hostname);
+  const advice = sshLoginAdvice(ssh);
   return (
     <div className="flex flex-col gap-3">
       {sshNeedsAttention(ssh) && <Banner tone="danger">{t('ssh.attentionWarning')}</Banner>}
@@ -80,7 +82,13 @@ function SshStatusSection({ ssh, hostname, t }: { ssh: AccessStateOut['ssh']; ho
         <span className="num">{t('ssh.listening', { ports: ssh.listening_ports.join(', ') })}</span>
         <span>{ssh.password_auth ? t('ssh.passwordAuthOn') : t('ssh.passwordAuthOff')}</span>
       </div>
-      {showRootLoginNote(ssh.root_login) && <p className="text-sm text-muted">{t('ssh.rootLoginNote')}</p>}
+      {advice === 'sudo' && <p className="text-sm text-muted">{t('ssh.rootLoginNote')}</p>}
+      {advice === 'no-login' && (
+        <Banner tone="warning">
+          <p>{t('ssh.noLoginUser')}</p>
+          <code className="num mt-1.5 block break-all text-xs">{ROOT_LOGIN_FIX_COMMAND}</code>
+        </Banner>
+      )}
       {ssh.host_firewall === 'external' && <p className="text-sm text-muted">{t('ssh.hostFirewallNote')}</p>}
       <LoginCommandRow command={command} t={t} />
     </div>
@@ -288,7 +296,7 @@ export function AccessPage() {
           {sshPending ? (
             <PendingBanner
               pending={sshPending}
-              hint={t('ssh.pendingHint', { command: buildSshLoginCommand(sshPending.new_ports[0] ?? state.ssh.port, state.ssh.login_users[0] ?? '', hostname) })}
+              hint={t('ssh.pendingHint', { command: buildSshLoginCommand(sshPending.new_ports[0] ?? state.ssh.port, sshLoginUser(state.ssh), hostname) })}
               onConfirm={handleConfirmPending}
               onRollback={handleRollbackPending}
               onExpire={() => void refetch()}

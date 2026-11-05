@@ -1,7 +1,7 @@
 // Xatti-harakat testi — M10 C A3: "Matndan audio yaratish" (TTS) kartasi/dialogi.
 // Qarang ../../../replica/m10-onlinepbx-contract.md §A3.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { screen, waitFor } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { createFakeClient } from '@/api/fake';
 import { useSession } from '@/api/session';
@@ -82,5 +82,56 @@ describe('AudioPage — TTS (matndan audio)', () => {
 
     expect(screen.getByRole('button', { name: 'Tinglab koʻrish' })).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Saqlash' })).toBeDisabled();
+  });
+});
+
+// i18n'da noto'g'ri yo'l bilan chaqirilgan kalit yoki tarjimasiz enum qiymat ishlab chiqarishda
+// xomligicha ko'rinadi — shuni ushlab oladigan regex (queues/ringgroups'dagi bilan bir xil naqsh,
+// "nameHint" kabi bitta-do'ngli kalitlarni ham, \b chegarasiz qo'shilib ketgan DOM matnini ham ushlaydi).
+const RAW_KEY_RE = /[a-z](Label|Desc|Hint|Title|Option)(?![a-z])/;
+const RAW_SECTION_RE = /section\./i;
+const RAW_ENUM_VALUES = new Set(['none', 'once', 'strict', 'loose', 'limit', 'more']);
+
+describe('AudioPage — dialoglarda xom i18n kalit yoki tarjimasiz enum yo‘q', () => {
+  beforeEach(async () => {
+    await loginAs(client, 'admin');
+  });
+  afterEach(() => useSession.getState().clear());
+
+  it('"Matndan audio yaratish" dialogida xom kalit yoki tarjimasiz enum ko‘rinmaydi', async () => {
+    const before = await client.getTtsSettings();
+    await client.updateTtsSettings({ provider: 'yandex', api_key: 'sinov-kalit-3', updated_at: before.updated_at });
+
+    const user = userEvent.setup();
+    renderPage(<ToastProvider><AudioPage /></ToastProvider>);
+
+    await user.click(await screen.findByRole('button', { name: 'Boshlash' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Matndan audio yaratish' });
+    const text = dialog.textContent ?? '';
+    expect(text).not.toMatch(RAW_KEY_RE);
+    expect(text).not.toMatch(RAW_SECTION_RE);
+
+    for (const combobox of within(dialog).queryAllByRole('combobox')) {
+      const shown = (combobox.textContent ?? '').trim().toLowerCase();
+      expect(RAW_ENUM_VALUES.has(shown)).toBe(false);
+    }
+  });
+
+  it('kutish musiqasi "Yangi sinf" drawer\'ida xom kalit yoki tarjimasiz enum ko‘rinmaydi', async () => {
+    const user = userEvent.setup();
+    renderPage(<ToastProvider><AudioPage /></ToastProvider>);
+
+    await user.click(await screen.findByRole('tab', { name: 'Kutish musiqasi' }));
+    await user.click(await screen.findByRole('button', { name: 'Yangi sinf' }));
+
+    const dialog = await screen.findByRole('dialog');
+    const text = dialog.textContent ?? '';
+    expect(text).not.toMatch(RAW_KEY_RE);
+    expect(text).not.toMatch(RAW_SECTION_RE);
+
+    for (const combobox of within(dialog).queryAllByRole('combobox')) {
+      const shown = (combobox.textContent ?? '').trim().toLowerCase();
+      expect(RAW_ENUM_VALUES.has(shown)).toBe(false);
+    }
   });
 });

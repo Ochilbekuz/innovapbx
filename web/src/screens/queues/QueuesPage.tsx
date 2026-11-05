@@ -416,8 +416,8 @@ function QueueDrawer({
               <Select
                 id={id} value={joinEmpty} onValueChange={(v) => setJoinEmpty(v as QueueJoinEmpty)}
                 options={[
-                  { value: 'no', label: t('autoPauseNo') }, { value: 'yes', label: t('autoPauseYes') },
-                  { value: 'strict', label: 'strict' }, { value: 'loose', label: 'loose' },
+                  { value: 'no', label: t('form.joinEmptyOption.no') }, { value: 'yes', label: t('form.joinEmptyOption.yes') },
+                  { value: 'strict', label: t('form.joinEmptyOption.strict') }, { value: 'loose', label: t('form.joinEmptyOption.loose') },
                 ]}
               />
             )}
@@ -427,8 +427,8 @@ function QueueDrawer({
               <Select
                 id={id} value={leaveWhenEmpty} onValueChange={(v) => setLeaveWhenEmpty(v as QueueJoinEmpty)}
                 options={[
-                  { value: 'no', label: t('autoPauseNo') }, { value: 'yes', label: t('autoPauseYes') },
-                  { value: 'strict', label: 'strict' }, { value: 'loose', label: 'loose' },
+                  { value: 'no', label: t('leaveWhenEmptyOption.no') }, { value: 'yes', label: t('leaveWhenEmptyOption.yes') },
+                  { value: 'strict', label: t('leaveWhenEmptyOption.strict') }, { value: 'loose', label: t('leaveWhenEmptyOption.loose') },
                 ]}
               />
             )}
@@ -450,8 +450,8 @@ function QueueDrawer({
               <Select
                 id={id} value={announcePos} onValueChange={(v) => setAnnouncePos(v as QueueAnnouncePosition)}
                 options={[
-                  { value: 'no', label: t('autoPauseNo') }, { value: 'yes', label: t('autoPauseYes') },
-                  { value: 'limit', label: 'limit' }, { value: 'more', label: 'more' },
+                  { value: 'no', label: t('form.announcePosOption.no') }, { value: 'yes', label: t('form.announcePosOption.yes') },
+                  { value: 'limit', label: t('form.announcePosOption.limit') }, { value: 'more', label: t('form.announcePosOption.more') },
                 ]}
               />
             )}
@@ -460,7 +460,10 @@ function QueueDrawer({
             {({ id }) => (
               <Select
                 id={id} value={announceHoldTime} onValueChange={(v) => setAnnounceHoldTime(v as QueueAnnounceHoldTime)}
-                options={[{ value: 'no', label: t('autoPauseNo') }, { value: 'yes', label: t('autoPauseYes') }, { value: 'once', label: 'once' }]}
+                options={[
+                  { value: 'no', label: t('announceHoldTimeOption.no') }, { value: 'yes', label: t('announceHoldTimeOption.yes') },
+                  { value: 'once', label: t('announceHoldTimeOption.once') },
+                ]}
               />
             )}
           </Field>

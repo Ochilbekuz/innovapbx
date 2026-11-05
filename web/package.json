@@ -37,10 +37,14 @@
     "zustand": "^5.0.16"
   },
   "devDependencies": {
+    "@babel/parser": "^7.29.11",
+    "@babel/traverse": "^7.29.10",
+    "@babel/types": "^7.29.11",
     "@playwright/test": "^1.62.0",
     "@testing-library/jest-dom": "^7.0.1",
     "@testing-library/react": "^16.3.3",
     "@testing-library/user-event": "^14.6.8",
+    "@types/babel__traverse": "^7.28.0",
     "@types/node": "^26.6.5",
     "@types/qrcode": "^1.5.6",
     "@types/react": "^18.3.31",

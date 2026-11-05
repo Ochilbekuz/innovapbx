@@ -106,7 +106,7 @@ export function RevisionBadge({ rev }: { rev: Revision }) {
         'inline-flex h-ctl-md items-center gap-2 rounded-md border px-2.5 text-sm transition-colors duration-fast hover:bg-surface-2',
         rev.state === 'rolled_back' ? 'border-danger/40 bg-danger-soft' : 'border-line bg-surface',
       )}
-      title={`${st.text} ${rev.at} · ${t('revisionHistoryTitle')}`}
+      title={t('revisionTooltip', { state: st.text, at: rev.at })}
     >
       <span aria-hidden className={cn('[&_svg]:size-4', st.cls)}>{st.icon}</span>
       <span className="text-muted">{t('dialplanLabel')}</span>

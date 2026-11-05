@@ -63,6 +63,25 @@ export function showRootLoginNote(rootLogin: AccessRootLogin | null): boolean {
   return rootLogin === 'no' || rootLogin === 'prohibit-password';
 }
 
+/** SSH orqali kim bilan kirish kerak: oddiy foydalanuvchi (ISO: innova), bo'lmasa — root (Proxmox LXC shablonlari). */
+export function sshLoginUser(ssh: AccessSshOut): string {
+  return ssh.login_users[0] ?? 'root';
+}
+
+/**
+ * Login buyrug'i ostidagi maslahat: `sudo` — oddiy foydalanuvchi bor, root yopiq (kirgach sudo -i);
+ * `no-login` — oddiy foydalanuvchi yo'q va root parol bilan kira olmaydi (Debian/LXC sukuti `prohibit-password`;
+ * `null` = sshd -T ishlamadi va sozlamada yo'q → OpenSSH sukuti ham shu) — konsoldan tuzatish kerak.
+ */
+export function sshLoginAdvice(ssh: AccessSshOut): 'sudo' | 'no-login' | null {
+  if (ssh.login_users.length === 0) return ssh.root_login === 'yes' ? null : 'no-login';
+  return showRootLoginNote(ssh.root_login) ? 'sudo' : null;
+}
+
+/** Proxmox konsolida (pct enter <ID>) root parol bilan kirishni yoqish — Debian 12 sshd_config.d ni boshida o'qiydi. */
+export const ROOT_LOGIN_FIX_COMMAND =
+  "echo 'PermitRootLogin yes' > /etc/ssh/sshd_config.d/10-innova-root.conf && systemctl restart ssh";
+
 /** sshd ishlamayapti yoki e'lon qilingan port hech qaysi tinglanayotgan portda yo'q — aniq ogohlantirish kerak. */
 export function sshNeedsAttention(ssh: AccessSshOut): boolean {
   return !ssh.active || !ssh.listening_ports.includes(ssh.port);

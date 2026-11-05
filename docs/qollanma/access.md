@@ -24,6 +24,9 @@ Menyu: **Tizim → Kirish**. Kim koʻradi: faqat `*` (toʻliq administrator) rux
 - **Kirish yoʻriqnomasi** — joriy portga mos `ssh -p <port> innova@<host>` buyrugʻi — **Nusxalash**
   tugmasi bilan bitta bosishda koʻchiriladi.
 - **Root bilan kirish** — xavfsizlik uchun yopiq; kirgandan keyin `sudo -i` ishlatiladi.
+- **Proxmox LXC / Debian shabloni** — u yerda `innova` foydalanuvchisi yoʻq, root esa sukut boʻyicha faqat SSH kalit bilan
+  kira oladi: parol toʻgʻri boʻlsa ham «Access denied». Proxmox konsolida (`pct enter <ID>`) bajaring:
+  `echo 'PermitRootLogin yes' > /etc/ssh/sshd_config.d/10-innova-root.conf && systemctl restart ssh` — keyin `root` va uning paroli bilan kiriladi. Sahifa bu holatni oʻzi aniqlab, shu buyruqni koʻrsatadi.
 - **Host firewall** — agar server tashqi (hosting/ufw) firewall orqali himoyalangan boʻlsa, yangi portni
   oʻsha tomonda ham ochish kerakligi haqida eslatma chiqadi.
 - **Qoʻllash → Tasdiqlash oqimi** — **Firewall** sahifasi bilan bir xil: **Qoʻllash** bosilgach oʻzgarish

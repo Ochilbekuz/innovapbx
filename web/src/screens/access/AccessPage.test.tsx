@@ -36,6 +36,23 @@ describe('AccessPage', () => {
     expect(main.getByText('ssh -p 22 innova@localhost')).toBeTruthy();
   });
 
+  it('Proxmox LXC: oddiy foydalanuvchi yoʻq, root faqat kalit bilan — root buyrugʻi va konsoldagi tuzatish koʻrsatiladi', async () => {
+    await loginAs(client, 'admin');
+    const seed = await client.accessState();
+    const spy = vi.spyOn(client, 'accessState').mockResolvedValue({ ...seed, ssh: { ...seed.ssh, login_users: [] } });
+    try {
+      renderPage(<AccessPage />);
+      const main = within(await screen.findByRole('main'));
+
+      expect(await main.findByText('ssh -p 22 root@localhost')).toBeTruthy();
+      expect(main.getByText(/pct enter/)).toBeTruthy();
+      expect(main.getByText(/PermitRootLogin yes/)).toBeTruthy();
+      expect(main.queryByText(/sudo -i/)).toBeNull();
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
   it('band portni kiritganda 422 maydon xatosi koʻrsatiladi', async () => {
     const user = userEvent.setup();
     await loginAs(client, 'admin');
